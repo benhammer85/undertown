@@ -63,3 +63,10 @@ metres are left to dig; drawn routes are darker; the other colony's ants are lar
   the plate) and "Next plate"; a lost colony's card with "A new queen". The world holds still under a card.
 - **A status line** over the key: ants, young (the brood: eggs, larvae, pupae), food, metres left to dig.
 - New test, `tests/plates.cjs`.
+
+## 2026-10-20 — plain English
+Every word a player reads rewritten plainly: "Town One: Tallow Row", "Goal: knock down 3 of its 5 buildings",
+"Drag to dig · Hold to make a room", "The city is pumping gas into your tunnels", "Food store", "Nursery: eggs
+and young", "Mushroom farm: turns 1 food into 3", "Drain: soaks up water", "gas can't reach below here",
+"Locked: you can dig deeper in later towns", "34% dug out". Card text set upright, not italic; town numbers
+spelled out (the display face's old-style 1 reads as an i).

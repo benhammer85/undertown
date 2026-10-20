@@ -33,8 +33,8 @@
 </style>
 
 <canvas id="base"></canvas>
-<canvas id="top" role="img" aria-label="A two-colour screenprint in green and pink of an imagined old town over an ant colony: hollow the ground under its buildings until it gives way, while the town fights back; each fallen town sinks into a buried layer under the next."></canvas>
-<div id="key"><div id="status">&nbsp;</div><div id="howto">Draw tunnels · tap a pencilled one to rub it out · hold for a room<br>Tap a room to change it · the queen, then a room, to move her · a tunnel for guards</div></div>
+<canvas id="top" role="img" aria-label="Undertown, a game: an ant colony under a small town. Dig under the buildings to make them fall while the city fights back."></canvas>
+<div id="key"><div id="status">&nbsp;</div><div id="howto">Drag to dig · Hold to make a room · Tap a dotted line to cancel it<br>Tap a room to change it · Tap the queen, then a room, to move her · Tap a tunnel for guards</div></div>
 
 <script>
 (() => {
@@ -304,7 +304,7 @@
   // town; the river the town buried; its harbour before that; the mines; the clay; another colony; chalk; the
   // water table; warm rock. Each city that falls pushes it all one layer deeper (lay() takes that back off).
   const L = { river: 860, harbour: 1080, mine: 1460, clay0: 2030, clay1: 2330, rivals: 1240, chalk: 2630, table: 3080, rock: 3380, warm: 3530 };
-  const LAYERS = [[320, 'The undercroft of the old hall'], [700, 'The old town'], [850, 'The lost river'], [1060, 'The old harbour'], [1236, 'Another colony, with stores to take'], [1440, 'The mine workings'], [2030, 'The clay'], [2630, 'Chalk and flint'], [3080, 'The water table'], [3380, 'Bedrock'], [3530, 'Warm rock']];
+  const LAYERS = [[320, 'Old cellar under the town hall'], [700, 'Ruins of the old town'], [850, 'An underground river'], [1060, 'A buried harbor'], [1236, 'Another ant colony, with food'], [1440, 'Old mine tunnels'], [2030, 'Clay: slow to dig, very strong'], [2630, 'Chalk'], [3080, 'Groundwater: tunnels flood here'], [3380, 'Bedrock: slow to dig'], [3530, 'Warm rock: eggs hatch faster']];
   // (How far down the exterminator's work goes, from the street: concrete as far as the hose, bait as far as an
   // ant will carry it fresh, smoke as far as it sinks.)
   const REACH = { concrete: 225, bait: 375, smoke: 600 };
@@ -393,7 +393,7 @@
     if (k === 0) {
       out.push({ kind: 'paving' });
       out.push({ kind: 'cellar', x: 158, y: 13, w: 54, h: 19, food: 50, label: 'flour', name: "the bakery's cellar" });
-      out.push({ kind: 'cellar', x: 360, y: 14, w: 46, h: 18, food: 40, label: 'cheese', name: "the market's cold store" });
+      out.push({ kind: 'cellar', x: 360, y: 14, w: 46, h: 18, food: 40, label: 'cheese', name: "the market's cheese cellar" });
       out.push({ kind: 'conduit', y: 36, h: 4 });
       PIPE = { kind: 'main', x0: 0, x1: UW, y: 48, h: 13 }; out.push(PIPE);
       GAS = { kind: 'gas', x0: 0, x1: UW, y: 76, h: 6 }; out.push(GAS);
@@ -848,6 +848,7 @@
   // on its rubble.
   let era = 0, downed = 0, towers = [], rubble = [], cars = [], train = { x: -999, at: 2 }, train2 = { x: -999, at: 6, stop: 0, stopped: false }, cityC, cityX, skyC, peak = 0, buildAt = 30, eraLines = [], dust = [], debris = [];
   const NAMES = ['Tallow Row', 'Lanternmarket', 'Brackwater', 'Old Saltings', 'Ferrow', 'Cinder Lane', 'Quillgate', 'Marrowby'];
+  const TOWN = (k) => ['One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten'][k] || String(k + 1);
   const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
   const foundation = () => 30 + era * 15;
   function design(w) {
@@ -981,7 +982,7 @@
     const floor = holeFloorUnder(t.x, t.x + t.w);
     t.fall = { t: 0, side, sink: 0, v: 0, floor };
     alarm += 24;
-    caption(`The ground takes No. ${Math.round(t.x / 4) + 2}`, 2.6);
+    caption('A building fell', 2.6);
     for (let q = 0; q < 6; q++) dust.push({ x: t.x + rnd(-6, t.w + 6), y: rnd(-4, 0), r: rnd(5, 10), vx: rnd(-18, 18), vy: rnd(-2, -0.5), t: 0, life: rnd(2.5, 4), s: Math.random() * 9 });
   }
   function stepTowers(dt) {
@@ -1036,10 +1037,10 @@
     pestCool -= dt;
     // (A hole in the street is the city's first concern: cordoned, then grouted full.)
     const open = holes.find((h) => !h.filled && clock - h.at > 20);
-    if (!pest && open) { pest = { kind: 'grout', x: open.cx, hole: open, t: 0, van: UW + 90, done: false }; caption('Engineers pump grout into the hole', 2.8); }
+    if (!pest && open) { pest = { kind: 'grout', x: open.cx, hole: open, t: 0, van: UW + 90, done: false }; caption('Workers are filling in the hole', 2.8); }
     if (!pest && pestCool <= 0 && entrances.length && QUEEN.alive) {
       const [b, s, c] = thresholds(), kind = alarm >= c && era >= 2 ? 'concrete' : alarm >= s && era >= 1 ? 'smoke' : alarm >= b ? 'bait' : null;
-      if (kind) { const e = busiest(); pest = { kind, x: e.x, t: 0, van: UW + 90, done: false }; caption(kind === 'bait' ? 'The exterminator is called' : kind === 'smoke' ? 'They fumigate' : 'They pour concrete', 2.6); }
+      if (kind) { const e = busiest(); pest = { kind, x: e.x, t: 0, van: UW + 90, done: false }; caption(kind === 'bait' ? 'The city put down poison bait' : kind === 'smoke' ? 'The city is pumping gas into your tunnels' : 'The city is filling your tunnels with concrete', 2.6); }
     }
     if (!pest) return;
     const p = pest; p.t += dt;
@@ -1070,7 +1071,7 @@
     if (pest) { (pest.wet || (pest.wet = [])).push({ x: cxOf(i), y: cyOf(i), at: clock }); if (pest.wet.length > 260) pest.wet.shift(); }
     for (const a of ants) if (!a.surf && gi(a.x, a.y) === i) kill(a);
     if (QUEEN.alive && gi(QUEEN.x, QUEEN.y) === i) loseQueen();
-    if (PRIN.alive && gi(PRIN.x, PRIN.y) === i) { PRIN.alive = false; caption('The second queen is lost', 2.4); }
+    if (PRIN.alive && gi(PRIN.x, PRIN.y) === i) { PRIN.alive = false; caption('Your backup queen died', 2.4); }
   }
   function kill(a) { const k = ants.indexOf(a); if (k < 0) return; ants.splice(k, 1); stats.lost++; dead.push({ x: a.x, y: a.y, a: a.a, at: clock }); }
   function loseQueen() {
@@ -1080,12 +1081,12 @@
       const old = chambers.find((q) => q.role === 'queen'); if (old) old.role = 'nursery';
       const nu = chambers.reduce((b, q) => (!b || Math.hypot(q.x - PRIN.x, q.y - PRIN.y) < Math.hypot(b.x - PRIN.x, b.y - PRIN.y) ? q : b), null); if (nu) nu.role = 'queen';
       QUEEN.x = PRIN.x; QUEEN.y = PRIN.y; QUEEN.hurt = 0; QUEEN.go = null; QUEEN.tx = null; PRIN.alive = false;
-      caption('The queen is lost; the second queen carries on', 3.2); return;
+      caption('Your queen died. The backup queen takes over', 3.2); return;
     }
     plugs = []; rebuildGuards(); brood = []; queenPick = false;
     QUEEN.alive = false; dead.push({ x: QUEEN.x, y: QUEEN.y, a: 0, at: clock, big: true });
     for (const a of [...ants]) kill(a);
-    caption('The colony is exterminated', 3.5);
+    caption('Your colony was wiped out', 3.5);
     setTimeout(lostCard, 2500);
   }
   function newQueen() {
@@ -1095,7 +1096,7 @@
       // (Down one of the ways through the works: a pipe's joint, a vent.)
       const opts = SEAMS.filter((x) => !bad(x)), x = opts.length ? pick(opts) : pick(SEAMS);
       found(x, 330, 24); EX = x; alarm = 0; pestCool = 25;
-      caption('A new queen comes down', 2.6);
+      caption('A new queen has arrived', 2.6);
     }
   }
   function stepSmoke() {
@@ -1168,7 +1169,7 @@
       for (let x2 = PIPE.x0; x2 <= PIPE.x1; x2 += CS) {
         const i = gi(x2, PIPE.y + PIPE.h + 3);
         run = i >= 0 && open4(soil[i]) ? run + 1 : 0;
-        if (run >= 8 && !leaks.some((l) => Math.abs(l.x - x2) < 40)) { leaks.push({ x: x2 - 10, damp: 0 }); alarm += 10; caption('The main bursts', 2.4); run = 0; }
+        if (run >= 8 && !leaks.some((l) => Math.abs(l.x - x2) < 40)) { leaks.push({ x: x2 - 10, damp: 0 }); alarm += 10; caption('A water pipe burst', 2.4); run = 0; }
       }
     }
     if (TUBE) {
@@ -1181,7 +1182,7 @@
     }
   }
   function openHole(gx0, gx1) {
-    for (const t of trees) if (t.alive && !t.buried && t.x > gx0 * CS - 22 && t.x < (gx1 + 1) * CS + 22) { t.alive = false; caption('A street tree goes in, and its aphids with it', 2.6); }
+    for (const t of trees) if (t.alive && !t.buried && t.x > gx0 * CS - 22 && t.x < (gx1 + 1) * CS + 22) { t.alive = false; caption('A tree fell in. Its aphids (food) are gone', 2.6); }
     const cx = ((gx0 + gx1) / 2) * CS, seen = new Uint8Array(GW * GH), q = [];
     for (let g2 = gx0; g2 < gx1; g2++) { seen[g2] = 1; q.push(g2); }
     while (q.length) {
@@ -1194,7 +1195,7 @@
     holes.push(h);
     markDug(cx, 120, 130); dirty = true;
     alarm += 26;
-    caption('The street gives way', 2.8);
+    caption('The street caved in', 2.8);
     // (Its edges: the slab broken, hanging in, the bars trailing.)
     for (const [x, dir] of [[h.x0, 1], [h.x1, -1]]) for (let q2 = 0; q2 < 2; q2++) slabs.push({ x: x + dir * q2 * 6, y: 4 + q2 * 3, w: rnd(12, 20), h: 4, a: dir > 0 ? rnd(0.5, 1.1) : Math.PI - rnd(0.5, 1.1), hole: h });
     for (let q2 = 0; q2 < 12; q2++) dust.push({ x: rnd(h.x0, h.x1), y: rnd(-6, 2), r: rnd(5, 11), vx: rnd(-14, 14), vy: rnd(-4, -1), t: 0, life: rnd(3, 5), s: Math.random() * 9 });
@@ -1204,7 +1205,7 @@
     for (let y = TUBE.y - 1; y < TUBE.y + TUBE.h; y += CS) for (let x = x0; x <= x1; x += CS) { const i = gi(x, y); if (i >= 0 && soil[i] === 2) soil[i] = 4; }
     markDug((x0 + x1) / 2, TUBE.y + TUBE.h / 2, (x1 - x0) / 2 + 50); dirty = true;
     for (let q = 0; q < 6; q++) slabs.push({ x: rnd(x0, x1 - 10), y: TUBE.y + TUBE.h - 10 - q * 3, w: rnd(12, 22), h: 4, a: rnd(-0.4, 0.4), hole: null });
-    alarm += 30; caption('The subway roof gives way', 3);
+    alarm += 30; caption('The subway roof collapsed', 3);
   }
   // (How deep the open hole goes under a point, and under a stretch.)
   function holeFloorAt(x) { let r = 0; while (r < GH) { const i = gi(x, r * CS + 1); if (i < 0 || soil[i] !== 4) break; r++; } return r * CS; }
@@ -1295,7 +1296,7 @@
     if (fallen) return;
     if (downed >= goal.n) {
       fallen = { at: clock };
-      caption(`${NAMES[era % NAMES.length]} has fallen`, 3.4);
+      caption(`${NAMES[era % NAMES.length]} has fallen!`, 3.4);
       towers.filter((t) => !t.fall).forEach((t, k) => setTimeout(() => collapse(t, Math.random() < 0.5 ? -1 : 1), 500 + k * 700));
       setTimeout(fallenCard, 4500 + towers.length * 700);
     }
@@ -1496,11 +1497,11 @@
       return;
     }
     if (a.carry === 'crumb' || a.carry === 'bait') {
-      if (!cellStep(a, fStore)) { const i = gi(a.x, a.y); if (i >= 0 && fStore[i] === 0) { if (a.carry === 'bait') { if (a.y > REACH.bait) { if (!baitSaid) { baitSaid = true; caption('The bait goes stale on the long way down', 2.6); } } else poison += 1; } else stock++; a.carry = null; a.wait = 0.4; a.job = 'idle'; } else wander(a); }
+      if (!cellStep(a, fStore)) { const i = gi(a.x, a.y); if (i >= 0 && fStore[i] === 0) { if (a.carry === 'bait') { if (a.y > REACH.bait) { if (!baitSaid) { baitSaid = true; caption('The poison bait went bad before it reached your colony', 2.6); } } else poison += 1; } else stock++; a.carry = null; a.wait = 0.4; a.job = 'idle'; } else wander(a); }
       return;
     }
     if (a.job === 'mine') {
-      if (!cellStep(a, fFood)) { const i = gi(a.x, a.y), d = deposits.find((q) => q.food >= 1 && Math.hypot(q.x - a.x, q.y - a.y) < q.r * 1.6 + 6); if (i >= 0 && fFood[i] === 0 && d) { d.food -= 1; a.load = d.label; if (d.food < 1) dirty = true; if (d.raid) { alarm += 0.8; if (!d.said) { d.said = true; caption(`They raid ${d.raid}`, 2.4); } } a.carry = 'crumb'; a.wait = 0.4; } else { a.job = 'idle'; wander(a); } }
+      if (!cellStep(a, fFood)) { const i = gi(a.x, a.y), d = deposits.find((q) => q.food >= 1 && Math.hypot(q.x - a.x, q.y - a.y) < q.r * 1.6 + 6); if (i >= 0 && fFood[i] === 0 && d) { d.food -= 1; a.load = d.label; if (d.food < 1) dirty = true; if (d.raid) { alarm += 0.8; if (!d.said) { d.said = true; caption(`Your ants are stealing from ${d.raid}`, 2.4); } } a.carry = 'crumb'; a.wait = 0.4; } else { a.job = 'idle'; wander(a); } }
       return;
     }
     if (a.job === 'dig') {
@@ -1527,8 +1528,8 @@
     const hard = soil[j], x = cxOf(j), y = cyOf(j);
     soil[j] = 0; plan[j] = 0; markDug(x, y, CS); dirty = true;
     a.carry = y > 160 ? null : 'grain'; a.wait = hard === 3 ? 4 : 2.5;
-    if (PIPE && y >= PIPE.y - 2 && y <= PIPE.y + PIPE.h + 2 && !leaks.some((l) => Math.abs(l.x - x) < 30)) { leaks.push({ x, damp: 0 }); alarm += 8; caption('They chew into the main', 2.4); }
-    if (GAS && y >= GAS.y - 2 && y <= GAS.y + GAS.h + 2) { smoke[j] = 0.9; if (clock - gasSaid > 8) { gasSaid = clock; caption('Gas in the tunnels', 2.2); } }
+    if (PIPE && y >= PIPE.y - 2 && y <= PIPE.y + PIPE.h + 2 && !leaks.some((l) => Math.abs(l.x - x) < 30)) { leaks.push({ x, damp: 0 }); alarm += 8; caption('Your ants broke a water pipe', 2.4); }
+    if (GAS && y >= GAS.y - 2 && y <= GAS.y + GAS.h + 2) { smoke[j] = 0.9; if (clock - gasSaid > 8) { gasSaid = clock; caption('Gas leak! Ants nearby may die', 2.2); } }
   }
   function surfAnt(a) {
     if (a.want === 'mound') {
@@ -1660,7 +1661,7 @@
     const t = gi(x, y); if (t < 0) return false;
     if (fNest && fNest[t] < 1e8 && pass(t)) return true;
     const way = findWay(colonyCells(), t);
-    if (!way) { caption('There is no way through to there', 2.2); return false; }
+    if (!way) { caption('Can’t get there', 2.2); return false; }
     planWay(way); return true;
   }
   function finishHand() {
@@ -1689,7 +1690,7 @@
   }
   function toggleLeak(x) {
     const l = leaks.find((q) => Math.abs(q.x - x) < 20);
-    if (l) leaks.splice(leaks.indexOf(l), 1); else { leaks.push({ x, damp: 0 }); alarm += 6; caption('The main bursts', 2); }
+    if (l) leaks.splice(leaks.indexOf(l), 1); else { leaks.push({ x, damp: 0 }); alarm += 6; caption('A water pipe burst', 2); }
   }
 
   // The mixer at work: the drum turning (its blades go round), a chute let down off the back, and the concrete
@@ -1761,28 +1762,28 @@
   // ---------------------------------------------------------------- what's going on, said plainly
   const statusEl = document.getElementById('status');
   function updateStatus() {
-    const dig = toDig > 12 ? ` · ${Math.max(1, Math.round(toDig * CS / 3 / M))} m to dig` : '';
+    const dig = toDig > 12 ? ` · ${Math.max(1, Math.round(toDig * CS / 3 / M))} m left to dig` : '';
     statusEl.textContent = `${ants.length} ants · ${brood.length} young · ${stock} food${dig}`;
   }
   // Cards, printed and laid over the plate: what this plate asks, and how it ended.
   let card = null, hideCards = false;
   const NOTES = [
-    'Draw tunnels under a building to hollow out its footing; hollow enough and the ground takes it. Bait is all the city has, for now.',
-    'The city fumigates now. Smoke sinks no further than 80 m: tap the queen, then a deep nursery, to move her below it.',
-    'They pour concrete now. Tap a tunnel to post guards: smoke and concrete stop at them.',
-    'The ground is surveyed to the bottom: another colony, moles, loose stones. Mind how wide you dig a room.'];
+    'Dig tunnels under a building. Once enough of the ground under it is gone, it falls. Watch out for poison bait.',
+    'New: the city now uses poison gas. Gas can’t reach below 80 m. To keep your queen safe, tap her, then tap a deep room.',
+    'New: the city now fills tunnels with concrete. Tap a tunnel to post guards. Gas and concrete can’t get past them.',
+    'New: you can dig all the way down. Look out for another ant colony, moles and loose rocks. Very big rooms can collapse.'];
   function plateCard() {
-    card = { title: `Plate ${ROMAN[era] || era + 1} · ${NAMES[era % NAMES.length]}`, lines: [`Bring down ${goal.n} of its ${goal.of} buildings.`, era < NOTES.length ? NOTES[era] : 'Deeper, and the city harder for it.'], buttons: [{ label: 'Begin', fn: () => { card = null; } }] };
+    card = { title: `Town ${TOWN(era)}: ${NAMES[era % NAMES.length]}`, lines: [`Goal: knock down ${goal.n} of its ${goal.of} buildings.`, era < NOTES.length ? NOTES[era] : 'The city fights harder in every town.'], buttons: [{ label: 'Start', fn: () => { card = null; } }] };
   }
   const deepest = () => { let m = 0; for (const i of colonyCells()) m = Math.max(m, cyOf(i)); return Math.round(m / M); };
   const mins = (s2) => `${Math.floor(s2 / 60)}:${String(Math.floor(s2 % 60)).padStart(2, '0')}`;
   function fallenCard() {
-    card = { title: `${NAMES[era % NAMES.length]} has fallen`, lines: [`Plate ${ROMAN[era] || era + 1}, pulled in ${mins(clock - plateAt)}. ${downed} buildings taken into the ground; tunnels ${deepest()} m deep; ${ants.length} ants at the end, ${stats.lost} lost.`],
-      buttons: [{ label: 'Save the print', fn: savePrint }, { label: 'Next plate', fn: () => { card = null; bury(); } }] };
+    card = { title: `You brought down ${NAMES[era % NAMES.length]}`, lines: [`Time: ${mins(clock - plateAt)}. Buildings down: ${downed}. Deepest tunnel: ${deepest()} m. Ants left: ${ants.length}. Ants lost: ${stats.lost}.`],
+      buttons: [{ label: 'Save picture', fn: savePrint }, { label: 'Next town', fn: () => { card = null; bury(); } }] };
   }
   function lostCard() {
-    card = { title: 'The colony is lost', lines: [`On plate ${ROMAN[era] || era + 1}, after ${mins(clock - plateAt)}: ${downed} of ${goal.n} buildings down, tunnels ${deepest()} m deep, ${stats.lost} ants lost.`, 'Dig deeper next time, and keep the queen below what the city can reach.'],
-      buttons: [{ label: 'A new queen', fn: () => { card = null; newQueen(); } }] };
+    card = { title: 'Your colony was wiped out', lines: [`Time: ${mins(clock - plateAt)}. Buildings down: ${downed} of ${goal.n}. Deepest tunnel: ${deepest()} m. Ants lost: ${stats.lost}.`, 'Tip: move the queen deep, out of the city’s reach.'],
+      buttons: [{ label: 'Start a new colony', fn: () => { card = null; newQueen(); } }] };
   }
   // (The print saved: inside claude.ai through its downloads, which asks the viewer first; on its own site, as a
   // plain download.)
@@ -1792,12 +1793,12 @@
     const c = document.createElement('canvas'); c.width = base.width; c.height = base.height; const x = c.getContext('2d'); x.drawImage(base, 0, 0); x.drawImage(top, 0, 0);
     const name = `undertown-plate-${era + 1}-${NAMES[era % NAMES.length].toLowerCase().replace(/\W+/g, '-')}.png`;
     c.toBlob(async (blob) => {
-      if (!blob) { caption('The print could not be made', 2); return; }
+      if (!blob) { caption('Couldn’t save the picture', 2); return; }
       const dl = await saver;
-      if (dl) { try { await dl.save({ filename: name, data: blob }); caption('The print is saved', 1.8); } catch (e) { caption(e && e.code === 'declined' ? 'Not saved' : 'Saving isn’t available here', 2); } return; }
-      if (window.claude) { caption('Saving isn’t available here', 2); return; }
+      if (dl) { try { await dl.save({ filename: name, data: blob }); caption('Picture saved', 1.8); } catch (e) { caption(e && e.code === 'declined' ? 'Not saved' : 'Can’t save here', 2); } return; }
+      if (window.claude) { caption('Can’t save here', 2); return; }
       const a = document.createElement('a'); a.download = name; a.href = URL.createObjectURL(blob); document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-      caption('The print is saved', 1.8);
+      caption('Picture saved', 1.8);
     }, 'image/png');
   }
   function drawCards() {
@@ -1805,13 +1806,13 @@
     g.setTransform(DPR, 0, 0, DPR, 0, 0); g.save();
     g.fillStyle = 'rgba(243,236,220,0.72)'; g.fillRect(IN.x, IN.y, IN.w, IN.h);
     const w = Math.min(IN.w - 32, 340), x = IN.x + (IN.w - w) / 2, pad = 18;
-    g.font = `italic 15px ${C('--body') || 'Georgia'}`;
+    g.font = `15px ${C('--body') || 'Georgia'}`;
     const wrap = (txt) => { const out = []; let line = ''; for (const word of txt.split(' ')) { const t2 = line ? line + ' ' + word : word; if (g.measureText(t2).width > w - pad * 2 && line) { out.push(line); line = word; } else line = t2; } if (line) out.push(line); return out; };
     const body = card.lines.map(wrap); const lines = body.reduce((n, b2) => n + b2.length, 0) + body.length - 1;
     const h = 58 + lines * 20 + 56, y = IN.y + Math.max(24, (IN.h - h) * 0.38);
     g.fillStyle = PAPER; g.fillRect(x, y, w, h); g.strokeStyle = OVER; g.lineWidth = 1.4; g.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1); g.lineWidth = 0.6; g.strokeRect(x + 4.5, y + 4.5, w - 9, h - 9);
     g.fillStyle = OVER; g.textAlign = 'center'; g.textBaseline = 'alphabetic'; g.font = `italic 500 22px ${DISPLAY}`; g.fillText(card.title, x + w / 2, y + 38);
-    g.font = `italic 15px ${C('--body') || 'Georgia'}`; let yy = y + 66;
+    g.font = `15px ${C('--body') || 'Georgia'}`; let yy = y + 66;
     for (const b2 of body) { for (const l2 of b2) { g.fillText(l2, x + w / 2, yy); yy += 20; } yy += 20; }
     card.hits = []; const bw = card.buttons.length > 1 ? (w - pad * 2 - 12) / 2 : 150, by = y + h - 46;
     card.buttons.forEach((b2, k) => { const bx = card.buttons.length > 1 ? x + pad + k * (bw + 12) : x + (w - bw) / 2; g.fillStyle = k === card.buttons.length - 1 ? OVER : PAPER; g.fillRect(bx, by, bw, 32); g.strokeStyle = OVER; g.lineWidth = 1; g.strokeRect(bx + 0.5, by + 0.5, bw - 1, 31); g.fillStyle = k === card.buttons.length - 1 ? PAPER : OVER; g.font = `italic 500 17px ${DISPLAY}`; g.fillText(b2.label, bx + bw / 2, by + 21); card.hits.push({ x: bx, y: by, w: bw, h: 32, fn: b2.fn }); });
@@ -1821,7 +1822,7 @@
   // ---------------------------------------------------------------- what the colony makes of its rooms
   // A room's use, changed with a tap: a larder; a nursery (the queen moves to the deepest one); a fungus garden,
   // which takes food and gives back three times as much, if it's below the works; a sump, which drinks water.
-  const ROLES = ['larder', 'nursery', 'garden', 'sump'], ROLE_NAME = { larder: 'A larder', nursery: 'A nursery', garden: 'A fungus garden', sump: 'A sump, to drink the water' };
+  const ROLES = ['larder', 'nursery', 'garden', 'sump'], ROLE_NAME = { larder: 'Food store', nursery: 'Nursery: eggs and young', garden: 'Mushroom farm: turns 1 food into 3', sump: 'Drain: soaks up water' };
   const DEPC = { honey: '#d99a3a', seeds: '#c98c78', aphids: GREEN, flour: '#fbf6ea', cheese: '#e2bd5c', cargo: '#c9a24a', scraps: '#c98c78', 'their stores': '#d9b24c' };
   let baitSaid = false, toDig = 0;
   // Where the digging is: the place a colony tunnel meets the way still drawn ahead of it (the nearest such place
@@ -1841,7 +1842,7 @@
     faceNote = null; if (!face || toDig <= 12) return;
     const vy0 = camY - (G - IN.y) / SZ(), vy1 = camY + (IN.y + IN.h - G) / SZ();
     if (face.y >= vy0 && face.y <= vy1) return;
-    const up = face.y < vy0, m = Math.max(1, Math.round(Math.abs(face.y - (up ? vy0 : vy1)) / M)), txt = up ? `↑ digging, ${m} m above · tap to look` : `↓ digging, ${m} m below · tap to look`;
+    const up = face.y < vy0, m = Math.max(1, Math.round(Math.abs(face.y - (up ? vy0 : vy1)) / M)), txt = up ? `↑ Ants digging ${m} m up · Tap to see` : `↓ Ants digging ${m} m down · Tap to see`;
     g.setTransform(DPR, 0, 0, DPR, 0, 0); g.save(); g.font = `italic 500 15px ${DISPLAY}`;
     const w = g.measureText(txt).width + 24, x = IN.x + IN.w / 2 - w / 2, y = IN.y + IN.h - 36;
     g.fillStyle = 'rgba(243,236,220,0.94)'; g.fillRect(x, y, w, 26); g.strokeStyle = OVER; g.lineWidth = 0.8; g.strokeRect(x + 0.5, y + 0.5, w - 1, 25);
@@ -1861,7 +1862,7 @@
       plans.splice(plans.indexOf(p2), 1);
     }
     if (!hit.length) clear(x, y, 9);
-    dirty = true; caption('Rubbed out', 1.4); findFace();
+    dirty = true; caption('Cancelled', 1.4); findFace();
     return true;
   }
   function tapRoom(x, y) {
@@ -1869,9 +1870,9 @@
     const c = chambers.find((q) => ((x - q.x) / (q.r * 1.4 + 10)) ** 2 + ((y - q.y) / (q.r * 0.6 + 9)) ** 2 < 1 && soil[gi(q.x, q.y)] === 0);
     if (!c) return false;
     if (queenPick) { queenMove(c); return true; }
-    if (c.role === 'queen') { caption("The queen's room: tap her to move her", 2); return true; }
+    if (c.role === 'queen') { caption("The queen's room. Tap the queen to move her", 2); return true; }
     c.role = ROLES[(ROLES.indexOf(c.role) + 1) % ROLES.length]; c.raw = 0; c.ripe = 0;
-    caption(ROLE_NAME[c.role] + (c.role === 'garden' && c.y < 300 ? ' (too near the street to grow)' : ''), 1.8); dirty = true;
+    caption(ROLE_NAME[c.role] + (c.role === 'garden' && c.y < 300 ? ' (too close to the surface to grow)' : ''), 1.8); dirty = true;
     return true;
   }
   function stepRooms(dt) {
@@ -1890,20 +1891,20 @@
   function rebuildGuards() { guardAt.clear(); for (const p2 of plugs) for (const i of p2.cells) guardAt.add(i); }
   function togglePlug(x, y) {
     const old = plugs.find((p2) => Math.hypot(p2.x - x, p2.y - y) < 10);
-    if (old) { plugs.splice(plugs.indexOf(old), 1); for (let q = 0; q < old.n; q++) ants.push(newAnt(old.x, old.y)); rebuildGuards(); caption('The guards stand down', 1.6); return true; }
+    if (old) { plugs.splice(plugs.indexOf(old), 1); for (let q = 0; q < old.n; q++) ants.push(newAnt(old.x, old.y)); rebuildGuards(); caption('Guards removed', 1.6); return true; }
     // (The nearest bit of tunnel to the fingertip.)
     let i = -1, bd = 15;
     for (let dy = -14; dy <= 14; dy += CS) for (let dx = -14; dx <= 14; dx += CS) { const j = gi(x + dx, y + dy), d = Math.hypot(dx, dy); if (j >= 0 && d < bd && soil[j] === 0 && fNest[j] < 1e8 && water[j] < 0.5) { bd = d; i = j; } }
     if (i < 0) return false; x = cxOf(i); y = cyOf(i);
-    if (ants.length < 24 + plugs.length * 12) { caption('No ants to spare for guards', 1.8); return true; }
+    if (ants.length < 24 + plugs.length * 12) { caption('Not enough ants for guards', 1.8); return true; }
     const cells = []; for (let dy = -8; dy <= 8; dy += CS) for (let dx = -8; dx <= 8; dx += CS) { const j = gi(x + dx, y + dy); if (j >= 0 && soil[j] === 0 && Math.hypot(dx, dy) <= 8) cells.push(j); }
     for (let q = 0; q < 3; q++) { let b = null, bd = Infinity; for (const a of ants) { if (a.surf) continue; const d = Math.hypot(a.x - x, a.y - y); if (d < bd) { bd = d; b = a; } } if (b) ants.splice(ants.indexOf(b), 1); }
-    plugs.push({ x, y, n: 3, cells }); rebuildGuards(); caption('Guards hold the tunnel', 1.8);
+    plugs.push({ x, y, n: 3, cells }); rebuildGuards(); caption('Guards posted', 1.8);
     return true;
   }
   function loseGuard(x, y) {
     const p2 = plugs.find((q) => Math.hypot(q.x - x, q.y - y) < 12); if (!p2) return;
-    dead.push({ x: p2.x, y: p2.y, a: -Math.PI / 2, at: clock }); p2.n--; if (p2.n <= 0) { plugs.splice(plugs.indexOf(p2), 1); rebuildGuards(); caption('The guards are overrun', 2); }
+    dead.push({ x: p2.x, y: p2.y, a: -Math.PI / 2, at: clock }); p2.n--; if (p2.n <= 0) { plugs.splice(plugs.indexOf(p2), 1); rebuildGuards(); caption('Your guards were killed', 2); }
   }
 
   // The queen goes down: to the deepest nursery, if there's a way, walking it slowly. Safe below the smoke.
@@ -1911,7 +1912,7 @@
   let fQ = null, queenPick = false;
   function tapQueen(x, y) {
     if (!QUEEN.alive || Math.hypot(x - QUEEN.x, y - QUEEN.y) > 14) return false;
-    queenPick = !queenPick; caption(queenPick ? 'Now tap a room to send the queen there' : 'The queen stays', 2.4); return true;
+    queenPick = !queenPick; caption(queenPick ? 'Now tap a room to send her there' : 'The queen stays put', 2.4); return true;
   }
   function queenMove(best) {
     queenPick = false;
@@ -1919,8 +1920,8 @@
     if (alloc !== cap) fields();
     if (!fQ || fQ.length !== cap) fQ = new Int32Array(cap);
     bfs(fQ, [gi(best.x, best.y)]);
-    const qi = gi(QUEEN.x, QUEEN.y); if (qi < 0 || !(fQ[qi] < 1e8)) { caption('There is no way through to there yet', 2.4); return; }
-    QUEEN.go = best; QUEEN.tx = null; caption(`The queen sets off for ${Math.round(best.y / M)} m${best.y > REACH.smoke ? ', below the smoke' : ''}`, 2.8);
+    const qi = gi(QUEEN.x, QUEEN.y); if (qi < 0 || !(fQ[qi] < 1e8)) { caption('Can’t get there yet', 2.4); return; }
+    QUEEN.go = best; QUEEN.tx = null; caption(`The queen is moving to ${Math.round(best.y / M)} m${best.y > REACH.smoke ? ', out of the gas’s reach' : ''}`, 2.8);
   }
   function stepQueen(dt) {
     const c = QUEEN.go; if (!c || !QUEEN.alive) return;
@@ -1941,7 +1942,7 @@
     if (PRIN.alive || !QUEEN.alive || QUEEN.go || ants.length < 110) return;
     const c = chambers.find((q) => q.role === 'nursery' && Math.hypot(q.x - QUEEN.x, q.y - QUEEN.y) > 140 && gi(q.x, q.y) >= 0 && soil[gi(q.x, q.y)] === 0 && fNest[gi(q.x, q.y)] < 1e8);
     if (!c) return;
-    PRIN.alive = true; PRIN.x = c.x; PRIN.y = c.y + 2; PRIN.hurt = 0; caption('A second queen is raised', 2.6);
+    PRIN.alive = true; PRIN.x = c.x; PRIN.y = c.y + 2; PRIN.hurt = 0; caption('A backup queen has hatched', 2.6);
   }
 
   // Street trees, a few to each town: their roots come down into the made ground, and on the roots, aphids, which
@@ -1966,7 +1967,7 @@
   function stepRivals(dt) {
     if (!RIV || RIV.gone || !fRiv || !fStore) return;
     const ri = gi(RIV.x, RIV.y), linked = ri >= 0 && fStore[ri] < 1e8 && QUEEN.alive;
-    if (linked && !RIV.met) { RIV.met = true; caption('The other colony finds your tunnels', 2.8); }
+    if (linked && !RIV.met) { RIV.met = true; caption('The other colony has found your tunnels', 2.8); }
     for (const r of [...RIV.ants]) {
       if (r.wait > 0) { r.wait -= dt; continue; }
       if (moveAnt(r, dt)) {
@@ -1979,7 +1980,7 @@
       if (guardAt.has(gi(r.x, r.y)) && Math.random() < dt * 2) { if (Math.random() < 0.75) { kill2(r); continue; } loseGuard(r.x, r.y); }
       if (Math.random() < dt * 3) { const a = ants.find((b) => !b.surf && Math.abs(b.x - r.x) < 1.8 && Math.abs(b.y - r.y) < 1.8); if (a) { if (Math.random() < 0.5) kill(a); else { kill2(r); continue; } } }
     }
-    if (!RIV.ants.length && RIV.met) { RIV.gone = true; caption('The other colony is gone; its stores are yours', 3); }
+    if (!RIV.ants.length && RIV.met) { RIV.gone = true; caption('You wiped out the other colony. Its food is yours', 3); }
   }
 
   // A mole: now and then one comes through the deep ground where you've dug, and fills your tunnels behind it.
@@ -2003,11 +2004,11 @@
         if (QUEEN.alive && Math.hypot(x - QUEEN.x, y - QUEEN.y) < 14) continue;
         const i = gi(x, y); if (i >= 0 && soil[i] === 0 && still[i] !== 2) { soil[i] = 1; plan[i] = 1; water[i] = 0; ate = true; }
       }
-      if (ate) { markDug(m.x, m.y, 18); dirty = true; if (!m.said) { m.said = true; caption('A mole comes through, filling the tunnels behind it; the ants will dig them out', 3); } }
+      if (ate) { markDug(m.x, m.y, 18); dirty = true; if (!m.said) { m.said = true; caption('A mole filled in some tunnels. Your ants will dig them out', 3); } }
       for (const a of [...ants]) if (!a.surf && Math.abs(a.x - m.x) < 16 && Math.abs(a.y - m.y) < 11) kill(a);
       if (RIV) for (const r of [...RIV.ants]) if (Math.abs(r.x - m.x) < 10 && Math.abs(r.y - m.y) < 7) kill2(r);
       for (const p2 of [...plugs]) if (Math.hypot(p2.x - m.x, p2.y - m.y) < 11) { plugs.splice(plugs.indexOf(p2), 1); rebuildGuards(); }
-      if (PRIN.alive && Math.abs(PRIN.x - m.x) < 10 && Math.abs(PRIN.y - m.y) < 7) { PRIN.alive = false; caption('The mole takes the second queen', 2.4); }
+      if (PRIN.alive && Math.abs(PRIN.x - m.x) < 10 && Math.abs(PRIN.y - m.y) < 7) { PRIN.alive = false; caption('A mole killed your backup queen', 2.4); }
     }
     if (m.x < -40 || m.x > UW + 40) MOLE = null;
   }
@@ -2021,7 +2022,7 @@
       const x0 = rnd(m.x0, m.x1 - 26), cells = [];
       for (let y = m.y - 3; y < m.y + m.h; y += CS) for (let x = x0; x < x0 + 26; x += CS) { const i = gi(x, y); if (i >= 0 && soil[i] === 0) cells.push(i); }
       fills.push({ cells: cells.sort((a, b) => (cyOf(a) - cyOf(b)) * 100 + (Math.abs(cxOf(a) - x0 - 13) - Math.abs(cxOf(b) - x0 - 13))), rate: 70 });
-      caption('Old timbers give way in the workings', 2.4);
+      caption('Part of the old mine collapsed', 2.4);
     }
   }
   // ---------------------------------------------------------------- what holds the ground up
@@ -2036,7 +2037,7 @@
       let sp = 1; for (let q = CS; q < 150; q += CS) { const i = gi(c.x - q, c.y); if (i < 0 || soil[i] !== 0) break; sp++; } for (let q = CS; q < 150; q += CS) { const i = gi(c.x + q, c.y); if (i < 0 || soil[i] !== 0) break; sp++; }
       const over = sp - SAFE(c.y);
       c.span = sp; c.stress = over > 0 ? (c.stress || 0) + dt * over * 0.007 : Math.max(0, (c.stress || 0) - dt * 0.08);
-      if (c.stress > 0.45 && !c.warned) { c.warned = true; caption('A roof is cracking: that room is too wide for this ground', 2.8); }
+      if (c.stress > 0.45 && !c.warned) { c.warned = true; caption('A room is too big and is starting to crack', 2.8); }
       if (c.stress >= 1) caveIn(c);
     }
   }
@@ -2044,7 +2045,7 @@
     const cells = []; for (let y = c.y - c.r; y <= c.y + 1; y += CS) for (let x = c.x - c.r * 1.7; x <= c.x + c.r * 1.7; x += CS) { const i = gi(x, y); if (i >= 0 && soil[i] === 0) cells.push(i); }
     fills.push({ cells: cells.sort((a, b) => cyOf(a) - cyOf(b)), rate: 140, replan: false });
     c.stress = 0; c.warned = false; c.r = Math.max(8, Math.round(c.r * 0.6)); alarm += 3;
-    caption(c.role === 'queen' ? "The roof of the queen's room comes in" : 'A room caves in', 2.6);
+    caption(c.role === 'queen' ? "The queen's room collapsed" : 'A room collapsed', 2.6);
   }
   // (The strain drawn: cracks running up from the roof, longer as it worsens; past halfway, grains falling.)
   function drawRoofs(t, vy0, vy1) {
@@ -2091,10 +2092,10 @@
   }
   function landStone(st, hit) {
     st.falling = false; st.vy = 0; const y = hit >= 0 ? cyOf(hit) : st.y;
-    let what = st.theirs ? `A stone drops on the other colony: ${st.theirs} of theirs` : st.crushed ? `A stone drops, and takes ${st.crushed} of yours` : '';
+    let what = st.theirs ? `A rock fell and killed ${st.theirs} enemy ants` : st.crushed ? `A rock fell and killed ${st.crushed} of your ants` : '';
     if (inTube(y) && hit >= 0 && soil[hit] === 2) { roofDown(st.x - st.r - 16, st.x + st.r + 16); st.falling = true; return; }
-    if (PIPE && y >= PIPE.y - 2 && y <= PIPE.y + PIPE.h + 2 && !leaks.some((l) => Math.abs(l.x - st.x) < 30)) { leaks.push({ x: st.x, damp: 0 }); alarm += 8; what = 'A stone drops on the main, and it bursts'; }
-    if (GAS && y >= GAS.y - 2 && y <= GAS.y + GAS.h + 2) { for (let dx = -9; dx <= 9; dx += CS) { const i = gi(st.x + dx, GAS.y - 4); if (i >= 0 && soil[i] === 0) smoke[i] = 1; } what = 'A stone cracks the gas line'; }
+    if (PIPE && y >= PIPE.y - 2 && y <= PIPE.y + PIPE.h + 2 && !leaks.some((l) => Math.abs(l.x - st.x) < 30)) { leaks.push({ x: st.x, damp: 0 }); alarm += 8; what = 'A rock fell and burst a water pipe'; }
+    if (GAS && y >= GAS.y - 2 && y <= GAS.y + GAS.h + 2) { for (let dx = -9; dx <= 9; dx += CS) { const i = gi(st.x + dx, GAS.y - 4); if (i >= 0 && soil[i] === 0) smoke[i] = 1; } what = 'A rock fell and cracked a gas pipe'; }
     setStone(st, 2);
     if (what) caption(what, 2.6);
   }
@@ -2123,7 +2124,7 @@
     flushAt -= dt; if (flushAt > 0) return; flushAt = rnd(40, 60);
     const d = deposits.find((q) => q.silt); if (!d || !fNest) return; const i = gi(d.x, d.y); if (i < 0 || !(fNest[i] < 1e8)) return;
     for (let dy = -6; dy <= 6; dy += CS) for (let dx = -11; dx <= 11; dx += CS) { const j = gi(d.x + dx, d.y + dy); if (j >= 0 && soil[j] === 0) water[j] = 1.3; }
-    dirty = true; caption('The sewer flushes', 2);
+    dirty = true; caption('The sewer flooded', 2);
   }
   // (Each layer named, the first time the view comes down to it.)
   const seenL = new Set();
@@ -2145,7 +2146,7 @@
     if (now - paintAt > 100) { paintAt = now; for (const ch of chunks) if (ch && ch.dirty) { const d = ch.dirty; ch.dirty = null; repaint(ch, d[0], d[1], d[2], d[3]); } }
     for (const a of [...ants]) stepAnt(a, dt);
     if (poison > 0 && ants.length) { const k = Math.min(poison, dt * 1.2); poison -= k; if (Math.random() < k) kill(pick(ants)); }
-    if (PRIN.alive) { const pi = gi(PRIN.x, PRIN.y); if (pi >= 0 && smoke[pi] > 0.3) { PRIN.hurt += dt; if (PRIN.hurt > 2.5) { PRIN.alive = false; caption('The second queen is lost', 2.4); } } else PRIN.hurt = Math.max(0, PRIN.hurt - dt * 0.3); }
+    if (PRIN.alive) { const pi = gi(PRIN.x, PRIN.y); if (pi >= 0 && smoke[pi] > 0.3) { PRIN.hurt += dt; if (PRIN.hurt > 2.5) { PRIN.alive = false; caption('Your backup queen died', 2.4); } } else PRIN.hurt = Math.max(0, PRIN.hurt - dt * 0.3); }
     if (QUEEN.alive) { const qi = gi(QUEEN.x, QUEEN.y); if (qi >= 0 && smoke[qi] > 0.3) { QUEEN.hurt += dt; if (QUEEN.hurt > 2.5) loseQueen(); } else QUEEN.hurt = Math.max(0, QUEEN.hurt - dt * 0.3); }
     if (stock >= 2 && ants.length + brood.length < 420 && QUEEN.alive && !QUEEN.go) { stock -= 2; layEggs(2); }
     stepBrood(dt);
@@ -2157,7 +2158,7 @@
     stepRooms(dt); stepQueen(dt); stepFills(dt); stepStones(dt); stepRivals(dt); stepMole(dt); stepSewer(dt);
     train.at -= dt; if (train.at <= 0 && train.x < -998 && !tubeBroken) train.x = TUBE.x0 - 300;
     if (train.x > -998) { const stopAt = tubeBreaks.length ? Math.min(...tubeBreaks.map((b) => b.x0)) - 6 : 1e9; train.x = Math.min(train.x + dt * 150, stopAt - 142); if (train.x > TUBE.x1 + 50 + 2 * 144) { train.x = -999; train.at = rnd(8, 14); } }
-    if (train.x > -998) { const bed = TUBE.y + TUBE.h - 8; for (const a of [...ants]) if (!a.surf && a.y > bed - 7 && a.y < bed && a.x > train.x - 292 && a.x < train.x + 140 && Math.random() < dt * 0.02) { kill(a); if (clock - trainSaid > 25) { trainSaid = clock; caption('A train runs over the ones on the track', 2.2); } } }
+    if (train.x > -998) { const bed = TUBE.y + TUBE.h - 8; for (const a of [...ants]) if (!a.surf && a.y > bed - 7 && a.y < bed && a.x > train.x - 292 && a.x < train.x + 140 && Math.random() < dt * 0.02) { kill(a); if (clock - trainSaid > 25) { trainSaid = clock; caption('A train hit ants on the tracks', 2.2); } } }
     { const stopAt = (STATION.x0 + STATION.x1) / 2 + 120; train2.at -= dt; if (train2.at <= 0 && train2.x < -998) train2.x = STATION.x0 - 120;
       if (train2.x > -998) { if (train2.stop > 0) train2.stop -= dt; else { const before = train2.x; train2.x += dt * (!train2.stopped && Math.abs(train2.x - stopAt) < 90 ? 60 : 160); if (!train2.stopped && before < stopAt && train2.x >= stopAt) { train2.stop = 3.5; train2.stopped = true; } } if (train2.x > STATION.x1 + 460) { train2.x = -999; train2.at = rnd(7, 12); train2.stopped = false; } } }
     for (const lane of [0, 1]) if (Math.random() < dt / 3.2 && cars.filter((c) => c.lane === lane).length < 4) {
@@ -2178,7 +2179,7 @@
       c.v += clamp(target - c.v, -170 * dt, 50 * dt); c.x += c.v * dir * dt;
       // (Over an open hole: in it goes.)
       const h = holes.find((q) => !q.filled && c.x > q.x0 + 2 && c.x < q.x1 - 2);
-      if (h) { c.gone = true; wrecks.push({ s: SPR[c.kind], x: c.x, y: 0, vy: 0, a: 0, va: rnd(1.6, 2.4) * dir, hole: h, rest: false, flip: c.lane }); if (!h.carSaid) { h.carSaid = true; caption(c.kind === 'bus' ? 'A bus goes in' : 'A car goes in', 2.4); } alarm += 6; }
+      if (h) { c.gone = true; wrecks.push({ s: SPR[c.kind], x: c.x, y: 0, vy: 0, a: 0, va: rnd(1.6, 2.4) * dir, hole: h, rest: false, flip: c.lane }); if (!h.carSaid) { h.carSaid = true; caption(c.kind === 'bus' ? 'A bus fell in' : 'A car fell in', 2.4); } alarm += 6; }
     }
     cars = cars.filter((c) => !c.gone && c.x < UW + 90 && c.x > -90);
     for (const w of wrecks) if (!w.rest) { w.vy += dt * 320; w.y += w.vy * dt; w.a = Math.sign(w.va) * Math.min(1.25, Math.abs(w.a + w.va * dt)); const fl = holeFloorAt(w.x) - 8; if (w.y >= fl) { w.y = fl; w.rest = true; } }
@@ -2242,16 +2243,16 @@
         if (tw.fall || tw.rise < 1) continue;
         const k = Math.min(1, (tw.hf || 0) / 0.15), fd = foundation(), x0 = tw.x + 2, w = tw.w - 4;
         g.strokeStyle = PENCIL; g.globalAlpha = 0.35 + k * 0.4; g.lineWidth = 0.6; g.setLineDash([2, 3]); g.strokeRect(x0, 1, w, fd - 1); g.setLineDash([]);
-        if (k > 0.01) { const txt = `${Math.round(k * 100)}% hollowed`, tw2 = g.measureText(txt).width + 8, th = 21 / Math.sqrt(Z) + 4, ly = fd * 0.5; g.globalAlpha = 0.95; g.fillStyle = PAPER; g.fillRect(x0 + w / 2 - tw2 / 2, ly - th / 2, tw2, th); g.strokeStyle = OVER; g.lineWidth = 0.6; g.strokeRect(x0 + w / 2 - tw2 / 2, ly - th / 2, tw2, th); g.fillStyle = 0.66 < k ? '#a3341f' : OVER; g.fillText(txt, x0 + w / 2, ly + 0.5); g.strokeStyle = OVER; g.lineWidth = 2; g.beginPath(); g.moveTo(x0, fd); g.lineTo(x0 + w * k, fd); g.stroke(); }
+        if (k > 0.01) { const txt = `${Math.round(k * 100)}% dug out`, tw2 = g.measureText(txt).width + 8, th = 21 / Math.sqrt(Z) + 4, ly = fd * 0.5; g.globalAlpha = 0.95; g.fillStyle = PAPER; g.fillRect(x0 + w / 2 - tw2 / 2, ly - th / 2, tw2, th); g.strokeStyle = OVER; g.lineWidth = 0.6; g.strokeRect(x0 + w / 2 - tw2 / 2, ly - th / 2, tw2, th); g.fillStyle = 0.66 < k ? '#a3341f' : OVER; g.fillText(txt, x0 + w / 2, ly + 0.5); g.strokeStyle = OVER; g.lineWidth = 2; g.beginPath(); g.moveTo(x0, fd); g.lineTo(x0 + w * k, fd); g.stroke(); }
       }
       g.globalAlpha = 1;
     }
-    { const lim = surveyed(); if (lim < vy1) { g.fillStyle = PAPER; g.globalAlpha = 0.9; g.fillRect(0, lim, UW, vy1 - lim + 10); g.globalAlpha = 0.55; g.strokeStyle = PENCIL; g.lineWidth = 0.5; g.beginPath(); for (let x = -60; x < UW; x += 7) { g.moveTo(x, lim + 60); g.lineTo(x + 60, lim); } g.stroke(); g.globalAlpha = 0.9; g.setLineDash([4, 3]); g.lineWidth = 0.9; g.beginPath(); g.moveTo(0, lim); g.lineTo(UW, lim); g.stroke(); g.setLineDash([]); g.fillStyle = OVER; g.font = `italic 500 ${(19 / Z).toFixed(1)}px ${DISPLAY}`; g.textAlign = 'center'; g.textBaseline = 'top'; g.fillText('Not yet surveyed: deeper on a later plate', UW / 2, lim + 8); g.globalAlpha = 1; } }
+    { const lim = surveyed(); if (lim < vy1) { g.fillStyle = PAPER; g.globalAlpha = 0.9; g.fillRect(0, lim, UW, vy1 - lim + 10); g.globalAlpha = 0.55; g.strokeStyle = PENCIL; g.lineWidth = 0.5; g.beginPath(); for (let x = -60; x < UW; x += 7) { g.moveTo(x, lim + 60); g.lineTo(x + 60, lim); } g.stroke(); g.globalAlpha = 0.9; g.setLineDash([4, 3]); g.lineWidth = 0.9; g.beginPath(); g.moveTo(0, lim); g.lineTo(UW, lim); g.stroke(); g.setLineDash([]); g.fillStyle = OVER; g.font = `italic 500 ${(19 / Z).toFixed(1)}px ${DISPLAY}`; g.textAlign = 'center'; g.textBaseline = 'top'; g.fillText('Locked: you can dig deeper in later towns', UW / 2, lim + 8); g.globalAlpha = 1; } }
     // The street trees' roots, down into the made ground.
     if (vy0 < 40) { g.strokeStyle = OVER; g.lineCap = 'round'; for (const tr2 of trees) { if (tr2.buried) continue; g.globalAlpha = tr2.alive ? 0.85 : 0.35; for (const rt of tr2.roots) { g.lineWidth = 0.7; g.beginPath(); g.moveTo(rt[0][0], rt[0][1]); for (const [x, y] of rt) g.lineTo(x, y); g.stroke(); } } g.globalAlpha = 1; }
     // The exterminator's reach, pencilled in as a surveyor would: a dashed line across, a note at its end.
     g.font = `italic ${(17 / Z).toFixed(1)}px ${DISPLAY}`; g.textAlign = 'right'; g.textBaseline = 'bottom';
-    for (const [y, txt] of [[REACH.concrete, 'concrete is pumped no deeper'], [REACH.bait, 'bait spoils below here'], [REACH.smoke, 'smoke sinks no further']]) {
+    for (const [y, txt] of [[REACH.concrete, 'concrete can’t reach below here'], [REACH.bait, 'poison bait doesn’t work below here'], [REACH.smoke, 'gas can’t reach below here']]) {
       if (y < vy0 || y > vy1) continue;
       g.strokeStyle = PENCIL; g.fillStyle = PENCIL; g.globalAlpha = 0.7; g.lineWidth = 0.6; g.setLineDash([2, 4]); g.beginPath(); g.moveTo(0, y); g.lineTo(UW, y); g.stroke(); g.setLineDash([]); g.fillText(txt, UW - 6, y - 1.5);
     }
@@ -2361,8 +2362,8 @@
     g.setTransform(DPR, 0, 0, DPR, 0, 0);
     const y = F.y + F.t / 2 + 0.5, [b, s, c] = thresholds();
     g.save(); g.fillStyle = PAPER; g.font = `italic 500 13px ${DISPLAY}`; g.textAlign = 'left'; g.textBaseline = 'middle';
-    g.fillText(`Plate ${ROMAN[era] || era + 1} · ${NAMES[era % NAMES.length]}`, F.x + 14, y);
-    { const w0 = g.measureText(`Plate ${ROMAN[era] || era + 1} · ${NAMES[era % NAMES.length]}`).width; for (let k = 0; k < goal.n; k++) { const x = F.x + 22 + w0 + k * 9; g.beginPath(); g.rect(x, y - 3.5, 6, 7); if (k < downed) g.fill(); else { g.strokeStyle = PAPER; g.lineWidth = 1; g.stroke(); } } }
+    g.fillText(`Town ${TOWN(era)} · ${NAMES[era % NAMES.length]}`, F.x + 14, y);
+    { const w0 = g.measureText(`Town ${TOWN(era)} · ${NAMES[era % NAMES.length]}`).width; for (let k = 0; k < goal.n; k++) { const x = F.x + 22 + w0 + k * 9; g.beginPath(); g.rect(x, y - 3.5, 6, 7); if (k < downed) g.fill(); else { g.strokeStyle = PAPER; g.lineWidth = 1; g.stroke(); } } }
     const x0 = F.x + F.w - 24 - 10 * 8;
     const shake = alarm > b ? Math.sin(t * 20) * 0.25 : 0;
     g.save(); g.translate(x0 - 12, y); g.rotate(shake); g.beginPath(); g.moveTo(-4, 3); g.quadraticCurveTo(-4, -5, 0, -5); g.quadraticCurveTo(4, -5, 4, 3); g.closePath(); g.fill(); g.beginPath(); g.arc(0, 4.2, 1.2, 0, TAU); g.fill(); g.restore();

@@ -1,0 +1,398 @@
+<title>Spiral City</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@1,6..72,400&display=swap">
+<style>
+  /* Layout: one sheet of drawing paper, edge to edge; two quiet words at the foot. A single paper look by choice. */
+  :root {
+    --paper: #f1f0eb;
+    --pencil: #6d6a66;
+    --graphite: #4f5157;
+    --signal: #c63f49;
+    --cobalt: #2c5d8c;
+    --serif: "Newsreader", "Iowan Old Style", Georgia, serif;
+    color-scheme: light;
+  }
+  html, body { height: 100%; }
+  body {
+    background: var(--paper); color: var(--pencil); overflow: hidden;
+    touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+    font-family: var(--serif);
+  }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  #over, #paper { pointer-events: none; }
+  #hint {
+    position: fixed; left: 0; right: 0; top: calc(env(safe-area-inset-top, 0px) + 28px);
+    padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+    text-align: center; font-style: italic; font-size: 17px; line-height: 1.4; text-wrap: balance;
+    pointer-events: none; transition: opacity 1.6s ease;
+  }
+  #foot {
+    position: fixed; left: 0; right: 0; bottom: 0; display: flex; justify-content: center; gap: 28px;
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
+    padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+    pointer-events: none;
+  }
+  #foot button {
+    pointer-events: auto; font: italic 16px/1 var(--serif); color: var(--pencil); background: none; border: 0;
+    padding: 12px 6px; cursor: pointer;
+  }
+  #foot button:focus-visible { outline: 1px dashed var(--pencil); outline-offset: 2px; }
+</style>
+
+<canvas id="paper" aria-hidden="true"></canvas>
+<canvas id="ink" role="img" aria-label="A city drawn in fine pen lines: streets traced from your strokes and towers wound as spirals, growing on its own."></canvas>
+<canvas id="over" aria-hidden="true"></canvas>
+<div id="hint">Draw a street. Hold still to raise a tower.</div>
+<div id="foot"><button id="pause" type="button">pause</button><button id="fresh" type="button">new sheet</button></div>
+
+<script>
+(() => {
+  const css = getComputedStyle(document.documentElement);
+  const INKS = ['--graphite', '--signal', '--cobalt'].map((v) => css.getPropertyValue(v).trim());
+  const STILL = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const DPR = Math.min(3, devicePixelRatio || 1);
+  const TAU = Math.PI * 2;
+  const paper = document.getElementById('paper'), inkC = document.getElementById('ink'), over = document.getElementById('over');
+  const hint = document.getElementById('hint');
+  let W = 0, H = 0, ink, ov;
+
+  // ---------------------------------------------------------------- the sheet
+  const CELL = 1.25, STEP = 0.6, MIN_RUN = 5;
+  let GW, GH, grid, nextId;
+  function size() {
+    W = innerWidth; H = innerHeight;
+    for (const c of [paper, inkC, over]) { c.width = Math.round(W * DPR); c.height = Math.round(H * DPR); }
+    ink = inkC.getContext('2d'); ov = over.getContext('2d');
+    ink.setTransform(DPR, 0, 0, DPR, 0, 0); ov.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ink.lineCap = 'round'; ink.lineJoin = 'round';
+    // (The paper's tooth: a faint grain, laid once.)
+    const p = paper.getContext('2d'), img = p.createImageData(paper.width, paper.height), d = img.data;
+    const base = [241, 240, 235];
+    for (let i = 0; i < d.length; i += 4) {
+      const n = (Math.random() - 0.5) * 7;
+      d[i] = base[0] + n; d[i + 1] = base[1] + n; d[i + 2] = base[2] + n * 0.9; d[i + 3] = 255;
+    }
+    p.putImageData(img, 0, 0);
+  }
+
+  // ---------------------------------------------------------------- the city's state
+  let tasks, queue, districts, discs, buckets, running, paused = false;
+  const BUCKET = 40;
+  function reset() {
+    GW = Math.ceil(W / CELL) + 2; GH = Math.ceil(H / CELL) + 2; grid = new Int32Array(GW * GH); nextId = 1;
+    tasks = []; queue = []; districts = []; discs = []; buckets = new Map(); running = 0;
+    ink.clearRect(0, 0, W, H);
+  }
+  const cellOf = (x, y) => { const gx = (x / CELL) | 0, gy = (y / CELL) | 0; return gx < 0 || gy < 0 || gx >= GW || gy >= GH ? -1 : gy * GW + gx; };
+  // (Where the city may reach: round every street and tower drawn by hand, so it grows where you drew.)
+  function addDisc(x, y, r, district) {
+    const d = { x, y, r, district };
+    discs.push(d);
+    for (let bx = Math.floor((x - r) / BUCKET); bx <= Math.floor((x + r) / BUCKET); bx++)
+      for (let by = Math.floor((y - r) / BUCKET); by <= Math.floor((y + r) / BUCKET); by++) {
+        const k = bx + ',' + by; let b = buckets.get(k); if (!b) buckets.set(k, (b = [])); b.push(d);
+      }
+  }
+  function cityAt(x, y) {
+    const b = buckets.get(Math.floor(x / BUCKET) + ',' + Math.floor(y / BUCKET));
+    if (!b) return null;
+    let best = null, bd = Infinity;
+    for (const d of b) { const q = Math.hypot(x - d.x, y - d.y); if (q < d.r && q - d.r < bd) { bd = q - d.r; best = d; } }
+    return best;
+  }
+  const inCity = (x, y) => { const b = buckets.get(Math.floor(x / BUCKET) + ',' + Math.floor(y / BUCKET)); if (!b) return false; for (const d of b) if ((x - d.x) ** 2 + (y - d.y) ** 2 < d.r * d.r) return true; return false; };
+  // (A line goes on only where no other line is: it stops just short of one, as a pen does.)
+  function open(x, y, id) {
+    if (x < 2 || y < 2 || x > W - 2 || y > H - 2 || !inCity(x, y)) return false;
+    const gx = (x / CELL) | 0, gy = (y / CELL) | 0;
+    for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) {
+      const v = grid[(gy + j) * GW + gx + i];
+      if (v && v !== id) return false;
+    }
+    return true;
+  }
+  function freeDisc(x, y, r) {
+    if (!inCity(x, y) || x < r || y < r || x > W - r || y > H - r) return false;
+    for (let yy = y - r; yy <= y + r; yy += CELL) for (let xx = x - r; xx <= x + r; xx += CELL) {
+      if ((xx - x) ** 2 + (yy - y) ** 2 > r * r) continue;
+      const c = cellOf(xx, yy); if (c < 0 || grid[c]) return false;
+    }
+    return true;
+  }
+
+  // ---------------------------------------------------------------- pens
+  // A task is one line being drawn: points (null for a lift), a pen moving along them at its own pace.
+  function pen(pts, id, color, w, speed, free, done) {
+    const t = { pts, id, color, w, speed: STILL ? 1e6 : speed, free, done, i: 0, f: 0, down: false, drawn: 0, run: [], runLen: 0, path: new Path2D() };
+    tasks.push(t);
+    return t;
+  }
+  function advance(t, budget) {
+    const P = t.pts;
+    while (budget > 0 && t.i < P.length - 1) {
+      const a = P[t.i], b = P[t.i + 1];
+      if (!a || !b) { t.i++; t.f = 0; t.down = false; t.run = []; t.runLen = 0; continue; }
+      const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      if (L < 1e-4) { t.i++; t.f = 0; continue; }
+      while (t.f < L && budget > 0) {
+        const s = Math.min(STEP, L - t.f); t.f += s; budget -= s;
+        const x = a[0] + ((b[0] - a[0]) * t.f) / L, y = a[1] + ((b[1] - a[1]) * t.f) / L;
+        if (t.free || open(x, y, t.id)) {
+          if (t.down) { t.path.lineTo(x, y); const c = cellOf(x, y); if (c >= 0) grid[c] = t.id; t.drawn += s; continue; }
+          // (A stretch too short to be a line is never drawn: no stray dashes where two meet.)
+          t.run.push(x, y); t.runLen += s;
+          if (t.runLen >= MIN_RUN || t.free) {
+            const R = t.run; t.path.moveTo(R[0], R[1]);
+            for (let k = 0; k < R.length; k += 2) { t.path.lineTo(R[k], R[k + 1]); const c = cellOf(R[k], R[k + 1]); if (c >= 0) grid[c] = t.id; }
+            t.drawn += t.runLen; t.down = true; t.run = []; t.runLen = 0;
+          }
+        } else { t.down = false; t.run = []; t.runLen = 0; }
+      }
+      if (t.f >= L) { t.i++; t.f = 0; }
+    }
+    return t.i >= P.length - 1;
+  }
+
+  // ---------------------------------------------------------------- what's built
+  // Towers: a spiral wound from the middle, then rings round it, one after another, till they meet the city.
+  // Streets: the line you drew, then lanes either side of it, the same way. Each, once done, seeds smaller
+  // towers along its outer edge, and those seed more, until the ground you drew round is full.
+  function shapeFn(s) {
+    if (!s.sides) return () => 1;
+    const n = s.sides, k = Math.cos(Math.PI / n), round = s.round;
+    return (a) => { const q = ((((a - s.rot) % (TAU / n)) + TAU / n) % (TAU / n)) - Math.PI / n; return round + (1 - round) * (k / Math.cos(q)); };
+  }
+  function towerRing(s, D) {
+    const f = s.shape, n = Math.max(28, Math.ceil((TAU * D) / 2)), a0 = Math.random() * TAU, pts = [], ph = s.ph;
+    for (let j = 0; j <= n; j++) {
+      const a = a0 + (j / n) * TAU, r = D * f(a) + 0.28 * Math.sin(3 * a + ph) + 0.18 * Math.sin(5 * a + ph * 2);
+      pts.push([s.x + Math.cos(a) * r, s.y + Math.sin(a) * r]);
+    }
+    return pts;
+  }
+  function spiral(s) {
+    const f = s.shape, pts = [], end = s.turns * TAU;
+    for (let a = 0; a < end; ) {
+      const r = (s.d * a) / TAU;
+      pts.push([s.x + Math.cos(a + s.rot) * r * f(a + s.rot), s.y + Math.sin(a + s.rot) * r * f(a + s.rot)]);
+      a += 1.4 / Math.max(r, 1.2);
+    }
+    return pts;
+  }
+  function streetLoop(s, D) {
+    const B = s.base, N = s.normals, n = B.length, pts = [];
+    for (let i = 0; i < n; i++) pts.push([B[i][0] + N[i][0] * D, B[i][1] + N[i][1] * D]);
+    const cap = (p, nx, ny) => { const a = Math.atan2(ny, nx), m = Math.max(6, Math.ceil((Math.PI * D) / 2)); for (let j = 1; j < m; j++) { const q = a - (Math.PI * j) / m; pts.push([p[0] + Math.cos(q) * D, p[1] + Math.sin(q) * D]); } };
+    cap(B[n - 1], N[n - 1][0], N[n - 1][1]);
+    for (let i = n - 1; i >= 0; i--) pts.push([B[i][0] - N[i][0] * D, B[i][1] - N[i][1] * D]);
+    cap(B[0], -N[0][0], -N[0][1]);
+    pts.push(pts[0]);
+    // (Where the street turns sharply, its inner lanes would cross themselves: those stretches are lifted.)
+    return pts.map((p) => { for (let i = 0; i < n; i += 2) if ((p[0] - B[i][0]) ** 2 + (p[1] - B[i][1]) ** 2 < (D - 0.8) ** 2) return null; return p; });
+  }
+  function build(s) { queue.push(s); }
+  function startNext(s) {
+    if (s.kind === 'tower' && !s.wound) {
+      s.wound = true;
+      pen(spiral(s), s.spiralId, s.color, s.w, s.hand ? 900 : 170, !!s.hand, () => startNext(s));
+      return;
+    }
+    s.k++;
+    if (s.k > s.maxK) { finish(s); return; }
+    const D = s.kind === 'tower' ? s.turns * s.d + s.k * s.d : s.k * s.d;
+    const pts = s.kind === 'tower' ? towerRing(s, D) : streetLoop(s, D);
+    const t = pen(pts, nextId++, s.color, s.w, 150 + Math.random() * 90, false, () => {
+      s.last = pts.filter(Boolean);
+      // (A ring that found almost no room: the tower is as wide as it will get.)
+      if (t.drawn < 5) finish(s); else startNext(s);
+    });
+  }
+  function finish(s) {
+    running--;
+    const ring = s.last;
+    if (!ring || !ring.length) return;
+    const dist = districts[s.district];
+    let made = 0;
+    for (let tries = 0; tries < 12 && made < 3; tries++) {
+      const p = ring[(Math.random() * ring.length) | 0];
+      let nx, ny;
+      if (s.kind === 'tower') { nx = p[0] - s.x; ny = p[1] - s.y; }
+      else { let bi = 0, bd = Infinity; for (let i = 0; i < s.base.length; i++) { const q = (p[0] - s.base[i][0]) ** 2 + (p[1] - s.base[i][1]) ** 2; if (q < bd) { bd = q; bi = i; } } nx = p[0] - s.base[bi][0]; ny = p[1] - s.base[bi][1]; }
+      const L = Math.hypot(nx, ny) || 1; nx /= L; ny /= L;
+      const d = dist.d * (0.92 + Math.random() * 0.16), turns = 0.9 + Math.random() * (s.depth > 2 ? 1.6 : 2.6);
+      const R = turns * d, cx = p[0] + nx * (R + d * 1.6), cy = p[1] + ny * (R + d * 1.6);
+      if (!freeDisc(cx, cy, R + d * 0.9)) continue;
+      build(tower(cx, cy, turns, d, s.district, s.depth + 1, 2 + ((Math.random() * 5) | 0), false));
+      made++;
+    }
+  }
+  function tower(x, y, turns, d, district, depth, maxK, hand, w) {
+    const dist = districts[district];
+    const pick = Math.random(), sides = pick < dist.square ? 4 : pick < dist.square + dist.hex ? 6 : 0;
+    const s = { kind: 'tower', x, y, turns, d, district, depth, maxK, hand, k: 0, wound: false, spiralId: nextId++, color: dist.color, w: w ?? dist.w,
+      sides, round: 0.35 + Math.random() * 0.3, rot: dist.rot + (sides ? (Math.random() - 0.5) * 0.2 : Math.random() * TAU), ph: Math.random() * TAU };
+    s.shape = shapeFn(s);
+    return s;
+  }
+  function district(x, y, d, w) {
+    const near = cityAt(x, y);
+    if (near) return near.district;
+    // (A new quarter: its own ink, its own build, turned to the way it was first drawn.)
+    const i = districts.length;
+    districts.push({ color: INKS[i % INKS.length], d, w, square: 0.12 + Math.random() * 0.25, hex: 0.1 + Math.random() * 0.25, rot: Math.random() * TAU });
+    return i;
+  }
+
+  // ---------------------------------------------------------------- the hand
+  let hand = null;
+  // (How hard: a pencil's own pressure; on a phone, how wide the fingertip lies on the glass; failing both, how
+  // slowly it goes.)
+  function pressOf(e, speed) {
+    if (e.pointerType === 'pen' && e.pressure > 0) return e.pressure;
+    if (e.pressure > 0 && e.pressure !== 0.5 && e.pressure !== 1) return e.pressure;
+    const wdt = Math.max(e.width || 0, e.height || 0);
+    if (wdt > 4) return Math.max(0, Math.min(1, (wdt - 16) / 34));
+    return Math.max(0.15, Math.min(1, 1 - speed / 1.4));
+  }
+  inkC.addEventListener('pointerdown', (e) => {
+    if (hand) return;
+    inkC.setPointerCapture?.(e.pointerId);
+    const now = performance.now();
+    hand = { id: e.pointerId, pts: [[e.clientX, e.clientY]], t: now, last: now, lx: e.clientX, ly: e.clientY, still: now, holdAt: [e.clientX, e.clientY], press: [], speeds: [], streetId: nextId++, towers: [], len: 0 };
+    hand.press.push(pressOf(e, 0));
+  });
+  inkC.addEventListener('pointermove', (e) => {
+    if (!hand || e.pointerId !== hand.id) return;
+    const evs = e.getCoalescedEvents?.() ?? [e];
+    for (const c of evs.length ? evs : [e]) {
+      const now = c.timeStamp || performance.now(), x = c.clientX, y = c.clientY;
+      const dx = x - hand.lx, dy = y - hand.ly, L = Math.hypot(dx, dy), sp = L / Math.max(1, now - hand.last);
+      if (Math.hypot(x - hand.holdAt[0], y - hand.holdAt[1]) > 9) {
+        // (Moved on from a hold: the tower it raised is set down there.)
+        commitHold(now);
+        hand.holdAt = [x, y]; hand.still = now;
+      }
+      if (L < 1.5) continue;
+      hand.speeds.push(sp); hand.press.push(pressOf(c, sp));
+      hand.len += L;
+      // (The street itself, drawn as the finger goes.)
+      ink.strokeStyle = currentInk(); ink.lineWidth = 1.05 * lineW(); ink.beginPath(); ink.moveTo(hand.lx, hand.ly); ink.lineTo(x, y); ink.stroke();
+      markLine(hand.lx, hand.ly, x, y, hand.streetId);
+      hand.pts.push([x, y]); hand.lx = x; hand.ly = y; hand.last = now;
+    }
+  });
+  const mean = (a, d) => (a.length ? a.reduce((p, q) => p + q, 0) / a.length : d);
+  const lineW = () => 0.5 + 0.55 * mean(hand.press, 0.5);
+  const spacing = () => 3.2 + 3.2 * Math.max(0, Math.min(1, mean(hand.speeds, 0.4) / 1.6));
+  function currentInk() {
+    if (!hand.district) hand.district = { i: district(hand.pts[0][0], hand.pts[0][1], spacing(), lineW()) };
+    return districts[hand.district.i].color;
+  }
+  function markLine(x0, y0, x1, y1, id) {
+    const L = Math.hypot(x1 - x0, y1 - y0), n = Math.ceil(L / STEP);
+    for (let i = 0; i <= n; i++) { const c = cellOf(x0 + ((x1 - x0) * i) / n, y0 + ((y1 - y0) * i) / n); if (c >= 0) grid[c] = id; }
+  }
+  const holdTurns = (now) => Math.min(6, Math.max(0, (now - hand.still - 220) / 380));
+  function commitHold(now) {
+    const turns = holdTurns(now);
+    if (turns < 0.6) return;
+    currentInk();
+    const i = hand.district.i, d = districts[i].d, [x, y] = hand.holdAt, p = mean(hand.press, 0.5);
+    addDisc(x, y, turns * d + 46 + 40 * p, i);
+    const s = tower(x, y, turns, d, i, 0, 3 + Math.round(5 * p), true, lineW());
+    hand.towers.push(s);
+  }
+  for (const type of ['pointerup', 'pointercancel']) inkC.addEventListener(type, (e) => {
+    if (!hand || e.pointerId !== hand.id) return;
+    const now = performance.now();
+    commitHold(now);
+    currentInk();
+    const i = hand.district.i, p = mean(hand.press, 0.5);
+    // (A tap: a small tower, where it fell.)
+    if (hand.len < 6 && !hand.towers.length) {
+      const [x, y] = hand.pts[0], d = districts[i].d;
+      addDisc(x, y, 50 + 30 * p, i);
+      hand.towers.push(tower(x, y, 1.6, d, i, 0, 3 + Math.round(3 * p), true));
+    }
+    if (hand.len >= 24) {
+      const base = resample(hand.pts, 3);
+      for (let j = 0; j < base.length; j += 4) addDisc(base[j][0], base[j][1], 40 + 46 * p, i);
+      const normals = base.map((q, j) => { const a = base[Math.max(0, j - 2)], b = base[Math.min(base.length - 1, j + 2)], tx = b[0] - a[0], ty = b[1] - a[1], L = Math.hypot(tx, ty) || 1; return [-ty / L, tx / L]; });
+      build({ kind: 'street', base, normals, d: districts[i].d, district: i, depth: 0, maxK: 2 + Math.round(4 * p), k: 0, color: districts[i].color, w: lineW() });
+    }
+    for (const s of hand.towers) build(s);
+    hand = null;
+    hint.style.opacity = '0';
+  });
+  function resample(P, step) {
+    // (Smoothed a little first: the street as meant, not every tremor of the finger.)
+    const S = P.map((p, i) => { let x = 0, y = 0, n = 0; for (let j = Math.max(0, i - 2); j <= Math.min(P.length - 1, i + 2); j++) { x += P[j][0]; y += P[j][1]; n++; } return [x / n, y / n]; });
+    const out = [S[0]]; let acc = 0;
+    for (let i = 1; i < S.length; i++) {
+      let [ax, ay] = S[i - 1]; const [bx, by] = S[i]; let L = Math.hypot(bx - ax, by - ay);
+      while (acc + L >= step) { const f = (step - acc) / L; ax += (bx - ax) * f; ay += (by - ay) * f; out.push([ax, ay]); L = Math.hypot(bx - ax, by - ay); acc = 0; }
+      acc += L;
+    }
+    return out.length > 1 ? out : [S[0], S[S.length - 1]];
+  }
+
+  // ---------------------------------------------------------------- each frame
+  const MAX_PENS = 26;
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    if (!paused) {
+      while (running < MAX_PENS && queue.length) { running++; startNext(queue.shift()); }
+      const done = [];
+      for (const t of tasks) {
+        const fin = advance(t, t.speed * dt);
+        ink.strokeStyle = t.color; ink.lineWidth = t.w; ink.stroke(t.path); t.path = new Path2D(); if (t.down) { const p = lastPoint(t); if (p) t.path.moveTo(p[0], p[1]); }
+        if (fin) done.push(t);
+      }
+      if (done.length) { tasks = tasks.filter((t) => !done.includes(t)); for (const t of done) t.done(); }
+    }
+    // (Held still: the tower winding up under the finger, as long as it's held.)
+    ov.clearRect(0, 0, W, H);
+    if (hand && performance.now() - hand.still > 220) {
+      const turns = holdTurns(performance.now());
+      if (turns > 0.05) {
+        currentInk();
+        const d = districts[hand.district.i].d, [x, y] = hand.holdAt;
+        ov.strokeStyle = districts[hand.district.i].color; ov.lineWidth = lineW(); ov.globalAlpha = 0.85; ov.beginPath();
+        for (let a = 0; a < turns * TAU; a += 0.08) { const r = (d * a) / TAU; ov.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r); }
+        ov.stroke(); ov.globalAlpha = 1;
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+  function lastPoint(t) {
+    const a = t.pts[t.i], b = t.pts[t.i + 1];
+    if (!a || !b) return a;
+    const L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+    return [a[0] + ((b[0] - a[0]) * t.f) / L, a[1] + ((b[1] - a[1]) * t.f) / L];
+  }
+
+  // ---------------------------------------------------------------- an example quarter, to begin
+  function example() {
+    const cx = W / 2, cy = H * 0.56, pts = [];
+    for (let i = 0; i <= 60; i++) { const u = i / 60; pts.push([cx - W * 0.32 + u * W * 0.64, cy + Math.sin(u * 3.4 + 0.4) * 34 - u * 30]); }
+    const i = district(pts[0][0], pts[0][1], 3.6, 0.7), base = resample(pts, 3);
+    for (let j = 0; j < base.length; j += 4) addDisc(base[j][0], base[j][1], 64, i);
+    const normals = base.map((q, j) => { const a = base[Math.max(0, j - 2)], b = base[Math.min(base.length - 1, j + 2)], tx = b[0] - a[0], ty = b[1] - a[1], L = Math.hypot(tx, ty) || 1; return [-ty / L, tx / L]; });
+    const id = nextId++;
+    pen(base, id, districts[i].color, 0.75, 700, true, () => {
+      build({ kind: 'street', base, normals, d: 3.6, district: i, depth: 0, maxK: 3, k: 0, color: districts[i].color, w: 0.7 });
+      const t = base[Math.floor(base.length * 0.62)];
+      addDisc(t[0], t[1] - 46, 70, i);
+      build(tower(t[0], t[1] - 46, 3.6, 3.6, i, 0, 4, false));
+    });
+  }
+
+  document.getElementById('fresh').addEventListener('click', () => { reset(); hint.style.opacity = '1'; });
+  const pauseB = document.getElementById('pause');
+  pauseB.addEventListener('click', () => { paused = !paused; pauseB.textContent = paused ? 'grow' : 'pause'; });
+  size(); reset(); example();
+  requestAnimationFrame(frame);
+})();
+</script>

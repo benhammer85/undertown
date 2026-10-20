@@ -1,0 +1,2155 @@
+<title>Undertown</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;1,500&family=Spectral:ital@0;1&display=swap">
+<style>
+  /* Layout: one screen-printed sheet filling the phone: a green frame round a window onto a slice of city and
+     ground that goes down without end; the city's alarm and its plate number on the frame's head, a depth
+     gauge down its right side, a two-line key printed under it. One printed look by choice: two inks on cream. */
+  :root {
+    --paper: #f3ecdc;
+    --green: #23a24e;
+    --pink: #f0b8a5;
+    --over: #1c5e2b;
+    --pencil: #5d5a52;
+    --display: "Cormorant Garamond", "Iowan Old Style", Georgia, serif;
+    --body: "Spectral", Georgia, serif;
+    color-scheme: light;
+  }
+  html, body { height: 100%; }
+  body { background: var(--paper); color: var(--over); overflow: hidden; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; font-family: var(--body); }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  #base { pointer-events: none; }
+  #key {
+    position: fixed; left: 0; right: 0; bottom: 0; text-align: center; pointer-events: none;
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
+    padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+    font-size: 13px; line-height: 1.35; font-style: italic; text-wrap: balance; transition: opacity 1s; color: var(--over);
+  }
+</style>
+
+<canvas id="base"></canvas>
+<canvas id="top" role="img" aria-label="A two-colour screenprint in green and pink of an imagined old town over an ant colony: hollow the ground under its buildings until it gives way, while the town fights back; each fallen town sinks into a buried layer under the next."></canvas>
+<div id="key">Draw tunnels · hold for a room, tap a room to change it<br>Tap the queen, then a room, to move her · tap a tunnel for guards</div>
+
+<script>
+(() => {
+  const css = getComputedStyle(document.documentElement), C = (v) => css.getPropertyValue(v).trim();
+  const PAPER = C('--paper'), GREEN = C('--green'), PINK = C('--pink'), OVER = C('--over'), PENCIL = C('--pencil'), DISPLAY = C('--display');
+  const rgbOf = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+  const DPR = Math.min(2, devicePixelRatio || 1), TAU = Math.PI * 2;
+  const base = document.getElementById('base'), top = document.getElementById('top');
+  const rnd = (a, b) => a + Math.random() * (b - a), clamp = (v, a, b) => Math.max(a, Math.min(b, v)), pick = (a) => a[(Math.random() * a.length) | 0];
+  const mul = (a) => () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+
+  // The world is measured in the plate's units: 600 across the window, the street at 0, the ground below it.
+  const UW = 600, M = 7.5; // (units across; units to a metre)
+  let W, H, F, IN, G, S, RU, SKY, bg, g;
+  function layout() {
+    W = innerWidth; H = innerHeight;
+    for (const c of [base, top]) { c.width = Math.round(W * DPR); c.height = Math.round(H * DPR); }
+    bg = base.getContext('2d'); g = top.getContext('2d');
+    const keyH = document.getElementById('key').offsetHeight, t0 = 14 + (parseFloat(getComputedStyle(document.documentElement).paddingTop) || 0);
+    F = { x: 8, y: t0, w: W - 16, h: H - keyH - 26 - t0, t: 20, tr: 24, b: 14 };
+    IN = { x: F.x + 14, y: F.y + F.t, w: F.w - 14 - F.tr, h: F.h - F.t - F.b };
+    S = IN.w / UW; RU = S * DPR;
+    G = Math.round(IN.y + IN.h * 0.42);
+    SKY = (G - IN.y) / S;
+  }
+
+  // ---------------------------------------------------------------- a hand with a pen, and two screens
+  let T = mul(1);
+  const tex = (s) => { T = mul(s * 7919 + 13); };
+  const tr = (a, b) => a + T() * (b - a);
+  const WM = 1.35; // (the line's weight at this scale, so a screen can hold it)
+  let P; // the plates being drawn on: { ink, tint, mask }
+  function plates(wu, hu, ox, oy) {
+    const mk = () => { const c = document.createElement('canvas'); c.width = Math.ceil(wu * RU); c.height = Math.ceil(hu * RU); const x = c.getContext('2d'); x.setTransform(RU, 0, 0, RU, -ox * RU, -oy * RU); x.lineCap = 'round'; x.lineJoin = 'round'; x.strokeStyle = x.fillStyle = '#000'; return x; };
+    return { ink: mk(), tint: mk(), mask: [], wu, hu, ox, oy };
+  }
+  function line(c, x1, y1, x2, y2, w = 1, over = 1) {
+    w = Math.max(w, 0.62) * WM;
+    const dx = x2 - x1, dy = y2 - y1, L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L, ov = over * Math.min(1, L / 18);
+    const ax = x1 - ux * ov * tr(0, 1.1), ay = y1 - uy * ov * tr(0, 1.1), bx = x2 + ux * ov * tr(0.2, 1.4), by = y2 + uy * ov * tr(0.2, 1.4);
+    const n = Math.max(1, Math.ceil(L / 9)), ph = tr(0, 9), amp = 0.16 + 0.1 * Math.min(1, w);
+    c.lineWidth = w * tr(0.88, 1.1); c.beginPath(); c.moveTo(ax, ay);
+    for (let k = 1; k <= n; k++) { const t = k / n, off = Math.sin(t * 2.6 + ph) * amp + tr(-0.06, 0.06); c.lineTo(ax + (bx - ax) * t - uy * off, ay + (by - ay) * t + ux * off); }
+    c.stroke();
+  }
+  function poly(c, pts, w = 1, closed = true, over = 1) { const n = pts.length; for (let k = 0; k < (closed ? n : n - 1); k++) { const a = pts[k], b = pts[(k + 1) % n]; line(c, a[0], a[1], b[0], b[1], w, over); } }
+  const rect = (x, y, w, h) => [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
+  const ring = (cx, cy, rx, ry = rx, n = 16) => Array.from({ length: n }, (_, i) => [cx + Math.cos((i / n) * TAU) * rx, cy + Math.sin((i / n) * TAU) * ry]);
+  function path(c, pts) { c.beginPath(); c.moveTo(pts[0][0], pts[0][1]); for (let k = 1; k < pts.length; k++) c.lineTo(pts[k][0], pts[k][1]); c.closePath(); }
+  function curve(c, pts, w = 1) { c.lineWidth = Math.max(w, 0.6) * WM; c.beginPath(); c.moveTo(pts[0][0], pts[0][1]); for (let k = 1; k < pts.length - 1; k++) { const m = [(pts[k][0] + pts[k + 1][0]) / 2, (pts[k][1] + pts[k + 1][1]) / 2]; c.quadraticCurveTo(pts[k][0], pts[k][1], m[0], m[1]); } const l = pts[pts.length - 1]; c.lineTo(l[0], l[1]); c.stroke(); }
+  function hatch(c, pts, ang, gap, w = 0.5, tone = () => 1) {
+    w = Math.max(w, 0.5) * WM; gap *= 1.3;
+    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+    for (const [x, y] of pts) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, R = Math.hypot(x1 - x0, y1 - y0) / 2 + 2, ca = Math.cos(ang), sa = Math.sin(ang);
+    c.save(); path(c, pts); c.clip(); c.lineWidth = w;
+    for (let o = -R; o <= R; o += gap * tr(0.85, 1.15)) {
+      let s = -R;
+      while (s < R) {
+        const len = tr(10, 34), e = Math.min(R, s + len);
+        const px = cx + ca * s - sa * o, py = cy + sa * s + ca * o, qx = cx + ca * e - sa * o, qy = cy + sa * e + ca * o;
+        if (T() < tone((px + qx) / 2, (py + qy) / 2)) { const j = tr(-0.25, 0.25); c.beginPath(); c.moveTo(px, py + j); c.lineTo(qx, qy - j); c.stroke(); }
+        s = e + (T() < 0.25 ? tr(0.5, 2.5) : 0);
+      }
+    }
+    c.restore();
+  }
+  function stipple(c, pts, n, r0 = 0.55, r1 = 0.95, tone = () => 1) {
+    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+    for (const [x, y] of pts) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+    c.save(); path(c, pts); c.clip();
+    for (let k = 0; k < n; k++) { const x = tr(x0, x1), y = tr(y0, y1); if (T() < tone(x, y)) { c.beginPath(); c.arc(x, y, tr(r0, r1), 0, TAU); c.fill(); } }
+    c.restore();
+  }
+  function occlude(pts) { P.mask.push(pts); for (const c of [P.ink, P.tint]) { c.save(); c.globalCompositeOperation = 'destination-out'; path(c, pts); c.fill(); c.restore(); } }
+  // (The pink is one ink: a darker tone of it on the plate prints as denser halftone.)
+  const TONES = { soil: 1, deep: 1.12, paving: 1, pipe: 0.5, concrete: 0.62, brick: 1.08, stone: 1.1, rubble: 0.95, void: 1.25, facade: 0.42, cobble: 1.05, mound: 1 };
+  function tint(pts, tone) { const v = Math.round(255 - 255 * 0.46 * (TONES[tone] ?? tone)); P.tint.fillStyle = `rgb(${v},${v},${v})`; path(P.tint, pts); P.tint.fill(); }
+  function erase(c, fn) { c.save(); c.globalCompositeOperation = 'destination-out'; fn(c); c.restore(); }
+
+  // Pulling a plate through the screen: the ink spreads and fills in where the drawing's dense, the mesh breaks
+  // its edges, the squeegee leaves it heavier in bands; the pink's lighter tones come out as a halftone.
+  function noiseField(Wd, Hd, cell, seed) {
+    const r = mul(seed), gw = Math.ceil(Wd / cell) + 2, gh = Math.ceil(Hd / cell) + 2, gr = new Float32Array(gw * gh);
+    for (let i = 0; i < gr.length; i++) gr[i] = r();
+    return (x, y) => { const fx = x / cell, fy = y / cell, i = fx | 0, j = fy | 0, u = fx - i, v = fy - j, s = u * u * (3 - 2 * u), t = v * v * (3 - 2 * v), q = j * gw + i; return (gr[q] * (1 - s) + gr[q + 1] * s) * (1 - t) + (gr[q + gw] * (1 - s) + gr[q + gw + 1] * s) * t; };
+  }
+  function pull(src, col, o, seed) {
+    const Wd = src.canvas.width, Hd = src.canvas.height, c = document.createElement('canvas'); c.width = Wd; c.height = Hd;
+    const x = c.getContext('2d'); x.filter = `blur(${o.spread}px)`; x.drawImage(src.canvas, 0, 0); x.filter = 'none';
+    const img = x.getImageData(0, 0, Wd, Hd), d = img.data, rgb = rgbOf(col);
+    const fine = noiseField(Wd, Hd, 2.2, seed), mid = noiseField(Wd, Hd, 14, seed + 1), broad = noiseField(Wd, Hd, 160, seed + 2), r = mul(seed + 3);
+    for (let y = 0; y < Hd; y++) {
+      const streak = 1 + o.streak * Math.sin((y + seed * 7) / 23 + Math.sin(y / 170) * 3);
+      for (let xx = 0; xx < Wd; xx++) {
+        const p = (y * Wd + xx) * 4; let a = d[p + 3] / 255;
+        if (a < 0.02) { d[p + 3] = 0; continue; }
+        if (o.tone) a *= Math.min(1, (255 - d[p]) / (255 * 0.46));
+        a *= streak * (1 - o.mottle + o.mottle * 2 * broad(xx, y)) * (0.86 + 0.28 * mid(xx, y));
+        let th = o.thresh + (fine(xx, y) - 0.5) * o.rough;
+        if (o.tone) { const u = (xx * 0.966 + y * 0.259) * TAU / 5.2, v = (-xx * 0.259 + y * 0.966) * TAU / 5.2; th = Math.min(th + 0.4, 0.06 + 0.88 * (0.5 + 0.25 * (Math.cos(u) + Math.cos(v)))) + (fine(xx, y) - 0.5) * 0.12; }
+        let out = Math.min(1, Math.max(0, (a - th) / o.soft + 0.5));
+        if (r() < o.drop) out *= 0.25;
+        d[p] = rgb[0]; d[p + 1] = rgb[1]; d[p + 2] = rgb[2]; d[p + 3] = out * 255;
+      }
+    }
+    x.putImageData(img, 0, 0);
+    return c;
+  }
+  const INKP = { spread: 0.7, thresh: 0.3, soft: 0.16, rough: 0.5, streak: 0.06, mottle: 0.1, drop: 0.012 };
+  const TINTP = { spread: 1.3, thresh: 0.42, soft: 0.1, rough: 0.35, streak: 0.05, mottle: 0.1, drop: 0.004, tone: true };
+  const MIS = [4, 2.5]; // (how far off the green the pink was laid, device pixels)
+  let SEEDN = 1;
+  // The plates, printed: onto paper (a sheet), or as a cut-out (a thing that stands in front of others).
+  function printed(Pl, onPaper) {
+    const ink = pull(Pl.ink, GREEN, INKP, SEEDN++ * 31), tn = pull(Pl.tint, PINK, TINTP, SEEDN++ * 31);
+    const c = document.createElement('canvas'); c.width = Pl.ink.canvas.width; c.height = Pl.ink.canvas.height;
+    const x = c.getContext('2d');
+    if (onPaper) { x.fillStyle = x.createPattern(paperTile, 'repeat'); x.fillRect(0, 0, c.width, c.height); }
+    else { x.setTransform(RU, 0, 0, RU, -Pl.ox * RU, -Pl.oy * RU); x.fillStyle = x.createPattern(paperTile, 'repeat'); for (const m of Pl.mask) { path(x, m); x.fill(); } x.setTransform(1, 0, 0, 1, 0, 0); }
+    x.globalCompositeOperation = onPaper ? 'multiply' : 'source-atop';
+    if (!onPaper) { x.globalCompositeOperation = 'multiply'; }
+    x.drawImage(tn, MIS[0], MIS[1]); x.drawImage(ink, 0, 0);
+    if (!onPaper) {
+      // (Outside the cut, only ink: what the plates printed beyond it, nothing of the paper.)
+      x.globalCompositeOperation = 'destination-in';
+      const m = document.createElement('canvas'); m.width = c.width; m.height = c.height; const mx = m.getContext('2d');
+      mx.drawImage(ink, 0, 0); mx.drawImage(tn, MIS[0], MIS[1]); mx.setTransform(RU, 0, 0, RU, -Pl.ox * RU, -Pl.oy * RU); mx.fillStyle = '#000'; for (const mm of Pl.mask) { path(mx, mm); mx.fill(); }
+      x.drawImage(m, 0, 0);
+    }
+    return c;
+  }
+  // The paper: cream stock with a tooth.
+  let paperTile, paperData;
+  function makePaper() {
+    paperTile = document.createElement('canvas'); paperTile.width = paperTile.height = 256;
+    const x = paperTile.getContext('2d'); x.fillStyle = PAPER; x.fillRect(0, 0, 256, 256);
+    const r = mul(5);
+    for (let q = 0; q < 2600; q++) { x.fillStyle = r() < 0.5 ? 'rgba(120,96,64,0.07)' : 'rgba(255,255,255,0.3)'; x.fillRect(r() * 256, r() * 256, 1 + r() * 2.5, 1 + r()); }
+    paperData = x.getImageData(0, 0, 256, 256).data;
+  }
+
+  // ---------------------------------------------------------------- the vocabulary of a facade
+  function window_(x, y, w, h, kind, dark) {
+    const k = P.ink;
+    poly(k, rect(x, y, w, h), 0.55, true, 0.4);
+    if (kind === 'arch') { k.lineWidth = 0.9; k.beginPath(); k.arc(x + w / 2, y, w / 2 + 0.8, Math.PI, 0); k.stroke(); hatch(k, [[x, y], [x + w, y], ...Array.from({ length: 7 }, (_, i) => { const a = (i / 6) * Math.PI; return [x + w / 2 + Math.cos(a) * w / 2, y - Math.sin(a) * w / 2]; })], 0.9, 1.4, 0.35); }
+    else line(k, x - 1.2, y - 1.3, x + w + 1.2, y - 1.3, 0.9, 0.3);
+    line(k, x - 1.5, y + h + 1, x + w + 1.5, y + h + 1, 0.8, 0.3);
+    line(k, x + w / 2, y, x + w / 2, y + h, 0.35, 0);
+    if (dark) { hatch(k, rect(x, y, w, h), 0.95, 1.1, 0.45); hatch(k, rect(x, y, w, h), -0.6, 1.6, 0.35); }
+    else hatch(k, rect(x, y, w, h), 0.9, 2.2, 0.3, (px, py) => (py - y < h * 0.45 ? 0.75 : 0.15));
+  }
+  function cornice(x, y, w, depth = 7) {
+    const k = P.ink;
+    poly(k, rect(x - 4, y - depth, w + 8, depth * 0.55), 1.1);
+    poly(k, rect(x - 2, y - depth * 0.45, w + 4, depth * 0.45), 0.8);
+    for (let q = x; q < x + w; q += 4) line(k, q, y - depth * 0.42, q, y - depth * 0.12, 0.5, 0);
+    hatch(k, rect(x - 2, y, w + 4, 3.2), 0, 0.9, 0.4);
+  }
+  // ---------------------------------------------------------------- buildings, each drawn standing on its own street (y = 0)
+  function masonry(b) {
+    const k = P.ink, tp = -b.body, sil = rect(0, tp, b.w, b.body);
+    occlude(sil); tint(sil, 'facade');
+    hatch(k, sil, 0, 2.6, 0.25, (x) => 0.12 + 0.35 * (x / b.w) ** 2);
+    const sf = b.fh * 1.35, sy = -sf;
+    line(k, 0, sy, b.w, sy, 1.1);
+    for (let q = 4; q < b.w - 10; q += 18) { poly(k, rect(q, sy + 6, 13, sf - 9), 0.6); hatch(k, rect(q, sy + 6, 13, sf - 9), 0.9, 1.6, 0.3, (x, y) => (y < sy + 14 ? 0.8 : 0.25)); }
+    hatch(k, [[-3, sy + 1], [b.w + 3, sy + 1], [b.w + 1, sy + 6], [-1, sy + 6]], 0.9, 1.1, 0.45);
+    const cols = Math.max(2, Math.floor((b.w - 6) / 17)), cw = (b.w - 6) / cols;
+    for (let f = 0; f < b.floors; f++) {
+      const y = sy - (f + 1) * b.fh + b.fh * 0.3;
+      for (let c = 0; c < cols; c++) window_(3 + c * cw + cw * 0.22, y, cw * 0.56, b.fh * 0.56, b.arch && f === b.floors - 1 ? 'arch' : 'square', T() < 0.24);
+      if (f % 3 === 2) line(k, 0, sy - (f + 1) * b.fh + 1.5, b.w, sy - (f + 1) * b.fh + 1.5, 0.6, 0.6);
+    }
+    if (b.stone) for (let y = sy + 6; y < -2; y += 5) line(k, 0, y, b.w, y, 0.4, 0.2);
+    poly(k, sil, 1.5, true, 1.2);
+    roof(b, tp);
+  }
+  function chimney(x, y, h) { const k = P.ink, pts = rect(x, y - h, 7, h); occlude(pts); tint(pts, 'brick'); poly(k, pts, 0.9); poly(k, rect(x - 1.5, y - h - 2.5, 10, 2.5), 0.8); hatch(k, pts, 1.57, 1, 0.4, (px) => (px > x + 4 ? 0.9 : 0.1)); }
+  function roof(b, tp) {
+    const k = P.ink;
+    if (b.roof === 'gable') {
+      const rh = b.w * 0.3, pts = [[-5, tp], [b.w / 2, tp - rh], [b.w + 5, tp]];
+      chimney(b.w * 0.68, tp - rh * 0.36, 16);
+      occlude(pts); tint(pts, 'brick');
+      // (Tiles: courses across, and the shade on the side away from the light.)
+      for (let y = tp - 4; y > tp - rh + 4; y -= 4) { const hw = ((y - (tp - rh)) / rh) * (b.w / 2 + 5); line(k, b.w / 2 - hw + 1, y, b.w / 2 + hw - 1, y, 0.35, 0); }
+      hatch(k, [[b.w / 2, tp - rh], [b.w + 5, tp], [b.w / 2, tp]], 1.1, 1.3, 0.4);
+      poly(k, pts, 1.3, true, 1);
+      line(k, -6, tp, b.w + 6, tp, 1.2, 0.5);
+    } else if (b.roof === 'mansard') {
+      const pts = [[-3, tp], [8, tp - 22], [b.w - 8, tp - 22], [b.w + 3, tp]];
+      chimney(14, tp - 22, 10); chimney(b.w - 22, tp - 22, 12);
+      occlude(pts); tint(pts, 'brick');
+      hatch(k, pts, 1.57, 1.4, 0.35, (x) => (x > b.w * 0.6 ? 0.85 : 0.35));
+      for (let x = 14; x < b.w - 18; x += 22) { const d = [[x, tp - 2], [x, tp - 13], [x + 5, tp - 18], [x + 10, tp - 13], [x + 10, tp - 2]]; occlude(d); tint(d, 'facade'); poly(k, d, 0.7); poly(k, rect(x + 2.5, tp - 11, 5, 8), 0.45); }
+      poly(k, pts, 1.3, true, 1);
+      cornice(0, tp + 1, b.w, 6);
+    } else {
+      chimney(b.w * 0.2, tp - 6, 12); chimney(b.w * 0.75, tp - 6, 9);
+      cornice(0, tp + 1, b.w, 7);
+    }
+  }
+  // A civic hall of the town's own: columns and a pediment, and a dome or a clock above.
+  function civic(b) {
+    const k = P.ink, bh = b.body, tp = -bh, sil = rect(0, tp, b.w, bh);
+    occlude(sil); tint(sil, 'facade');
+    const cx = b.w / 2;
+    if (b.dome) {
+      const drum = rect(cx - 24, tp - 44, 48, 22), dome = [[cx - 26, tp - 44], ...Array.from({ length: 13 }, (_, i) => { const a = Math.PI + (i / 12) * Math.PI; return [cx + Math.cos(a) * 26, tp - 44 + Math.sin(a) * 26]; }), [cx + 26, tp - 44]];
+      occlude(drum); tint(drum, 'facade'); poly(k, drum, 1); for (let x = cx - 18; x < cx + 20; x += 9) { poly(k, rect(x, tp - 39, 4, 12), 0.45); k.lineWidth = 0.6; k.beginPath(); k.arc(x + 2, tp - 39, 2, Math.PI, 0); k.stroke(); }
+      occlude(dome); tint(dome, 'brick'); poly(k, dome, 1.2, true, 0.4);
+      for (let i = 1; i < 6; i++) { const a = Math.PI + (i / 6) * Math.PI; curve(k, [[cx + Math.cos(a) * 26, tp - 44], [cx + Math.cos(a) * 18, tp - 44 - 18], [cx, tp - 70]], 0.4); }
+      hatch(k, dome, 1.2, 1.3, 0.35, (x) => (x > cx + 4 ? 0.9 : 0.1));
+      const lan = rect(cx - 4, tp - 80, 8, 10); occlude(lan); poly(k, lan, 0.8); line(k, cx, tp - 80, cx, tp - 88, 0.8);
+    } else {
+      const sh = rect(cx - 13, tp - 84, 26, 62), pyr = [[cx - 16, tp - 84], [cx, tp - 104], [cx + 16, tp - 84]];
+      occlude(sh); tint(sh, 'facade'); poly(k, sh, 1.1); hatch(k, sh, 1.57, 1.4, 0.35, (x) => (x > cx + 6 ? 0.9 : 0.05));
+      occlude(ring(cx, tp - 66, 8, 8, 20)); k.lineWidth = 0.9 * WM; k.beginPath(); k.arc(cx, tp - 66, 8, 0, TAU); k.stroke(); line(k, cx, tp - 66, cx, tp - 72, 0.6, 0); line(k, cx, tp - 66, cx + 4, tp - 66, 0.6, 0);
+      for (let x = cx - 9; x < cx + 9; x += 6) poly(k, rect(x, tp - 50, 3, 10), 0.4);
+      occlude(pyr); tint(pyr, 'brick'); poly(k, pyr, 1.1); hatch(k, [[cx, tp - 104], [cx + 16, tp - 84], [cx, tp - 84]], 1.1, 1.2, 0.4);
+    }
+    const ped = [[-4, tp], [cx, tp - 22], [b.w + 4, tp]];
+    occlude(ped); tint(ped, 'facade'); poly(k, ped, 1.2); hatch(k, ped, 0, 3.2, 0.3, () => 0.35);
+    poly(k, rect(-3, tp, b.w + 6, 7), 1); for (let x = 0; x < b.w; x += 4) line(k, x, tp + 1.5, x, tp + 5, 0.35, 0);
+    const n = 6, gap = (b.w - 16) / n;
+    for (let q = 0; q <= n; q++) { const x = 8 + q * gap - 2.5; const c = rect(x, tp + 9, 5, bh - 20); poly(k, c, 0.7); hatch(k, rect(x + 3, tp + 9, 2, bh - 20), 1.57, 0.8, 0.4); }
+    for (let q = 0; q < n; q++) { const x = 8 + q * gap + gap / 2 - 5; window_(x, tp + 24, 10, 22, 'arch', q % 2 === 0); if (bh > 90) window_(x, tp + 58, 10, 16, 'square', false); }
+    for (let s = 0; s < 3; s++) line(k, -4 - s * 3, -3 - s * 3.4 + 3, b.w + 4 + s * 3, -3 - s * 3.4 + 3, 0.7, 0.3);
+    poly(k, sil, 1.5, true, 1.2);
+  }
+  function glass(b) {
+    const k = P.ink, tp = -b.h, sil = rect(0, tp, b.w, b.h), f = b.fine ? 0.6 : 1;
+    occlude(sil); tint(sil, b.fine ? 0.12 : 'facade');
+    for (let y = -30; y > tp; y -= b.fine ? 22 : 11) { line(k, 0, y, b.w, y, 0.4 * f, 0.2); if (!b.fine) hatch(k, rect(0, y - 2.6, b.w, 2.6), 0, 1.2, 0.3, () => 0.45); }
+    for (let x = 12; x < b.w; x += b.fine ? 18 : 12) line(k, x, tp, x, -30, 0.3 * f, 0);
+    if (!b.fine) { poly(k, rect(0, -30, b.w, 30), 1); for (let x = 6; x < b.w - 6; x += 16) poly(k, rect(x, -26, 12, 26), 0.5); }
+    poly(k, sil, b.fine ? 0.8 : 1.5, true, 1.2);
+  }
+  // (Cracks a tower's taken: stepped up its face from the side the ground's going.)
+  function crackLines(b, side) {
+    const k = P.ink;
+    for (let c = 0; c < 2 + b.damage; c++) {
+      let x = side > 0 ? b.w - tr(4, 20) : tr(4, 20), y = -tr(10, 40); k.lineWidth = 0.9 * WM; k.beginPath(); k.moveTo(x, y);
+      for (let s = 0; s < 16; s++) { if (s % 2) x -= side * tr(2, 6); else y -= tr(4, 9); k.lineTo(x, y); } k.stroke();
+    }
+  }
+
+  // ---------------------------------------------------------------- the ground: a grid that grows downward as it's seen
+  // (soil: 1 earth, 0 dug, 2 the city's works and things buried, 3 the exterminator's concrete, 4 an open hole,
+  // 5 the subway's own space, where an ant can walk: the vent ladders, the track bed, the floor's gullies)
+  const CS = 3, CH = 999, GW = UW / CS;
+  let GH = 0, cap = 0, soil, plan, water, still, smoke, chunks = [];
+  const gi = (x, y) => { const gx = Math.floor(x / CS), gy = Math.floor(y / CS); return gx < 0 || gy < 0 || gx >= GW || gy >= GH ? -1 : gy * GW + gx; };
+  const cxOf = (i) => ((i % GW) + 0.5) * CS, cyOf = (i) => (Math.floor(i / GW) + 0.5) * CS;
+  function ensureRows(rows) {
+    if (rows <= GH) return;
+    if (rows * GW > cap) {
+      const nc = Math.max(rows * GW, cap * 2), s2 = new Uint8Array(nc).fill(1), p2 = new Uint8Array(nc), w2 = new Float32Array(nc), t2 = new Uint8Array(nc), m2 = new Float32Array(nc);
+      if (soil) { const n = GH * GW; s2.set(soil.subarray(0, n)); p2.set(plan.subarray(0, n)); w2.set(water.subarray(0, n)); t2.set(still.subarray(0, n)); m2.set(smoke.subarray(0, n)); }
+      soil = s2; plan = p2; water = w2; still = t2; smoke = m2; cap = nc;
+    }
+    GH = rows; dirty = true;
+  }
+  // What lies where, in units (7.5 to the metre), as laid down: the street's works; the hall's undercroft; the old
+  // town; the river the town buried; its harbour before that; the mines; the clay; another colony; chalk; the
+  // water table; warm rock. Each city that falls pushes it all one layer deeper (lay() takes that back off).
+  const L = { river: 860, harbour: 1080, mine: 1460, clay0: 2030, clay1: 2330, rivals: 2440, chalk: 2630, table: 3080, rock: 3380, warm: 3530 };
+  const LAYERS = [[320, 'The undercroft of the old hall'], [700, 'The old town'], [850, 'The lost river'], [1060, 'The old harbour'], [1440, 'The mine workings'], [2030, 'The clay'], [2420, 'Another colony'], [2630, 'Chalk and flint'], [3080, 'The water table'], [3380, 'Bedrock'], [3530, 'Warm rock']];
+  // (How far down the exterminator's work goes, from the street: concrete as far as the hose, bait as far as an
+  // ant will carry it fresh, smoke as far as it sinks.)
+  const REACH = { concrete: 225, bait: 375, smoke: 600 };
+  const lay = (y) => y - era * ERA_H;
+  const rocky = (y) => lay(y) > L.rock, clay = (y) => lay(y) > L.clay0 && lay(y) < L.clay1;
+  function chunk(k) {
+    if (chunks[k]) return chunks[k];
+    for (let j = chunks.length; j < k; j++) chunk(j);
+    ensureRows(Math.ceil(((k + 1) * CH) / CS));
+    const y0 = k * CH, MG = 10;
+    // (Printed with a margin all round and trimmed, so no edge of the screen shows at the seams.)
+    P = plates(UW + 2 * MG, CH + 2 * MG, -MG, y0 - MG);
+    tex(1000 + k);
+    const all = rect(-MG, y0 - MG, UW + 2 * MG, CH + 2 * MG);
+    tint(all, k >= 3 ? 'deep' : 'soil');
+    // (Depth: stipple growing denser; strata as faint wavy lines.)
+    stipple(P.ink, all, 26000, 0.55, 0.95, (x, y) => 0.08 + 0.4 * Math.min(1, (y / 2400)) ** 1.2);
+    // (Strata: a few faint lines, broken, drawn as a hand would suggest them.)
+    for (let s = 0; s < 6; s++) { const yy = y0 + 60 + s * 160 + tr(-30, 30); let x = tr(-20, 60); while (x < UW) { const l = tr(40, 140), pts = []; for (let q = 0; q <= l; q += 14) pts.push([x + q, yy + Math.sin((x + q) / 70 + s + k) * 5]); if (T() < 0.75) curve(P.ink, pts, 0.45); x += l + tr(10, 60); } }
+    for (const f of featuresFor(k)) place(f);
+    const full = printed(P, true), pc = document.createElement('canvas'); pc.width = Math.ceil(UW * RU); pc.height = Math.ceil(CH * RU);
+    pc.getContext('2d').drawImage(full, -MG * RU, -MG * RU);
+    const c = document.createElement('canvas'); c.width = pc.width; c.height = pc.height;
+    const ch = (chunks[k] = { k, y0, pc, c, x: c.getContext('2d'), dirty: null });
+    repaint(ch, 0, y0, UW, y0 + CH);
+    return ch;
+  }
+  // The tunnels: the paper left bare where the ground's been dug away, their edge drawn smooth.
+  function repaint(ch, wx0, wy0, wx1, wy1) {
+    const X0 = Math.max(0, Math.floor(wx0 * RU)), Y0 = Math.max(0, Math.floor((wy0 - ch.y0) * RU));
+    const X1 = Math.min(ch.c.width, Math.ceil(wx1 * RU)), Y1 = Math.min(ch.c.height, Math.ceil((wy1 - ch.y0) * RU));
+    const w = X1 - X0, h = Y1 - Y0; if (w <= 0 || h <= 0) return;
+    const src = ch.pc.getContext('2d').getImageData(X0, Y0, w, h), d = src.data;
+    const gx0 = Math.floor(X0 / RU / CS) - 2, gy0 = Math.floor((Y0 / RU + ch.y0) / CS) - 2, gw = Math.ceil(w / RU / CS) + 5, gh = Math.ceil(h / RU / CS) + 5;
+    const at = (gx, gy) => (gx < 0 || gy < 0 || gx >= GW || gy >= GH ? 1 : soil[gy * GW + gx]);
+    const B = new Float32Array(gw * gh), Hb = new Float32Array(gw * gh), Sx = new Uint8Array(gw * gh), Cn = new Float32Array(gw * gh);
+    for (let j = 0; j < gh; j++) for (let i = 0; i < gw; i++) {
+      const gx = gx0 + i, gy = gy0 + j; let s = 0;
+      let hs = 0, cs = 0;
+      for (let b = -1; b <= 1; b++) for (let a = -1; a <= 1; a++) { const wgt = a === 0 && b === 0 ? 4 : a === 0 || b === 0 ? 2 : 1, v = at(gx + a, gy + b); s += (v === 0 ? 1 : 0) * wgt; hs += (v === 4 ? 1 : 0) * wgt; cs += (v === 3 ? 1 : 0) * wgt; }
+      B[j * gw + i] = s / 16; Hb[j * gw + i] = hs / 16; Cn[j * gw + i] = cs / 16; const v = at(gx, gy); Sx[j * gw + i] = v === 2 || v === 5 ? 1 : 0;
+    }
+    for (let py = 0; py < h; py++) {
+      const Y = Y0 + py, wy = ch.y0 + (Y + 0.5) / RU, v = wy / CS - 0.5 - gy0, j = Math.floor(v), fv = v - j;
+      for (let px = 0; px < w; px++) {
+        const X = X0 + px, p = (py * w + px) * 4, u = (X + 0.5) / RU / CS - 0.5 - gx0, i = Math.floor(u), fu = u - i;
+        if (i < 0 || j < 0 || i >= gw - 1 || j >= gh - 1) continue;
+        const ri = Math.round(v) * gw + Math.round(u);
+        if (Sx[ri]) continue;
+        const q = j * gw + i, f = B[q] * (1 - fu) * (1 - fv) + B[q + 1] * fu * (1 - fv) + B[q + gw] * (1 - fu) * fv + B[q + gw + 1] * fu * fv;
+        let al = Math.min(1, Math.max(0, (f - 0.42) * 7));
+        const pp = (((Y & 255) << 8) + (X & 255)) * 4;
+        const cf = Cn[q] * (1 - fu) * (1 - fv) + Cn[q + 1] * fu * (1 - fv) + Cn[q + gw] * (1 - fu) * fv + Cn[q + gw + 1] * fu * fv, ca = Math.min(1, Math.max(0, (cf - 0.42) * 7));
+        if (ca > 0) {
+          // (Concrete: a flat grey-green over the paper, faint lines where each pour settled, a few grains.)
+          const n = ((X * 73856093) ^ (Y * 19349663)) & 31, lift = Y % 11 === 0 ? 22 : 0, grit = n === 0 ? 30 : 0;
+          d[p] += (paperData[pp] - 34 - lift - grit - d[p]) * ca; d[p + 1] += (paperData[pp + 1] - 22 - lift * 0.7 - grit * 0.7 - d[p + 1]) * ca; d[p + 2] += (paperData[pp + 2] - 32 - lift - grit - d[p + 2]) * ca;
+          if (ca >= 1) continue;
+        }
+        if (al > 0) { d[p] += (paperData[pp] - d[p]) * al; d[p + 1] += (paperData[pp + 1] - d[p + 1]) * al; d[p + 2] += (paperData[pp + 2] - d[p + 2]) * al; }
+        // (An open hole: the dark of a void, cross-hatched in the green over the pink.)
+        const hf = Hb[q] * (1 - fu) * (1 - fv) + Hb[q + 1] * fu * (1 - fv) + Hb[q + gw] * (1 - fu) * fv + Hb[q + gw + 1] * fu * fv, ha = Math.min(1, Math.max(0, (hf - 0.42) * 7));
+        if (ha > 0) {
+          const dark = ((X + Y) % 5 < 2) || ((X - Y + 100000) % 7 < 2) || (((X * 7 + Y * 3) & 31) === 0);
+          const c0 = dark ? [30, 88, 44] : [188, 118, 98];
+          d[p] += (c0[0] - d[p]) * ha; d[p + 1] += (c0[1] - d[p + 1]) * ha; d[p + 2] += (c0[2] - d[p + 2]) * ha;
+        }
+      }
+    }
+    ch.x.putImageData(src, X0, Y0);
+  }
+  function markDug(cx, cy, r) {
+    for (let k = Math.max(0, Math.floor((cy - r) / CH)); k <= Math.floor((cy + r) / CH); k++) {
+      const ch = chunk(k), m = 8, b = [cx - r - m, cy - r - m, cx + r + m, cy + r + m];
+      ch.dirty = ch.dirty ? [Math.min(ch.dirty[0], b[0]), Math.min(ch.dirty[1], b[1]), Math.max(ch.dirty[2], b[2]), Math.max(ch.dirty[3], b[3])] : b;
+    }
+  }
+
+  // ---------------------------------------------------------------- what's buried, layer by layer
+  let PIPE, GAS, TUBE, SEWER, STATION, deposits = [], leaks = [], MINES = [], RIV = null, DECOR = [];
+  function featuresFor(k) {
+    const y0 = k * CH, out = [], sh = k ? era * ERA_H : 0;
+    const h1 = (q) => { const s = Math.sin(k * 97.13 + q * 12.9898) * 43758.5453; return s - Math.floor(s); };
+    if (k === 0) {
+      out.push({ kind: 'paving' });
+      out.push({ kind: 'cellar', x: 158, y: 13, w: 54, h: 19, food: 50, label: 'flour', name: "the bakery's cellar" });
+      out.push({ kind: 'cellar', x: 360, y: 14, w: 46, h: 18, food: 40, label: 'cheese', name: "the market's cold store" });
+      out.push({ kind: 'conduit', y: 36, h: 4 });
+      PIPE = { kind: 'main', x0: 0, x1: UW, y: 48, h: 13 }; out.push(PIPE);
+      GAS = { kind: 'gas', x0: 0, x1: UW, y: 76, h: 6 }; out.push(GAS);
+      out.push({ kind: 'cables', y: 96, h: 9 });
+      out.push({ kind: 'vault', x: 300, y: 118, w: 54, h: 34 });
+      out.push({ kind: 'ducts', x: 22, y: 124 });
+      out.push({ kind: 'drain', x: 432, y0: 12, y1: 150 });
+      SEWER = { kind: 'sewer', x: 494, y: 172, r: 32 }; out.push(SEWER);
+      out.push({ kind: 'pocket', x: 446, y: 202, r: 7, food: 10, label: 'scraps', regen: 3, silt: true });
+      TUBE = { kind: 'tube', x0: 0, x1: UW, y: 222, h: 78 }; out.push(TUBE);
+      out.push({ kind: 'undercroft', x: 26, y: 322, w: 132, h: 80 });
+      STATION = { kind: 'station', x0: 170, x1: 600, y: 470, h: 96 }; out.push(STATION);
+      out.push({ kind: 'pocket', x: 380, y: 594, r: 14, food: 40, label: 'crumbs', regen: 3 });
+      out.push({ kind: 'cobbles', y: 760 }); out.push({ kind: 'bricks', x: 60, y: 712, w: 110, h: 48 }); out.push({ kind: 'bricks', x: 400, y: 706, w: 120, h: 54 });
+      out.push({ kind: 'well', x: 280, y: 770, h: 72 });
+      out.push({ kind: 'river', x1: 522, y: L.river, h: 44 });
+      out.push({ kind: 'bottle', x: 120, y: 950, a: 0.6 });
+    } else if (k === 1) {
+      out.push({ kind: 'harbour', y: L.harbour + sh });
+      out.push({ kind: 'tram', x: 430, y: 1330 + sh });
+      out.push({ kind: 'bottle', x: 260, y: 1290 + sh, a: 0.6 }); out.push({ kind: 'bottle', x: 540, y: 1250 + sh, a: -0.4 });
+      out.push({ kind: 'mine', y: L.mine + sh });
+      out.push({ kind: 'cave', x: 420, y: 1880 + sh, rx: 70, ry: 30, pool: true });
+    } else if (k === 2) {
+      out.push({ kind: 'clay', y0: L.clay0 + sh, y1: L.clay1 + sh });
+      out.push({ kind: 'rivals', y: L.rivals + sh });
+      out.push({ kind: 'chalk', y0: L.chalk + sh, y1: y0 + CH + 12 });
+      out.push({ kind: 'ammonite', x: 470, y: 2160 + sh, r: 20 });
+    } else if (k === 3) {
+      out.push({ kind: 'chalk', y0: y0 - 12, y1: L.table + sh });
+      out.push({ kind: 'table', y: L.table + sh, y1: L.rock + sh });
+      out.push({ kind: 'bones', x: 300, y: 3240 + sh, s: 1.1 });
+      out.push({ kind: 'rock', y: L.rock + sh, y1: y0 + CH + 12, edge: true });
+      out.push({ kind: 'pocket', x: 140, y: 3460 + sh, r: 11, food: 30, label: 'seeds' });
+      out.push({ kind: 'heat', y: L.warm + sh, y1: y0 + CH + 12 });
+    } else {
+      out.push({ kind: 'rock', y: y0 - 12, y1: y0 + CH + 12 }); out.push({ kind: 'heat', y: y0 - 12, y1: y0 + CH + 12 });
+      const kinds = ['cave', 'ammonite', 'geode', 'cave', 'pocket', 'geode'];
+      for (let j = 0; j < 4; j++) {
+        const kind = kinds[Math.floor(h1(j) * kinds.length)], fy = y0 + 110 + j * 220 + h1(j + 5) * 50, fx = 80 + h1(j + 9) * (UW - 160);
+        if (kind === 'cave') out.push({ kind, x: fx, y: fy, rx: 50 + h1(j + 2) * 50, ry: 22 + h1(j + 3) * 18, pool: h1(j + 4) < 0.4 });
+        else if (kind === 'ammonite') out.push({ kind, x: fx, y: fy, r: 18 + h1(j + 6) * 14 });
+        else if (kind === 'geode') out.push({ kind, x: fx, y: fy, r: 16 + h1(j + 6) * 12 });
+        else out.push({ kind: 'pocket', x: fx, y: fy, r: 11, food: 25, label: 'seeds' });
+      }
+    }
+    return out;
+  }
+  // (A wall a cell or two thick along a line of points, left open where gap() says.)
+  function wallLine(pts, th, gap = () => false) {
+    for (let k = 1; k < pts.length; k++) { const [ax, ay] = pts[k - 1], [bx, by] = pts[k], n = Math.ceil(Math.hypot(bx - ax, by - ay) / 1.5);
+      for (let j = 0; j <= n; j++) { const x = ax + ((bx - ax) * j) / n, y = ay + ((by - ay) * j) / n; if (gap(x, y)) continue; for (let dy = -th; dy <= th; dy += CS) for (let dx = -th; dx <= th; dx += CS) { const i = gi(x + dx, y + dy); if (i >= 0) { soil[i] = 2; plan[i] = 0; } } } }
+  }
+  function solidPoly(pts) { let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; for (const [x, y] of pts) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); } for (let y = y0; y <= y1; y += CS) for (let x = x0; x <= x1; x += CS) if (inside(pts, x, y)) { const i = gi(x, y); if (i >= 0) { soil[i] = 2; plan[i] = 0; } } }
+  function inside(pts, x, y) { let c = false; for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) { const [xi, yi] = pts[i], [xj, yj] = pts[j]; if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) c = !c; } return c; }
+  function hollow(cx, cy, rx, ry) { for (let y = cy - ry; y <= cy + ry; y += CS) for (let x = cx - rx; x <= cx + rx; x += CS) { const a = Math.atan2((y - cy) / ry, (x - cx) / rx), q = 1 + 0.1 * Math.sin(a * 3 + cx) + 0.06 * Math.sin(a * 5 + cy); if (((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= q * q) { const i = gi(x, y); if (i >= 0 && soil[i] === 1) soil[i] = 0; } } }
+  const solid = (pts) => { occlude(pts); solidPoly(pts); };
+  // (Where the long works can be got through: a pipe's joints, a tunnel's vent shafts. The colony's own way in
+  // is one of them.)
+  const SEAMS = [40, 150, 262, 372, 470, 548];
+  const seamAt = (x) => SEAMS.some((s2) => Math.abs(x - s2) <= 3);
+  function solidRun(x0, y0, x1, y1) { for (let y = y0; y <= y1; y += CS) for (let x = x0; x <= x1; x += CS) { if (seamAt(x)) continue; const i = gi(x, y); if (i >= 0) { soil[i] = 2; plan[i] = 0; } } }
+  function place(f) {
+    const k = P.ink;
+    tex(Math.round(f.y || 3) * 7 + (f.x || 1));
+    if (f.kind === 'paving') {
+      tint(rect(0, 0, UW, 12), 'paving'); hatch(k, rect(0, 0, UW, 12), 0, 1.1, 0.45);
+      for (let q = 0; q < 300; q++) { const x = tr(0, UW), y = tr(14, 30), r = tr(0.9, 2.2); k.lineWidth = 0.55 * WM; k.beginPath(); k.ellipse(x, y, r, r * 0.7, tr(0, 3), 0, TAU); k.stroke(); }
+      line(k, 0, 12, UW, 12, 0.8, 0);
+      // (In the street's crust: the manhole's iron cover, the gully grating over the drain.)
+      poly(k, rect(292, 0, 16, 3), 0.9); hatch(k, rect(292, 0, 16, 3), 0, 0.8, 0.5);
+      poly(k, rect(424, 0, 16, 4), 0.8); for (let x = 426; x < 440; x += 2.5) line(k, x, 0.5, x, 3.5, 0.4, 0);
+    } else if (f.kind === 'main') {
+      // The water main: cast iron, bell-and-spigot joints, a gate valve with its stem up to the street.
+      const pts = rect(f.x0, f.y, f.x1 - f.x0, f.h); occlude(pts); solidRun(f.x0, f.y, f.x1, f.y + f.h); tint(pts, 'pipe');
+      line(k, f.x0, f.y, f.x1, f.y, 1.1, 0); line(k, f.x0, f.y + f.h, f.x1, f.y + f.h, 1.1, 0);
+      hatch(k, pts, 0, 1, 0.4, (x, y) => ((y - f.y) / f.h) ** 2);
+      line(k, f.x0, f.y + 2.5, f.x1, f.y + 2.5, 0.35, 0);
+      for (const x of SEAMS) { const bell = rect(x - 4, f.y - 2.5, 8, f.h + 5); occlude(bell); tint(bell, 'pipe'); poly(k, bell, 0.9); hatch(k, bell, 1.57, 1, 0.4, (px) => (px > x ? 0.8 : 0.2)); for (const yy of [f.y - 1, f.y + f.h + 1]) { k.beginPath(); k.arc(x - 2.5, yy, 0.7, 0, TAU); k.arc(x + 2.5, yy, 0.7, 0, TAU); k.fill(); } }
+      const vx = 206, vb = [[vx - 8, f.y - 1], [vx - 6, f.y - 12], [vx + 6, f.y - 12], [vx + 8, f.y - 1]];
+      occlude(vb); tint(vb, 'pipe'); poly(k, vb, 1); hatch(k, vb, 1.57, 1.2, 0.4, (px) => (px > vx ? 0.8 : 0.1));
+      line(k, vx, f.y - 12, vx, 2, 0.8); k.lineWidth = 0.8 * WM; k.beginPath(); k.ellipse(vx, f.y - 15, 6, 1.8, 0, 0, TAU); k.stroke(); poly(k, rect(vx - 4, 0, 8, 3), 0.8);
+    } else if (f.kind === 'gas') {
+      // The gas main: steel, welded, wrapped every so often in marker tape; a service line off it to a house.
+      const pts = rect(f.x0, f.y, f.x1 - f.x0, f.h); occlude(pts); solidRun(f.x0, f.y, f.x1, f.y + f.h); tint(pts, 0.35);
+      poly(k, pts, 0.8, true, 0.3); hatch(k, pts, 0, 0.9, 0.4, (x, y) => (y > f.y + 3 ? 0.9 : 0.15));
+      for (let x = 20; x < f.x1; x += 34) { const band = rect(x, f.y - 0.5, 8, f.h + 1); hatch(k, band, 0.8, 1.2, 0.45); poly(k, band, 0.4, true, 0); }
+      for (const x of SEAMS) { line(k, x - 1.5, f.y - 1, x + 1.5, f.y + f.h + 1, 0.5, 0); line(k, x + 1.5, f.y - 1, x - 1.5, f.y + f.h + 1, 0.5, 0); }
+      curve(k, [[118, f.y], [118, f.y - 20], [124, f.y - 34], [124, 2]], 0.7); poly(k, rect(114, f.y - 6, 8, 6), 0.7);
+    } else if (f.kind === 'conduit') {
+      // The telephone line: a narrow duct, its pull-boxes.
+      const pts = rect(0, f.y, UW, f.h); occlude(pts); solidRun(0, f.y, UW, f.y + f.h); poly(k, pts, 0.6, true, 0.2);
+      for (let x = 3; x < UW; x += 6) line(k, x, f.y + 0.6, x + 3, f.y + f.h - 0.6, 0.3, 0);
+      for (const x of [96, 410]) { const bx = rect(x - 8, f.y - 6, 16, f.h + 10); occlude(bx); tint(bx, 'concrete'); poly(k, bx, 0.8); stipple(k, bx, 40); }
+    } else if (f.kind === 'cables') {
+      // The power: three cables in a tray, hung from the slab above, sagging between hangers.
+      const tray = rect(0, f.y, UW, f.h); occlude(tray); solidRun(0, f.y, UW, f.y + f.h);
+      line(k, 0, f.y + f.h, UW, f.y + f.h, 1, 0); line(k, 0, f.y, UW, f.y, 0.5, 0);
+      for (let c = 0; c < 3; c++) { const pts = []; for (let x = 0; x <= UW; x += 10) pts.push([x, f.y + 2.5 + c * 2.3 + Math.sin(x / 40 + c) * 0.7]); curve(k, pts, 0.7 + (c === 1 ? 0.3 : 0)); }
+      for (let x = 20; x < UW; x += 50) { line(k, x, f.y, x, f.y - 9, 0.5, 0); line(k, x - 3, f.y - 9, x + 3, f.y - 9, 0.5, 0); }
+    } else if (f.kind === 'vault') {
+      // A cable vault under the street, and the manhole down to it: a shaft, a ladder.
+      const v = rect(f.x - f.w / 2, f.y, f.w, f.h); solid(v); tint(v, 'concrete'); poly(k, v, 1.1); stipple(k, v, 180);
+      const inn = rect(f.x - f.w / 2 + 4, f.y + 4, f.w - 8, f.h - 8); erase(P.tint, (c) => { path(c, inn); c.fill(); }); erase(P.ink, (c) => { path(c, inn); c.fill(); }); poly(k, inn, 0.6);
+      hatch(k, inn, 0.8, 1.8, 0.3, (x) => (x > f.x ? 0.5 : 0.1));
+      for (let c = 0; c < 3; c++) curve(k, [[f.x - f.w / 2 + 4, f.y + 10 + c * 4], [f.x - 8, f.y + 24 + c * 2], [f.x + 8, f.y + 12 + c * 3], [f.x + f.w / 2 - 4, f.y + 10 + c * 4]], 0.7);
+      poly(k, rect(f.x + 8, f.y + 18, 10, 9), 0.7); line(k, f.x + 10, f.y + 21, f.x + 16, f.y + 21, 0.4, 0);
+      const sh = rect(f.x - 8, 3, 16, f.y - 3); occlude(sh); solidPoly(sh); tint(rect(f.x - 8, 3, 3, f.y - 3), 'concrete'); tint(rect(f.x + 5, 3, 3, f.y - 3), 'concrete');
+      line(k, f.x - 8, 3, f.x - 8, f.y, 1, 0); line(k, f.x + 8, 3, f.x + 8, f.y, 1, 0); line(k, f.x - 5, 3, f.x - 5, f.y, 0.5, 0); line(k, f.x + 5, 3, f.x + 5, f.y, 0.5, 0);
+      for (let y = 8; y < f.y; y += 6) line(k, f.x - 4, y, f.x + 4, y, 0.6, 0.2);
+    } else if (f.kind === 'drain') {
+      // The storm drain: from the gully in the street down into the sewer, jointed.
+      const pts = [[f.x - 3, f.y0], [f.x + 3, f.y0], [f.x + 3, f.y1 - 20], [f.x + 34, f.y1], [f.x + 30, f.y1 + 5], [f.x - 3, f.y1 - 16]];
+      occlude(pts); tint(pts, 'pipe'); poly(k, pts, 0.8, true, 0.3);
+      for (let y = f.y0; y < f.y1 - 20; y += CS) if (!(Math.abs(y - 60) < 4 || Math.abs(y - 110) < 4)) { const i = gi(f.x, y); if (i >= 0) soil[i] = 2; const j = gi(f.x - 2, y); if (j >= 0) soil[j] = 2; }
+      for (const y of [30, 60, 90, 110]) poly(k, rect(f.x - 4.5, y - 1.5, 9, 3), 0.6);
+      hatch(k, pts, 1.57, 1, 0.35, (x) => (x > f.x + 1 ? 0.8 : 0.1));
+    } else if (f.kind === 'ducts') {
+      const db = rect(f.x, f.y, 66, 34); solid(db); tint(db, 'concrete'); poly(k, db, 1); stipple(k, db, 300);
+      for (let r = 0; r < 2; r++) for (let c = 0; c < 3; c++) { const x = f.x + 12 + c * 21, y = f.y + 10 + r * 15, rr = ring(x, y, 5.5); erase(P.tint, (cc) => { path(cc, rr); cc.fill(); }); erase(P.ink, (cc) => { path(cc, rr); cc.fill(); }); k.lineWidth = 0.9 * WM; k.beginPath(); k.arc(x, y, 5.5, 0, TAU); k.stroke(); for (let q = 0; q < 5; q++) { k.beginPath(); k.arc(x + Math.cos(q * 1.3) * 2.4, y + Math.sin(q * 1.3) * 2.4, 1.1, 0, TAU); k.stroke(); } }
+    } else if (f.kind === 'sewer') {
+      const egg = (r) => Array.from({ length: 40 }, (_, i) => { const a = (i / 40) * TAU, s = Math.sin(a) > 0 ? 1.18 : 0.92; return [f.x + Math.cos(a) * r, f.y + Math.sin(a) * r * s]; });
+      solid(egg(f.r + 3)); tint(egg(f.r), 'brick'); poly(k, egg(f.r), 1.1, true, 0.2); poly(k, egg(f.r - 9), 0.9, true, 0.2);
+      for (let i = 0; i < 40; i++) { const a = (i / 40) * TAU, s = Math.sin(a) > 0 ? 1.18 : 0.92; line(k, f.x + Math.cos(a) * (f.r - 9), f.y + Math.sin(a) * (f.r - 9) * s, f.x + Math.cos(a) * f.r, f.y + Math.sin(a) * f.r * s, 0.4, 0); }
+      erase(P.tint, (c) => { path(c, egg(f.r - 9.6)); c.fill(); });
+      hatch(k, egg(f.r - 9.6), 0.7, 1.6, 0.3, (x) => (x > f.x ? 0.7 : 0.25));
+      hatch(k, [[f.x - 22, f.y + 18], [f.x + 22, f.y + 18], [f.x + 14, f.y + 29], [f.x - 14, f.y + 29]], 0, 1.2, 0.45);
+    } else if (f.kind === 'tube') {
+      // The subway: a concrete box the width of the town, its track, and its vent shafts (the ants' way past it).
+      const wt = 8;
+      occlude(rect(f.x0, f.y, f.x1 - f.x0, f.h)); solidRun(f.x0, f.y, f.x1, f.y + f.h);
+      for (const [y, h] of [[f.y, wt], [f.y + f.h - wt, wt]]) { const r2 = rect(f.x0, y, f.x1 - f.x0, h); tint(r2, 'concrete'); hatch(k, r2, 0.78, 1.5, 0.4); }
+      line(k, f.x0, f.y, f.x1, f.y, 1.2, 0); line(k, f.x0, f.y + wt, f.x1, f.y + wt, 0.8, 0); line(k, f.x0, f.y + f.h - wt, f.x1, f.y + f.h - wt, 0.8, 0); line(k, f.x0, f.y + f.h, f.x1, f.y + f.h, 1.2, 0);
+      for (let x = f.x0 + 6; x < f.x1; x += 10) if (!seamAt(x)) line(k, x, f.y + wt, x, f.y + f.h - wt - 16, 0.25, 0);
+      hatch(k, rect(f.x0, f.y + wt, f.x1 - f.x0, f.h - 2 * wt), 0, 1.8, 0.28, (x, y) => (y > f.y + f.h - wt - 16 ? 0.9 : 0.1));
+      for (let x = 4; x < f.x1; x += 9) line(k, x, f.y + f.h - wt - 4, x + 5, f.y + f.h - wt - 4, 0.6, 0);
+      // (Inside, only what an ant can walk: down a vent's ladder, along the track bed, out by a floor gully,
+      // and the gullies don't line up with the vents. The open air between, nothing crosses.)
+      const bed = f.y + f.h - wt - 6, set5 = (x0, y0, x1, y1) => { for (let y = y0; y < y1; y += CS) for (let x = x0; x <= x1; x += CS) { const i = gi(x, y); if (i >= 0) { soil[i] = 5; plan[i] = 0; } } };
+      for (let y = f.y; y < f.y + f.h; y += CS) for (let x = f.x0; x < f.x1; x += CS) { const i = gi(x, y); if (i >= 0) soil[i] = 2; }
+      set5(f.x0, bed, f.x1 - 1, f.y + f.h - wt);
+      for (const x of SEAMS) { set5(x - 3, f.y - CS, x + 3, f.y + f.h - wt); const gx = x - 24; if (gx > 6) { set5(gx - 3, f.y + f.h - wt, gx + 3, f.y + f.h + CS); const gr = rect(gx - 4.5, f.y + f.h - wt, 9, wt); erase(P.tint, (c) => { path(c, gr); c.fill(); }); erase(P.ink, (c) => { path(c, gr); c.fill(); }); poly(k, gr, 0.7); for (let q = gx - 3; q <= gx + 3; q += 2) line(k, q, f.y + f.h - wt, q, f.y + f.h, 0.4, 0); } }
+      for (const x of SEAMS) { const v = rect(x - 3.5, f.y, 7, f.h); erase(P.tint, (c) => { path(c, v); c.fill(); }); erase(P.ink, (c) => { path(c, v); c.fill(); }); line(k, x - 3.5, f.y, x - 3.5, f.y + f.h, 0.8, 0); line(k, x + 3.5, f.y, x + 3.5, f.y + f.h, 0.8, 0); for (let y = f.y + 4; y < f.y + f.h; y += 5) line(k, x - 3.5, y, x + 3.5, y, 0.35, 0); }
+    } else if (f.kind === 'station') {
+      const all = rect(f.x0, f.y, f.x1 - f.x0, f.h); solid(all); tint(all, 0.3);
+      poly(k, all, 1.4);
+      for (let q = f.y + 9; q < f.y + f.h - 32; q += 8) line(k, f.x0 + 3, q, f.x1, q, 0.35, 0);
+      hatch(k, rect(f.x0, f.y + f.h - 26, f.x1 - f.x0, 7), 0, 0.7, 0.6);
+      for (let q = f.x0 + 30; q < f.x1 - 10; q += 58) hatch(k, rect(q, f.y, 6, f.h - 26), 1.57, 0.8, 0.5);
+      const nb = (f.x0 + f.x1) / 2; poly(k, rect(nb - 28, f.y + 12, 56, 15), 0.9);
+      for (let q = 0; q < 6; q++) hatch(k, rect(nb - 19 + q * 6.5, f.y + 17, 4, 4.5), 0.9, 0.7, 0.4);
+      line(k, f.x0 + 3, f.y + f.h - 6, f.x1, f.y + f.h - 6, 0.7, 0);
+    } else if (f.kind === 'pocket') {
+      hollow(f.x, f.y, f.r * 1.4, f.r * 0.85);
+      deposits.push({ x: f.x, y: f.y, r: f.r, food: f.food, max: f.food, label: f.label, t: 0, regen: f.regen || 0, silt: f.silt });
+      if (f.silt) { const pts = ring(f.x, f.y, f.r * 1.6, f.r, 14); hatch(k, pts, 0, 1.4, 0.35, (x, y) => (y > f.y ? 0.6 : 0)); }
+    } else if (f.kind === 'cellar') {
+      // A shop's cellar: brick walls and a vaulted roof, sacks or cheeses on the shelves. A raid is noticed.
+      const x0 = f.x - f.w / 2, all = rect(x0 - 3, f.y - 3, f.w + 6, f.h + 6); occlude(all); solidPoly(all);
+      for (let y = f.y; y < f.y + f.h; y += CS) for (let x = x0; x < x0 + f.w; x += CS) { const i = gi(x, y); if (i >= 0) soil[i] = 0; }
+      tint(all, 'brick'); erase(P.tint, (c) => { path(c, rect(x0, f.y, f.w, f.h)); c.fill(); }); poly(k, all, 0.9); poly(k, rect(x0, f.y, f.w, f.h), 0.6);
+      for (let r = 0; r < 3; r++) for (let x = x0 - 3 + (r % 2) * 3; x < x0 + f.w + 3; x += 6) line(k, x, f.y - 3 + r * 1, x, f.y - 2 + r, 0.3, 0);
+      hatch(k, rect(x0, f.y, f.w, f.h), 0.8, 2.2, 0.25, (x) => (x > f.x ? 0.5 : 0.1));
+      line(k, x0 + 2, f.y + f.h * 0.5, x0 + f.w - 2, f.y + f.h * 0.5, 0.5, 0);
+      for (let x = x0 + 5; x < x0 + f.w - 6; x += 9) {
+        if (f.label === 'flour') { const sk = [[x, f.y + f.h], [x - 1, f.y + f.h - 6], [x + 1.5, f.y + f.h - 8], [x + 5.5, f.y + f.h - 8], [x + 8, f.y + f.h - 6], [x + 7, f.y + f.h]]; occlude(sk); tint(sk, 0.15); poly(k, sk, 0.5, true, 0); line(k, x + 2, f.y + f.h - 8, x + 5, f.y + f.h - 9.5, 0.4, 0); }
+        else { k.lineWidth = 0.5 * WM; k.beginPath(); k.ellipse(x + 3.5, f.y + f.h - 2.5, 3.5, 2.2, 0, 0, TAU); k.stroke(); }
+        k.lineWidth = 0.45 * WM; k.beginPath(); k.ellipse(x + 3.5, f.y + f.h * 0.5 - 2, 3, 1.8, 0, 0, TAU); k.stroke();
+      }
+      deposits.push({ x: f.x, y: f.y + f.h * 0.6, r: f.w * 0.3, food: f.food, max: f.food, label: f.label, t: 0, regen: 6, raid: f.name });
+      DECOR.push({ y0: f.y, y1: f.y + f.h, dy: 0, fn: (c) => { c.strokeStyle = OVER; c.lineWidth = 0.5; c.beginPath(); c.moveTo(x0 + 2, f.y + f.h * 0.45); c.lineTo(x0 + f.w - 2, f.y + f.h * 0.45); c.stroke(); c.lineWidth = 0.35; c.beginPath(); c.ellipse(f.x, f.y + 1, f.w / 2 - 2, 4, 0, 0, Math.PI); c.stroke(); for (let x = x0 + 5; x < x0 + f.w - 5; x += 8) { c.beginPath(); c.ellipse(x + 3, f.y + f.h * 0.45 - 2, 2.8, 1.8, 0, 0, TAU); c.stroke(); } } });
+    } else if (f.kind === 'undercroft') {
+      // The old hall's undercroft: two vaulted bays of dressed stone, dry, sealed. A safe room, once you're in.
+      const all = rect(f.x - 4, f.y - 4, f.w + 8, f.h + 8); solid(all); tint(all, 'stone'); poly(k, all, 1.1); stipple(k, all, 260);
+      const bay = f.w / 2;
+      for (let b = 0; b < 2; b++) {
+        const bx = f.x + b * bay + 3, bw = bay - 6, top = f.y + 16, pts = [[bx, f.y + f.h - 3], [bx, top], ...Array.from({ length: 11 }, (_, q) => { const a = Math.PI + (q / 10) * Math.PI; return [bx + bw / 2 + Math.cos(a) * bw / 2, top + Math.sin(a) * 12]; }), [bx + bw, top], [bx + bw, f.y + f.h - 3]];
+        erase(P.tint, (c) => { path(c, pts); c.fill(); }); erase(P.ink, (c) => { path(c, pts); c.fill(); }); poly(k, pts, 0.8);
+        for (let y = f.y + 4; y < f.y + f.h - 3; y += CS) for (let x = bx; x < bx + bw; x += CS) if (inside(pts, x, y)) { const i = gi(x, y); if (i >= 0) soil[i] = 0; }
+        hatch(k, pts, 0.75, 2.4, 0.25, (x, y) => (y < top ? 0.6 : 0.12));
+        for (let q = 0; q < 3; q++) { const cx = bx + 9 + q * (bw - 18) / 2; k.lineWidth = 0.5 * WM; k.beginPath(); k.ellipse(cx, f.y + f.h - 8, 4, 5, 0, 0, TAU); k.stroke(); line(k, cx - 4, f.y + f.h - 8, cx + 4, f.y + f.h - 8, 0.35, 0); }
+      }
+      for (let y = f.y + 4; y < f.y + f.h - 3; y += CS) { const i = gi(f.x + bay, y); if (i >= 0 && y > f.y + f.h - 22) soil[i] = 0; }
+      DECOR.push({ y0: f.y, y1: f.y + f.h, dy: 0, fn: (c) => {
+        c.strokeStyle = OVER; c.lineWidth = 0.6;
+        for (let b = 0; b < 2; b++) { const bx = f.x + b * bay + 3, bw = bay - 6, top = f.y + 16;
+          c.beginPath(); c.moveTo(bx, f.y + f.h - 3); c.lineTo(bx, top); c.ellipse(bx + bw / 2, top, bw / 2, 12, 0, Math.PI, TAU); c.lineTo(bx + bw, f.y + f.h - 3); c.stroke();
+          c.lineWidth = 0.35; for (let q = 1; q < 6; q++) { c.beginPath(); c.ellipse(bx + bw / 2, top, bw / 2 * (q / 6), 12 * (q / 6), 0, Math.PI * 1.1, Math.PI * 1.9); c.stroke(); } c.lineWidth = 0.6;
+          for (let q = 0; q < 3; q++) { const cx = bx + 9 + q * (bw - 18) / 2, cy = f.y + f.h - 9; c.fillStyle = PINK; c.beginPath(); c.ellipse(cx, cy, 4.2, 5.5, 0, 0, TAU); c.fill(); c.stroke(); c.beginPath(); c.moveTo(cx - 4, cy - 2.5); c.lineTo(cx + 4, cy - 2.5); c.moveTo(cx - 4, cy + 2.5); c.lineTo(cx + 4, cy + 2.5); c.stroke(); }
+        } } });
+    } else if (f.kind === 'river') {
+      // The lost river, put in a brick culvert when the town was built over it: dry along the top, the water
+      // running below; it ends at a sluice. Into the dry part it's a road; through its floor, a flood.
+      const x0 = -6, top = f.y, bot = f.y + f.h, all = rect(x0, top - 5, f.x1 - x0 + 6, f.h + 10);
+      occlude(all); tint(all, 'brick'); poly(k, all, 1.1);
+      for (let r = 0; r < 2; r++) for (let x = x0 + (r % 2) * 4; x < f.x1; x += 8) { line(k, x, top - 5 + r * 2.5, x, top - 2.5 + r * 2.5, 0.3, 0); line(k, x, bot + r * 2.5, x, bot + 2.5 + r * 2.5, 0.3, 0); }
+      const inn = rect(x0, top, f.x1 - x0, f.h); erase(P.tint, (c) => { path(c, inn); c.fill(); }); erase(P.ink, (c) => { path(c, inn); c.fill(); }); poly(k, inn, 0.6);
+      wallLine([[x0, top - 3], [f.x1 + 3, top - 3], [f.x1 + 3, bot + 3], [x0, bot + 3]], 3);
+      const lvl = top + f.h * 0.48;
+      for (let y = top; y < bot; y += CS) for (let x = 0; x < f.x1; x += CS) { const i = gi(x, y); if (i < 0) continue; soil[i] = 0; if (y >= lvl) { water[i] = 1; still[i] = 2; } }
+      tint(rect(x0, lvl, f.x1 - x0, bot - lvl), 0.32);
+      for (let y = lvl + 2; y < bot; y += 3.2) { let x = x0 + tr(0, 8); while (x < f.x1) { const l = tr(8, 26); line(k, x, y, Math.min(f.x1, x + l), y, 0.35, 0); x += l + tr(3, 10); } }
+      line(k, x0, lvl, f.x1, lvl, 0.7, 0);
+      DECOR.push({ y0: top - 6, y1: bot + 6, dy: 0, fn: (c, t) => {
+        c.fillStyle = PINK; c.globalAlpha = 0.85; c.fillRect(0, lvl, f.x1 - 4, bot - lvl); c.globalAlpha = 1;
+        c.strokeStyle = OVER; c.lineWidth = 0.45;
+        for (let r = 0; r < 6; r++) { const yy = lvl + 2 + r * ((bot - lvl - 3) / 5), off = (t * (10 + r * 2) + r * 37) % 40; c.beginPath(); for (let x = -40 + off; x < f.x1 - 6; x += 40) { c.moveTo(Math.max(0, x), yy); c.quadraticCurveTo(x + 7, yy - 1.2, Math.min(f.x1 - 6, x + 16), yy); } c.stroke(); }
+        c.lineWidth = 0.8; c.beginPath(); c.moveTo(0, lvl); c.lineTo(f.x1 - 4, lvl); c.stroke();
+        c.lineWidth = 0.4; for (let x = 6; x < f.x1 - 6; x += 30) { c.beginPath(); c.ellipse(x, top + 0.5, 12, 3, 0, 0, Math.PI); c.stroke(); }
+      } });
+      const sl = rect(f.x1 - 4, top, 6, f.h); occlude(sl); tint(sl, 'pipe'); poly(k, sl, 0.8); hatch(k, sl, 1.57, 1, 0.4); line(k, f.x1 - 1, top, f.x1 - 1, top - 22, 0.7, 0); k.lineWidth = 0.7 * WM; k.beginPath(); k.ellipse(f.x1 - 1, top - 24, 5, 1.5, 0, 0, TAU); k.stroke();
+    } else if (f.kind === 'harbour') {
+      // The harbour the town was a port on: a quay wall with its mooring rings, the mud of the basin, and a boat
+      // that went down in it, her cargo still in the hold.
+      const qx = 404, mud = rect(-6, f.y + 70, qx + 6, 80); tint(mud, 1.18); stipple(k, mud, 2600, 0.5, 0.9);
+      for (let q = 0; q < 6; q++) { const yy = f.y + 74 + q * 13, pts = []; for (let x = 0; x < qx; x += 12) pts.push([x, yy + Math.sin(x / 30 + q) * 1.5]); curve(k, pts, 0.3); }
+      const quay = rect(qx, f.y, 26, 150); solid(quay); tint(quay, 'stone'); poly(k, quay, 1.1);
+      for (let r = 0; r < 15; r++) { line(k, qx, f.y + r * 10, qx + 26, f.y + r * 10, 0.4, 0); for (let x = qx + (r % 2) * 6; x < qx + 26; x += 12) line(k, x, f.y + r * 10, x, f.y + r * 10 + 10, 0.4, 0); }
+      hatch(k, quay, 0.8, 1.6, 0.3, (x) => (x > qx + 13 ? 0.8 : 0.1));
+      for (const ry of [f.y + 30, f.y + 70]) { k.lineWidth = 0.7 * WM; k.beginPath(); k.arc(qx - 3, ry, 3, 0, TAU); k.stroke(); }
+      const bx = 210, by = f.y + 118, hull = [[bx - 92, by - 22], [bx - 70, by + 14], [bx + 60, by + 16], [bx + 96, by - 26]];
+      const hp = []; for (let q = 0; q <= 20; q++) { const t = q / 20, u = 1 - t; hp.push([u * u * u * hull[0][0] + 3 * u * u * t * hull[1][0] + 3 * u * t * t * hull[2][0] + t * t * t * hull[3][0], u * u * u * hull[0][1] + 3 * u * u * t * hull[1][1] + 3 * u * t * t * hull[2][1] + t * t * t * hull[3][1]]); }
+      hollow(bx, by - 4, 70, 14);
+      wallLine(hp, 2, (x) => x > bx + 30 && x < bx + 48);
+      const shape = [...hp, [bx - 92, by - 22]]; tint(shape, 0.4); curve(k, hp, 1.2); line(k, bx - 92, by - 22, bx + 96, by - 26, 0.6, 0);
+      for (let q = 2; q < 19; q += 2) { const [x, y] = hp[q]; line(k, x, y, x + 1, by - 24, 0.45, 0); }
+      hatch(k, shape, 0.2, 1.6, 0.3, (x, y) => (y > by + 2 ? 0.8 : 0.15));
+      line(k, bx - 20, by - 24, bx - 50, by - 70, 1, 0); line(k, bx - 50, by - 70, bx - 46, by - 74, 0.5, 0);
+      for (let q = 0; q < 5; q++) { const cx = bx - 50 + q * 17; const crate = rect(cx, by - 4, 11, 9); poly(k, crate, 0.5, true, 0); line(k, cx, by - 4, cx + 11, by + 5, 0.3, 0); }
+      deposits.push({ x: bx - 10, y: by - 2, r: 16, food: 80, max: 80, label: 'cargo', t: 0 });
+    } else if (f.kind === 'mine') {
+      // Old workings: two galleries and the shaft between them, propped with timber that's had a century to rot.
+      const gal = [{ x0: 30, x1: 470, y: f.y, h: 14 }, { x0: 110, x1: 560, y: f.y + 120, h: 14 }], shx = 462;
+      for (const gl of gal) {
+        for (let y = gl.y; y < gl.y + gl.h; y += CS) for (let x = gl.x0; x < gl.x1; x += CS) { const i = gi(x, y); if (i >= 0) soil[i] = 0; }
+        for (let x = gl.x0 + 6; x < gl.x1 - 4; x += 22) { line(k, x, gl.y, x + tr(-0.6, 0.6), gl.y + gl.h, 0.9, 0); line(k, x + 18, gl.y, x + 18, gl.y + gl.h, 0.9, 0); const cap = rect(x - 2, gl.y - 1.5, 22, 2.5); tint(cap, 0.5); poly(k, cap, 0.5, true, 0); }
+        line(k, gl.x0, gl.y + gl.h, gl.x1, gl.y + gl.h, 0.5, 0); for (let x = gl.x0; x < gl.x1; x += 4) line(k, x, gl.y + gl.h - 1.5, x + 2, gl.y + gl.h - 1.5, 0.4, 0);
+        MINES.push({ ...gl, at: 0 });
+        DECOR.push({ y0: gl.y - 4, y1: gl.y + gl.h + 2, dy: 0, fn: (c, t, dy) => {
+          c.strokeStyle = OVER; c.lineCap = 'round';
+          for (let x = gl.x0 + 6; x < gl.x1 - 4; x += 22) { const i = gi(x + 9, gl.y + gl.h - 2 + dy); if (i < 0 || soil[i] !== 0) continue; c.lineWidth = 1; c.beginPath(); c.moveTo(x, gl.y); c.lineTo(x + 0.4, gl.y + gl.h); c.moveTo(x + 18, gl.y); c.lineTo(x + 18, gl.y + gl.h); c.stroke(); c.fillStyle = PINK; c.fillRect(x - 2, gl.y - 0.5, 22, 2.5); c.lineWidth = 0.5; c.strokeRect(x - 2, gl.y - 0.5, 22, 2.5); c.lineWidth = 0.3; c.beginPath(); c.moveTo(x, gl.y + 4); c.lineTo(x + 5, gl.y + 1); c.moveTo(x + 18, gl.y + 4); c.lineTo(x + 13, gl.y + 1); c.stroke(); }
+          c.lineWidth = 0.4; c.beginPath(); for (let x = gl.x0; x < gl.x1; x += 4) { const i = gi(x, gl.y + gl.h - 2 + dy); if (i >= 0 && soil[i] === 0) { c.moveTo(x, gl.y + gl.h - 1.2); c.lineTo(x + 2, gl.y + gl.h - 1.2); } } c.stroke();
+        } });
+      }
+      for (let y = f.y; y < f.y + 134; y += CS) for (let x = shx; x < shx + 12; x += CS) { const i = gi(x, y); if (i >= 0) soil[i] = 0; }
+      DECOR.push({ y0: f.y, y1: f.y + 134, dy: 0, fn: (c, t, dy) => { c.strokeStyle = OVER; c.lineWidth = 0.5; c.beginPath(); for (let y = f.y + 3; y < f.y + 132; y += 7) { const i = gi(shx + 6, y + dy); if (i >= 0 && soil[i] === 0) { c.moveTo(shx + 1, y); c.lineTo(shx + 11, y); } } c.moveTo(shx + 2, f.y); c.lineTo(shx + 2, f.y + 132); c.moveTo(shx + 10, f.y); c.lineTo(shx + 10, f.y + 132); c.stroke(); } });
+      line(k, shx - 1, f.y - 30, shx - 1, f.y + 134, 0.9, 0); line(k, shx + 13, f.y - 30, shx + 13, f.y + 134, 0.9, 0); for (let y = f.y - 26; y < f.y + 130; y += 9) line(k, shx, y, shx + 12, y, 0.5, 0);
+      const hd = [[shx - 8, f.y - 30], [shx + 6, f.y - 50], [shx + 20, f.y - 30]]; poly(k, hd, 0.8, false, 0); k.lineWidth = 0.6 * WM; k.beginPath(); k.arc(shx + 6, f.y - 44, 4, 0, TAU); k.stroke();
+      const cart = rect(260, f.y + 120 + 4, 16, 8); poly(k, cart, 0.6); for (const wx2 of [263, 273]) { k.beginPath(); k.arc(wx2, f.y + 120 + 13, 1.6, 0, TAU); k.stroke(); }
+    } else if (f.kind === 'clay') {
+      // The clay: dense, smooth, laid in thin beds. Slow to dig; nothing leaks through it.
+      const band = rect(-6, f.y0, UW + 12, f.y1 - f.y0); occlude(band); tint(band, 0.8);
+      for (let y = f.y0 + 3; y < f.y1; y += tr(3, 6)) { const pts = []; for (let x = -6; x <= UW + 6; x += 20) pts.push([x, y + Math.sin(x / 90 + y) * 1.5]); curve(k, pts, 0.28); }
+      line(k, -6, f.y0, UW + 6, f.y0, 0.9, 0); line(k, -6, f.y1, UW + 6, f.y1, 0.9, 0);
+    } else if (f.kind === 'chalk') {
+      const band = rect(-6, f.y0, UW + 12, f.y1 - f.y0); occlude(band); tint(band, 0.22);
+      stipple(k, band, 1400, 0.45, 0.7);
+      for (let y = f.y0 + tr(30, 60); y < f.y1; y += tr(50, 90)) {
+        for (let x = tr(0, 30); x < UW; x += tr(18, 50)) { const r = tr(2.5, 5), pts = ring(x, y + tr(-3, 3), r * 1.3, r * 0.8, 9).map(([a, b]) => [a + tr(-1, 1), b + tr(-1, 1)]); solid(pts); tint(pts, 1.3); poly(k, pts, 0.6, true, 0); hatch(k, pts, 0.8, 0.9, 0.4); }
+      }
+    } else if (f.kind === 'table') {
+      // The water table: below it the gravels are full, and anything dug fills.
+      const band = rect(-6, f.y, UW + 12, f.y1 - f.y); occlude(band); tint(band, 0.9);
+      for (let q = 0; q < 900; q++) { const x = tr(0, UW), y = tr(f.y, f.y1), r = tr(0.8, 2); k.lineWidth = 0.45 * WM; k.beginPath(); k.ellipse(x, y, r, r * 0.7, tr(0, 3), 0, TAU); k.stroke(); }
+      for (let y = f.y + 6; y < f.y1; y += 7) { let x = tr(0, 20); while (x < UW) { const l = tr(4, 12); line(k, x, y, x + l, y, 0.3, 0); x += l + tr(14, 40); } }
+      const pts = []; for (let x = -6; x <= UW + 6; x += 8) pts.push([x, f.y + Math.sin(x / 26) * 1.2]); curve(k, pts, 0.9);
+    } else if (f.kind === 'rock') {
+      const band = rect(-6, f.y, UW + 12, f.y1 - f.y); occlude(band); tint(band, 1.2);
+      hatch(k, band, 0.5, 2.6, 0.3, () => 0.35);
+      for (let q = 0; q < 26; q++) { let x = tr(0, UW), y = tr(f.y, f.y1), a = tr(0, TAU); const pts = [[x, y]]; for (let s2 = 0; s2 < 6; s2++) { a += tr(-0.7, 0.7); x += Math.cos(a) * 9; y += Math.sin(a) * 9; pts.push([x, y]); } curve(k, pts, 0.5); }
+      if (f.edge) line(k, -6, f.y, UW + 6, f.y, 1.1, 0);
+    } else if (f.kind === 'heat') {
+      // (Warmth, in the pink: rising wavy lines. Brood raised down here hatches fast.)
+      for (let q = 0; q < 70; q++) { const x = tr(0, UW), y = tr(f.y + 10, f.y1), pts = []; for (let s2 = 0; s2 < 6; s2++) pts.push([x + Math.sin(s2 * 1.4 + q) * 2.5, y - s2 * 4]); P.tint.lineWidth = 1.4; P.tint.strokeStyle = '#8c8c8c'; P.tint.beginPath(); P.tint.moveTo(...pts[0]); for (const p2 of pts) P.tint.lineTo(...p2); P.tint.stroke(); }
+    } else if (f.kind === 'geode') {
+      hollow(f.x, f.y, f.r * 1.2, f.r * 0.8);
+      for (let q = 0; q < 14; q++) { const a = (q / 14) * TAU, ex = f.x + Math.cos(a) * f.r * 1.2, ey = f.y + Math.sin(a) * f.r * 0.8, ix = f.x + Math.cos(a + 0.1) * f.r * 0.75, iy = f.y + Math.sin(a + 0.1) * f.r * 0.45; const cr = [[ex, ey], [ix, iy], [f.x + Math.cos(a + 0.22) * f.r * 1.2, f.y + Math.sin(a + 0.22) * f.r * 0.8]]; solidPoly(cr); tint(cr, 0.3); poly(k, cr, 0.5, true, 0); }
+      deposits.push({ x: f.x, y: f.y, r: 7, food: 18, max: 18, label: 'seeds', t: 0 });
+    } else if (f.kind === 'rivals') {
+      // Another colony, older than yours: its own rooms, its own stores. It doesn't know you're here, yet.
+      const rooms = [[150, f.y + 40, 16], [300, f.y + 70, 20], [430, f.y + 36, 14], [230, f.y + 130, 15], [380, f.y + 140, 13]];
+      const link = (a2, b2) => { const n = 40; for (let q = 0; q <= n; q++) { const x = a2[0] + (b2[0] - a2[0]) * q / n, y = a2[1] + (b2[1] - a2[1]) * q / n + Math.sin(q / 6) * 4; for (let dy = -3; dy <= 3; dy += CS) for (let dx = -3; dx <= 3; dx += CS) { const i = gi(x + dx, y + dy); if (i >= 0 && soil[i] === 1) soil[i] = 0; } } };
+      for (const [x, y, r] of rooms) hollow(x, y, r * 1.4, r * 0.6);
+      link(rooms[0], rooms[1]); link(rooms[1], rooms[2]); link(rooms[1], rooms[3]); link(rooms[3], rooms[4]); link(rooms[4], rooms[1]);
+      RIV = { x: rooms[1][0], y: rooms[1][1], ants: [], loot: 0, met: false, gone: false, rooms };
+      for (let q = 0; q < 34; q++) { const rm = pick(rooms); RIV.ants.push({ ...newAnt(rm[0] + rnd(-8, 8), rm[1] + rnd(-2, 2)), rival: true }); }
+      deposits.push({ x: rooms[1][0], y: rooms[1][1], r: 12, food: 50, max: 50, label: 'their stores', t: 0, rival: true });
+    } else if (f.kind === 'cobbles') {
+      for (let x = 4; x < UW; x += tr(6, 9)) { const w = tr(4.5, 7), pts = Array.from({ length: 8 }, (_, i) => [x + w / 2 + Math.cos((i / 8) * TAU) * w / 2, f.y + Math.sin((i / 8) * TAU) * 2.4]); solid(pts); tint(pts, 'cobble'); poly(k, pts, 0.5, true, 0); }
+      poly(k, rect(296, f.y - 20, 6, 20), 0.6);
+    } else if (f.kind === 'bricks') {
+      const pts = rect(f.x, f.y, f.w, f.h); solid(pts); tint(pts, 'brick'); poly(k, pts, 0.9);
+      for (let r = 0; r < f.h / 5; r++) { line(k, f.x, f.y + r * 5, f.x + f.w, f.y + r * 5, 0.3, 0); for (let q = f.x + (r % 2) * 5; q < f.x + f.w; q += 10) line(k, q, f.y + r * 5, q, f.y + r * 5 + 5, 0.3, 0); }
+      hatch(k, pts, 0.8, 1.8, 0.3, (px) => (px > f.x + f.w * 0.6 ? 0.7 : 0.1));
+    } else if (f.kind === 'well') {
+      hollow(f.x, f.y + f.h / 2, 7, f.h / 2);
+      line(k, f.x - 9, f.y, f.x - 9, f.y + f.h, 1.2); line(k, f.x + 9, f.y, f.x + 9, f.y + f.h, 1.2);
+      for (let q = f.y + 6; q < f.y + f.h; q += 7) { line(k, f.x - 13, q, f.x - 9, q, 0.6, 0); line(k, f.x + 9, q, f.x + 13, q, 0.6, 0); }
+      solidPoly(rect(f.x - 13, f.y, 4, f.h)); solidPoly(rect(f.x + 9, f.y, 4, f.h));
+      for (let y = f.y + f.h - 40; y < f.y + f.h; y += CS) for (const dx of [-3, 0, 3]) { const i = gi(f.x + dx, y); if (i >= 0 && soil[i] === 0) { water[i] = 1; still[i] = 1; } }
+    } else if (f.kind === 'tram') {
+      const k2 = k; k2.save(); P.tint.save(); for (const c of [k2, P.tint]) { c.translate(f.x, f.y); c.rotate(-0.08); }
+      const body = [[-56, -20], [-46, -31], [46, -31], [56, -20], [56, 14], [-56, 14]];
+      occlude(body.map(([a, b]) => [a, b])); tint(body, 0.5); poly(k2, body, 1.2);
+      for (let q = -46; q < 44; q += 15) { poly(k2, rect(q, -15, 10, 12), 0.6); hatch(k2, rect(q, -15, 10, 12), 0.9, 1.1, 0.4); }
+      line(k2, 0, -31, 10, -46, 0.8); line(k2, 10, -46, 20, -46, 0.8);
+      for (const wx of [-32, 32]) { k2.lineWidth = 1.1 * WM; k2.beginPath(); k2.arc(wx, 16, 6, 0, TAU); k2.stroke(); }
+      k2.restore(); P.tint.restore();
+      solidPoly(rect(f.x - 58, f.y - 34, 116, 54));
+    } else if (f.kind === 'jar') {
+      const pts = [[f.x - 12, f.y - 5], [f.x + 12, f.y - 5], [f.x + 13, f.y + 16], [f.x + 8, f.y + 21], [f.x - 8, f.y + 21], [f.x - 13, f.y + 16]];
+      solid(pts); tint(pts, 1.1); poly(k, pts, 1); poly(k, rect(f.x - 9, f.y - 12, 18, 7), 0.9); line(k, f.x - 7, f.y + 5, f.x + 7, f.y + 5, 0.6);
+    } else if (f.kind === 'bottle') {
+      const pts = [[-5, -8], [-2, -11], [-2, -17], [2, -17], [2, -11], [5, -8], [5, 9], [-5, 9]].map(([a, b]) => [f.x + a * Math.cos(f.a) - b * Math.sin(f.a), f.y + a * Math.sin(f.a) + b * Math.cos(f.a)]);
+      solid(pts); poly(k, pts, 0.9); hatch(k, pts, 0.9, 1.2, 0.35);
+    } else if (f.kind === 'cave') {
+      hollow(f.x, f.y, f.rx, f.ry);
+      for (let q = -f.rx * 0.7; q < f.rx * 0.7; q += tr(9, 16)) {
+        const ty = f.y - f.ry * Math.sqrt(Math.max(0, 1 - (q / f.rx) ** 2)) + 2, l = tr(6, 13);
+        for (let s = 0; s < l; s += CS) { const i = gi(f.x + q, ty + s); if (i >= 0) soil[i] = 1; }
+      }
+      if (f.pool) for (let y = f.y + f.ry * 0.35; y <= f.y + f.ry; y += CS) for (let q = -f.rx; q <= f.rx; q += CS) { const i = gi(f.x + q, y); if (i >= 0 && soil[i] === 0) { water[i] = 1; still[i] = 1; } }
+    } else if (f.kind === 'ammonite') {
+      const rr = ring(f.x, f.y, f.r, f.r, 30); solid(rr); tint(rr, 0.45); poly(k, rr, 1.1, true, 0.2);
+      const sp = []; for (let a = 0; a < 3.3 * TAU; a += 0.12) { const r = f.r * Math.pow(a / (3.3 * TAU), 0.9); sp.push([f.x + Math.cos(-a) * r, f.y + Math.sin(-a) * r]); }
+      curve(k, sp, 0.8);
+      for (let a = 0; a < TAU; a += 0.42) line(k, f.x + Math.cos(a) * f.r * 0.72, f.y + Math.sin(a) * f.r * 0.72, f.x + Math.cos(a) * f.r, f.y + Math.sin(a) * f.r, 0.5, 0);
+    } else if (f.kind === 'bones') {
+      const bone = (ax, ay, bx, by) => { const p = [[f.x + ax * f.s, f.y + ay * f.s], [f.x + bx * f.s, f.y + by * f.s]]; const n = [-(p[1][1] - p[0][1]), p[1][0] - p[0][0]], L = Math.hypot(...n) || 1, h = 2.4 * f.s; const pts = [[p[0][0] + n[0] / L * h, p[0][1] + n[1] / L * h], [p[1][0] + n[0] / L * h, p[1][1] + n[1] / L * h], [p[1][0] - n[0] / L * h, p[1][1] - n[1] / L * h], [p[0][0] - n[0] / L * h, p[0][1] - n[1] / L * h]]; solid(pts); poly(k, pts, 0.7, true, 0.2); };
+      for (let q = -30; q <= 26; q += 7) bone(q, 0, q + 2, 12 - Math.abs(q) * 0.15);
+      bone(-36, -2, 34, -4); bone(-36, -2, -58, 8); bone(-22, 10, -26, 26); bone(18, 10, 22, 26);
+      const sk = ring(f.x + 42 * f.s, f.y - 6 * f.s, 12 * f.s, 7 * f.s, 20); solid(sk); poly(k, sk, 0.9, true, 0.2);
+    } else if (f.kind === 'stones') {
+      for (let q = 0; q < 10; q++) { const x = f.x + tr(-120, 120), y = f.y + tr(-60, 60), r = tr(3, 8); const pts = ring(x, y, r * tr(0.8, 1.2), r * 0.7, 9); solid(pts); tint(pts, 'stone'); poly(k, pts, 0.6, true, 0); hatch(k, pts, 0.8, 1.1, 0.35, (px, py) => (py > y ? 0.8 : 0.1)); }
+    }
+  }
+
+  // ---------------------------------------------------------------- digging
+  const BITE = 3.6;
+  function stamp(cx, cy, r) {
+    for (let y = cy - r; y <= cy + r; y += CS) for (let x = cx - r; x <= cx + r; x += CS) {
+      if ((x - cx) ** 2 + (y - cy) ** 2 > r * r) continue;
+      const i = gi(x, y); if (i >= 0 && soil[i] === 1) { soil[i] = 0; plan[i] = 0; }
+    }
+    markDug(cx, cy, r); dirty = true;
+  }
+  // (Only a route you draw goes through pipe and concrete; the scouts keep to earth.)
+  const inTube = (y) => TUBE && y > TUBE.y - 2 && y < TUBE.y + TUBE.h + 2;
+  // (Brick that holds back the lost river isn't to be chewed by accident.)
+  const nearRiver = (i) => { const x = i % GW; for (let k = -3; k <= 3; k++) { const a = i + k * GW; if (a >= 0 && a < GW * GH && still[a] === 2) return true; if (x + k >= 0 && x + k < GW && still[i + k] === 2) return true; } return false; };
+  // Finding the way. A route is dug as drawn where it can be; where it can't (water, the subway's open air, an
+  // open hole), and from the colony out to where it starts, the way's found: the cheapest line through tunnel,
+  // then earth, then pipe or brick or concrete to be chewed (dear), never through water.
+  function stepCost(i) {
+    const v = soil[i]; if (water[i] > 0.5 || v === 4) return 0;
+    if (v === 0) return 1; if (v === 5) return 8; if (v === 1) return 3;
+    if ((v === 2 || v === 3) && !inTube(cyOf(i)) && !nearRiver(i)) return 14;
+    return 0;
+  }
+  let wD = null, wP = null;
+  function findWay(src, dst) {
+    if (dst < 0 || !src.length) return null;
+    if (!wD || wD.length !== cap) { wD = new Int32Array(cap); wP = new Int32Array(cap); }
+    wD.fill(2147483647, 0, GW * GH);
+    const Bk = Array.from({ length: 16 }, () => []); let n = 0, d = 0, found = false;
+    for (const q of src) if (q >= 0 && wD[q] !== 0) { wD[q] = 0; wP[q] = -1; Bk[0].push(q); n++; }
+    while (n > 0 && !found) {
+      const bk = Bk[d % 16];
+      while (bk.length) {
+        const i = bk.pop(); n--; if (wD[i] !== d) continue; if (i === dst) { found = true; break; }
+        const x = i % GW;
+        for (const j of [i - 1, i + 1, i - GW, i + GW]) { if (j < 0 || j >= GW * GH || Math.abs((j % GW) - x) > 1) continue; const c = j === dst ? 1 : stepCost(j); if (!c) continue; const nd = d + c; if (nd < wD[j]) { wD[j] = nd; wP[j] = i; Bk[nd % 16].push(j); n++; } }
+      }
+      d++;
+    }
+    if (!found) return null;
+    const way = []; for (let i = dst; i >= 0; i = wP[i]) way.push(i);
+    return way.reverse();
+  }
+  const colonyCells = () => { if (dirty || alloc !== cap) fields(); const out = []; for (let i = 0; i < GW * GH; i++) if (fNest[i] < 1e8 && pass(i)) out.push(i); return out; };
+  function planWay(way, show = true) {
+    for (const i of way) markPlan(cxOf(i), cyOf(i), BITE + 0.4, true);
+    if (show && way.length > 1) { const pts = []; for (let k = 0; k < way.length; k += 3) pts.push([cxOf(way[k]), cyOf(way[k])]); pts.push([cxOf(way[way.length - 1]), cyOf(way[way.length - 1])]); plans.push({ kind: 'path', pts }); }
+  }
+  function markPlan(x, y, r, hard = false) {
+    for (let yy = y - r; yy <= y + r; yy += CS) for (let xx = x - r; xx <= x + r; xx += CS) {
+      if ((xx - x) ** 2 + (yy - y) ** 2 > r * r) continue;
+      const i = gi(xx, yy); if (i >= 0 && (soil[i] === 1 || (hard && (soil[i] === 2 || soil[i] === 3) && !inTube(yy) && !nearRiver(i)))) plan[i] = 1;
+    }
+    dirty = true;
+  }
+
+  // ---------------------------------------------------------------- the ways ants find things
+  let fSurf, fDig, fStore, fNest, fFood, Q, alloc = 0, dirty = true, fieldsAt = 0, hasDig = false, entrances = [];
+  const pass = (i) => (soil[i] === 0 || soil[i] === 5) && water[i] < 0.5;
+  function bfs(f, sources) {
+    f.fill(1e9, 0, GW * GH); let h = 0, t = 0;
+    for (const s of sources) { f[s] = 0; Q[t++] = s; }
+    while (h < t) {
+      const i = Q[h++], x = i % GW, d = f[i] + 1;
+      if (x > 0 && pass(i - 1) && f[i - 1] > d) { f[i - 1] = d; Q[t++] = i - 1; }
+      if (x < GW - 1 && pass(i + 1) && f[i + 1] > d) { f[i + 1] = d; Q[t++] = i + 1; }
+      if (i >= GW && pass(i - GW) && f[i - GW] > d) { f[i - GW] = d; Q[t++] = i - GW; }
+      if (i < GW * (GH - 1) && pass(i + GW) && f[i + GW] > d) { f[i + GW] = d; Q[t++] = i + GW; }
+    }
+  }
+  function fields() {
+    if (alloc !== cap) { fSurf = new Int32Array(cap); fDig = new Int32Array(cap); fStore = new Int32Array(cap); fNest = new Int32Array(cap); fFood = new Int32Array(cap); Q = new Int32Array(cap); alloc = cap; }
+    const topRow = [], dig = [], store = [], nest = [], food = [], n = GW * GH;
+    entrances = [];
+    for (let x = 0; x < GW; x++) if (pass(x)) { topRow.push(x); const ex = (x + 0.5) * CS, e = entrances.find((q) => Math.abs(q.x - ex) < 14); if (e) { e.n++; e.x += (ex - e.x) / e.n; } else entrances.push({ x: ex, n: 1 }); }
+    for (let i = 0; i < n; i++) {
+      if (!pass(i)) continue;
+      const x = i % GW;
+      if ((x > 0 && plan[i - 1]) || (x < GW - 1 && plan[i + 1]) || (i >= GW && plan[i - GW]) || (i < n - GW && plan[i + GW])) dig.push(i);
+    }
+    for (const c of chambers) { const i = gi(c.x, c.y); if (i >= 0 && pass(i)) (c.role === 'larder' ? store : nest).push(i); }
+    for (const d of deposits) if (d.food >= 1) { const i = gi(d.x, d.y); if (i >= 0 && pass(i)) food.push(i); }
+    bfs(fSurf, topRow); bfs(fDig, dig); bfs(fStore, store.length ? store : nest); bfs(fNest, nest.length ? nest : store); bfs(fFood, food);
+    if (RIV && !RIV.gone) { if (!fRiv || fRiv.length !== cap) fRiv = new Int32Array(cap); const ri = gi(RIV.x, RIV.y); if (ri >= 0) bfs(fRiv, [ri]); }
+    hasDig = dig.length > 0; dirty = false;
+  }
+
+  // ---------------------------------------------------------------- the colony
+  let ants = [], dead = [], chambers = [], plans = [], crumbs = [], carts = [], mounds = new Map(), stock = 0, scoutAt = 0, EX = 0, poison = 0;
+  const QUEEN = { x: 0, y: 0, alive: true, hurt: 0 };
+  const newAnt = (x, y) => ({ x, y, a: rnd(0, TAU), tx: x, ty: y, job: 'idle', carry: null, wait: 0, step: rnd(0, 10), surf: false, want: null });
+  function found(ex, depth, n) {
+    // (A queen digs in: a shaft from the street, her room at its foot, a larder off to one side.)
+    const tb = TUBE && TUBE.y + TUBE.h < depth ? TUBE : null, gx = ex - 24;
+    for (let y = 0; y < depth; y += 2) { if (tb && y > tb.y - 2 && y < tb.y + tb.h) continue; const x = tb && y >= tb.y + tb.h ? gx + (ex - gx) * Math.min(1, (y - tb.y - tb.h) / 30) : ex; stamp(x + (y > 310 ? Math.sin(y / 22) * 6 : 0), y, BITE); }
+    const qy = depth + 8;
+    for (let a = 0; a < TAU; a += 0.3) for (let r = 2; r < 18; r += 3) stamp(ex + Math.cos(a) * r * 1.4, qy + Math.sin(a) * r * 0.6, BITE);
+    chambers.push({ x: ex, y: qy, r: 18, role: 'queen' }); QUEEN.x = ex; QUEEN.y = qy + 2; QUEEN.alive = true; QUEEN.hurt = 0; QUEEN.go = null; QUEEN.tx = null;
+    const side = ex > UW / 2 ? -1 : 1, lx = ex + side * 60, ly = depth - 20;
+    for (let t = 0; t <= 1; t += 0.02) stamp(ex + (lx - ex) * t, ly + Math.sin(t * 3) * 3, BITE * 0.9);
+    for (let a = 0; a < TAU; a += 0.3) for (let r = 2; r < 13; r += 3) stamp(lx + Math.cos(a) * r * 1.3, ly + Math.sin(a) * r * 0.6, BITE);
+    chambers.push({ x: lx, y: ly, r: 13, role: 'larder' });
+    for (let k = 0; k < n; k++) ants.push(newAnt(ex + rnd(-10, 10), qy + rnd(-4, 4)));
+    stock = 3;
+  }
+
+  // ---------------------------------------------------------------- the city
+  // Its buildings stand on footings the ants can dig out. Hollowed enough, a building cracks, leans, and is taken
+  // into the ground under it, and its neighbours are shaken. A city brought down sinks; a newer one is built
+  // on its rubble.
+  let era = 0, downed = 0, towers = [], rubble = [], cars = [], train = { x: -999, at: 2 }, train2 = { x: -999, at: 6, stop: 0, stopped: false }, cityC, cityX, skyC, peak = 0, buildAt = 30, eraLines = [], dust = [], debris = [];
+  const NAMES = ['Tallow Row', 'Lanternmarket', 'Brackwater', 'Old Saltings', 'Ferrow', 'Cinder Lane', 'Quillgate', 'Marrowby'];
+  const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
+  const foundation = () => 30 + era * 15;
+  function design(w) {
+    // (What the town builds: brick houses and warehouses under their roofs, a hall with a dome or a clock; later,
+    // plainer modern blocks. Nothing that towers over the street.)
+    const fh = 26, r = Math.random(), maxF = Math.max(3, Math.floor((SKY * 0.78 - fh * 1.35 - 30) / fh));
+    if (!towers.some((t) => t.d.kind === 'civic') && r < 0.18 && w > 96) { const body = rnd(92, Math.min(130, SKY * 0.42)), dome = Math.random() < 0.5; return { kind: 'civic', w, body, dome, h: body + (dome ? 90 : 106) }; }
+    if (era === 0 || (era === 1 && r < 0.65) || r < 0.2) {
+      const floors = Math.round(rnd(3, Math.min(maxF, 4 + era * 2))), roof = era === 0 ? pick(['gable', 'gable', 'mansard', 'parapet']) : pick(['parapet', 'mansard']), body = fh * 1.35 + floors * fh;
+      return { kind: 'masonry', w, floors, fh, body, h: body + (roof === 'gable' ? w * 0.3 + 6 : 30), roof, arch: Math.random() < 0.5, stone: Math.random() < 0.4 };
+    }
+    return { kind: 'glass', w, h: rnd(SKY * 0.45, SKY * 0.72) };
+  }
+  function tower(x, d) { return { x, w: d.w, d, damage: 0, tilt: 0, want: 0, fall: null, rise: 1, cracked: 0, side: 1, spr: null }; }
+  function towerSprite(t) {
+    if (t.spr) return t.spr;
+    const d = t.d, pad = 40;
+    P = plates(d.w + 2 * pad, d.h + 2 * pad + 40, -pad, -d.h - pad - 30);
+    tex(Math.round(t.x * 13 + d.h));
+    if (d.kind === 'masonry') masonry(d); else if (d.kind === 'civic') civic(d); else glass(d);
+    if (t.cracked) crackLines({ w: d.w, damage: t.damage }, t.side);
+    const c = printed(P, false);
+    return (t.spr = { c, ox: -pad, oy: -d.h - pad - 30, w: d.w + 2 * pad, h: d.h + 2 * pad + 40 });
+  }
+  function drawSprite(x, s, X, Y, ang, sink = 0, floor = 0) {
+    x.save(); x.translate(X, Y); x.rotate(ang);
+    if (sink) { x.beginPath(); x.rect(s.ox - 40, s.oy - 40, s.w + 80, -s.oy + 40 + floor); x.clip(); x.translate(0, sink); }
+    x.drawImage(s.c, s.ox, s.oy, s.w, s.h); x.restore();
+  }
+  function initCity() {
+    towers = []; let x = 6;
+    while (x < UW - 40) {
+      let w = rnd(84, 140);
+      // (Fitted to the room there is: narrower beside the colony's way in, or at the end of the street.)
+      if (x < EX + 24 && x + w > EX - 24) { if (EX - 26 - x >= 54) w = EX - 26 - x; else { x = EX + 24; continue; } }
+      if (x + w > UW + 30) { if (UW + 20 - x >= 54) w = UW + 20 - x; else break; }
+      towers.push(tower(x, design(w)));
+      x += w + rnd(2, 10);
+    }
+    peak = towers.length; downed = 0;
+    plantTrees();
+    carts = [{ x: EX - 50, t: 0, life: 70 }];
+    drawSky();
+  }
+  // Behind the block, the far city, fine and pale.
+  // Behind the block, the town goes on: hills with streets terraced up them, a viaduct across the valley, and
+  // nearer, its working quarters: sawtooth sheds and their chimneys, a gasholder's frame, a market dome,
+  // warehouses at the water with a crane. Fine and pale, receding.
+  function drawSky() {
+    const h = SKY + 80;
+    P = plates(UW, h, 0, -h + 10);
+    tex(900 + era);
+    const k = P.ink, ph = tr(0, 6);
+    // Far off, the downs: one soft ridge, laid in as a flat tint and a few strokes of shading. Nothing built on it; the town stops at the valley.
+    const hill = (x) => -SKY * 0.5 - Math.sin(x / 230 + ph) * SKY * 0.07 - Math.sin(x / 71 + ph * 3) * 3;
+    const hp = [[-5, 10]]; for (let x = -5; x <= UW + 5; x += 6) hp.push([x, hill(x)]); hp.push([UW + 5, 10]);
+    tint(hp, 0.22); curve(k, hp.slice(1, -1), 0.5);
+    hatch(k, hp, 0.1, 3.6, 0.2, (px, py) => { const d = py - hill(px); return d < 3 ? 0 : Math.max(0, 0.45 - d / 90); });
+    // The viaduct.
+    const vy = -SKY * 0.3, vx0 = tr(-60, 60), vx1 = vx0 + tr(300, 420);
+    const deck = rect(vx0, vy - 7, vx1 - vx0, 7); occlude(deck); tint(deck, 0.16); poly(k, deck, 0.6, true, 0.3); hatch(k, deck, 0, 1.4, 0.3);
+    for (let x = vx0; x < vx1; x += 24) {
+      const pier = rect(x, vy, 5, -vy); occlude(pier); tint(pier, 0.16); poly(k, pier, 0.5, true, 0.2); hatch(k, pier, 1.57, 1.2, 0.3, () => 0.5);
+      if (x + 24 < vx1) { k.lineWidth = 0.5 * WM; k.beginPath(); k.arc(x + 14.5, vy + 9, 9.5, Math.PI, 0); k.stroke(); }
+    }
+    { let tx = vx0 + (vx1 - vx0) * 0.35; for (let c = 0; c < 4; c++) { const car2 = rect(tx + c * 13, vy - 13, 12, 6); occlude(car2); poly(k, car2, 0.45, true, 0.2); } }
+    // The working town, nearer.
+    const kinds = ['shed', 'houses', 'gas', 'houses', 'dome', 'warehouse', 'shed', 'houses'];
+    let x = tr(-30, -5), placed = new Set();
+    while (x < UW + 10) {
+      let kind = pick(kinds); if ((kind === 'gas' || kind === 'dome') && placed.has(kind)) kind = 'houses'; placed.add(kind);
+      let w = 40;
+      if (kind === 'shed') {
+        w = tr(60, 90); const hh = SKY * tr(0.18, 0.24), body = rect(x, -hh, w, hh); occlude(body); tint(body, 0.12); poly(k, body, 0.55, true, 0.3);
+        for (let q = x; q < x + w - 2; q += 12) { const tooth = [[q, -hh], [q + 12, -hh - 8], [q + 12, -hh]]; occlude(tooth); tint(tooth, 0.2); poly(k, tooth, 0.5, true, 0); hatch(k, [[q, -hh], [q + 12, -hh - 8], [q + 12, -hh]], 1.1, 1.2, 0.3, () => 0.6); }
+        for (let q = x + 6; q < x + w - 6; q += 9) poly(k, rect(q, -hh + 6, 5, 9), 0.35, true, 0);
+        const cx = x + w * tr(0.6, 0.85), ch = SKY * tr(0.5, 0.62), stack = [[cx - 4, -hh - 6], [cx - 2.5, -ch], [cx + 2.5, -ch], [cx + 4, -hh - 6]];
+        occlude(stack); tint(stack, 0.18); poly(k, stack, 0.5, true, 0.2); for (let y = -ch + 6; y < -hh - 8; y += 16) line(k, cx - 3, y, cx + 3, y, 0.35, 0);
+        // (Its smoke, drawn as a printer would: loops of fine line, thinning downwind.)
+        for (let q = 0; q < 7; q++) { const sx = cx + q * 8 + tr(-2, 2), sy = -ch - 6 - q * 2.5, r = 3 + q * 1.2; k.lineWidth = 0.4 * WM; k.globalAlpha = 1 - q / 9; k.beginPath(); k.arc(sx, sy, r, Math.PI * 0.9, Math.PI * 2.2); k.stroke(); } k.globalAlpha = 1;
+      } else if (kind === 'houses') {
+        w = 0; const n = 3 + Math.floor(tr(0, 3));
+        for (let q = 0; q < n; q++) { const ww = tr(16, 24), hh = SKY * tr(0.14, 0.22), xx = x + w; const pts = [[xx, 0], [xx, -hh], [xx + ww / 2, -hh - ww * 0.35], [xx + ww, -hh], [xx + ww, 0]]; occlude(pts); tint(pts, 0.1); poly(k, pts, 0.5, true, 0.3); for (let y = -hh + 6; y < -8; y += 12) for (let c = xx + 4; c < xx + ww - 5; c += 7) poly(k, rect(c, y, 3, 5), 0.3, true, 0); if (T() < 0.6) poly(k, rect(xx + ww * 0.7, -hh - ww * 0.3, 3, 7), 0.4, true, 0); w += ww; }
+      } else if (kind === 'gas') {
+        w = tr(54, 66); const hh = SKY * 0.34, cx = x + w / 2;
+        const bell = rect(x + 4, -hh * tr(0.55, 0.85), w - 8, hh * 0.85); const bt = bell[0][1];
+        occlude(rect(x + 4, bt, w - 8, -bt)); tint(rect(x + 4, bt, w - 8, -bt), 0.12); for (let y = bt + 5; y < 0; y += 6) line(k, x + 4, y, x + w - 4, y, 0.3, 0); k.lineWidth = 0.5 * WM; k.beginPath(); k.ellipse(cx, bt, w / 2 - 4, 3, 0, Math.PI, TAU); k.stroke();
+        for (let q = 0; q <= 5; q++) { const cxq = x + (w * q) / 5; line(k, cxq, 0, cxq, -hh, 0.5, 0); }
+        for (const y of [-hh, -hh * 0.66, -hh * 0.33]) line(k, x, y, x + w, y, 0.5, 0);
+        k.lineWidth = 0.3 * WM; k.beginPath(); for (let q = 0; q < 5; q++) for (const [ya, yb] of [[-hh, -hh * 0.66], [-hh * 0.66, -hh * 0.33], [-hh * 0.33, 0]]) { const xa = x + (w * q) / 5, xb = x + (w * (q + 1)) / 5; k.moveTo(xa, ya); k.lineTo(xb, yb); } k.stroke();
+      } else if (kind === 'dome') {
+        w = tr(56, 70); const hh = SKY * 0.2, cx = x + w / 2, body = rect(x, -hh, w, hh); occlude(body); tint(body, 0.1); poly(k, body, 0.55, true, 0.3);
+        for (let q = x + 6; q < x + w - 6; q += 10) { poly(k, rect(q, -hh + 8, 5, 12), 0.35, true, 0); k.lineWidth = 0.35 * WM; k.beginPath(); k.arc(q + 2.5, -hh + 8, 2.5, Math.PI, 0); k.stroke(); }
+        const dome = [[cx - 22, -hh], ...Array.from({ length: 13 }, (_, i) => { const a = Math.PI + (i / 12) * Math.PI; return [cx + Math.cos(a) * 22, -hh + Math.sin(a) * 20]; }), [cx + 22, -hh]];
+        occlude(dome); tint(dome, 0.2); poly(k, dome, 0.6, true, 0.2); hatch(k, dome, 1.2, 1.5, 0.3, (px) => (px > cx + 3 ? 0.8 : 0.1)); for (const dx of [-12, 0, 12]) curve(k, [[cx + dx * 1.7, -hh], [cx + dx * 1.2, -hh - 14], [cx, -hh - 20]], 0.35);
+        poly(k, rect(cx - 3, -hh - 27, 6, 7), 0.5, true, 0); line(k, cx, -hh - 27, cx, -hh - 33, 0.4, 0);
+      } else {
+        w = tr(44, 56); const hh = SKY * tr(0.28, 0.34), body = rect(x, -hh, w, hh); occlude(body); tint(body, 0.14); poly(k, body, 0.55, true, 0.3);
+        for (let y = -hh + 8; y < -6; y += 12) { poly(k, rect(x + w / 2 - 4, y, 8, 8), 0.4, true, 0); for (const dx of [6, w - 11]) poly(k, rect(x + dx, y + 2, 5, 5), 0.3, true, 0); }
+        line(k, x + w / 2, -hh - 2, x + w / 2 + 10, -hh - 2, 0.6, 0); line(k, x + w / 2 + 10, -hh - 2, x + w / 2 + 10, -hh + 10, 0.3, 0);
+        hatch(k, body, 1.57, 2.4, 0.3, (px) => (px > x + w * 0.7 ? 0.6 : 0));
+        // (A dock crane beside it.)
+        const cx = x + w + 14, ch = SKY * 0.42;
+        line(k, cx - 8, 0, cx, -ch * 0.7, 0.5, 0); line(k, cx + 8, 0, cx, -ch * 0.7, 0.5, 0); line(k, cx - 4, -ch * 0.35, cx + 4, -ch * 0.35, 0.35, 0);
+        line(k, cx, -ch * 0.7, cx - 34, -ch, 0.55, 0); line(k, cx - 34, -ch, cx - 34, -ch * 0.62, 0.3, 0); poly(k, rect(cx - 3, -ch * 0.7 - 5, 7, 5), 0.4, true, 0);
+        w += 22;
+      }
+      x += w + tr(2, 12);
+    }
+    for (let q = 0; q < 6; q++) { const x2 = tr(80, 520), y = -SKY * tr(0.72, 0.92), s2 = tr(2.5, 4.5); curve(k, [[x2 - s2, y], [x2 - s2 * 0.4, y - s2 * 0.5], [x2, y]], 0.5); curve(k, [[x2, y], [x2 + s2 * 0.4, y - s2 * 0.5], [x2 + s2, y]], 0.5); }
+    skyC = { c: printed(P, false), y: -h + 10, h };
+  }
+  function drawCity() {
+    const c = cityX; c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, cityC.width, cityC.height);
+    c.setTransform(RU, 0, 0, RU, 0, -cityC.oy * RU);
+    if (skyC) c.drawImage(skyC.c, 0, skyC.y, UW, skyC.h);
+    for (const t of towers) if (!t.fall && t.rise >= 1) drawSprite(c, towerSprite(t), t.x, 0, t.tilt);
+    for (const r of rubble) c.drawImage(r.c, r.x + r.ox, r.oy, r.w, r.h);
+  }
+  // (How much of a tower's footing the ants have dug away, and on which side.)
+  function hollowUnder(t) {
+    let n = 0, d = 0, l = 0, r = 0;
+    for (let x = t.x + 2; x <= t.x + t.w - 2; x += CS) for (let y = 1; y < foundation(); y += CS) { const i = gi(x, y); if (i >= 0) { n++; if (soil[i] === 0 || soil[i] === 4) { d++; if (x < t.x + t.w / 2) l++; else r++; } } }
+    return { f: n ? d / n : 0, side: l > r ? -1 : 1 };
+  }
+  function crack(t, side) { t.cracked++; t.side = side; t.spr = null; cityDirty = true; }
+  function collapse(t, side) {
+    if (t.fall) return;
+    // (Over an open hole it leans and slides down into it; otherwise it settles into its own footing.)
+    const floor = holeFloorUnder(t.x, t.x + t.w);
+    t.fall = { t: 0, side, sink: 0, v: 0, floor };
+    alarm += 24;
+    caption(`The ground takes No. ${Math.round(t.x / 4) + 2}`, 2.6);
+    for (let q = 0; q < 6; q++) dust.push({ x: t.x + rnd(-6, t.w + 6), y: rnd(-4, 0), r: rnd(5, 10), vx: rnd(-18, 18), vy: rnd(-2, -0.5), t: 0, life: rnd(2.5, 4), s: Math.random() * 9 });
+  }
+  function stepTowers(dt) {
+    for (const t of [...towers]) {
+      if (t.rise < 1) { t.rise = Math.min(1, t.rise + dt / 34); if (t.rise >= 1) cityDirty = true; continue; }
+      if (t.fall) {
+        const f = t.fall; f.t += dt; f.v += dt * (22 + f.t * 40); f.sink += f.v * dt;
+        t.tilt = f.side * Math.min(f.floor > 0 ? 0.24 : 0.07, f.t * (f.floor > 0 ? 0.09 : 0.035));
+        // (Floors giving: dust thrown out, pieces breaking off.)
+        if (Math.random() < dt * 2) dust.push({ x: t.x + rnd(-6, t.w + 6), y: rnd(-3, 0), r: rnd(4, 9), vx: rnd(-20, 20), vy: rnd(-2, -0.5), t: 0, life: rnd(2.5, 4), s: Math.random() * 9 });
+        if (Math.random() < dt * 12) debris.push({ x: t.x + rnd(0, t.w), y: -t.d.h + f.sink + rnd(0, t.d.h * 0.6), vx: rnd(-30, 30), vy: rnd(-20, 10), a: rnd(0, TAU), va: rnd(-4, 4), s: rnd(2, 6) });
+        if (f.sink > t.d.h + 30 + f.floor) land(t);
+        // (Its neighbours shaken.)
+        if (!f.shook && f.t > 0.6) { f.shook = true; for (const o of towers) if (o !== t && !o.fall && o.rise >= 1 && (Math.abs(o.x - (t.x + t.w)) < 14 || Math.abs(o.x + o.w - t.x) < 14)) { o.damage++; const dir = o.x > t.x ? -1 : 1; if (o.damage >= 3 && Math.random() < 0.5) setTimeout(() => collapse(o, dir), 900); else { o.want = dir * 0.025; crack(o, dir); } } }
+        continue;
+      }
+      if (Math.abs(t.want - t.tilt) > 0.001) { t.tilt += (t.want - t.tilt) * Math.min(1, dt * 1.5); cityDirty = true; }
+    }
+  }
+  function land(t) {
+    towers.splice(towers.indexOf(t), 1); downed++;
+    // (Its rubble fills whatever opened under it.)
+    if (t.fall.floor > 0) fillHole(t.x - 10, t.x + t.w + 10);
+    // (What's left: a heap, low, where it stood; and the food it held, out in the street.)
+    P = plates(t.w + 80, 90, t.x - 40, -70);
+    tex(Math.round(t.x * 3));
+    for (let q = 0; q < 46; q++) {
+      const x = t.x + tr(-20, t.w + 20), hh = (1 - Math.abs(x - (t.x + t.w / 2)) / (t.w / 2 + 24)) * 42, y = -tr(0, Math.max(4, hh)), s = tr(5, 13), a = tr(-0.7, 0.7);
+      const pts = [0, 1, 2, 3, 4].map((i) => [x + Math.cos(a + i * 1.3) * s * tr(0.6, 1.1), y + Math.sin(a + i * 1.3) * s * tr(0.4, 0.8)]);
+      occlude(pts); tint(pts, T() < 0.4 ? 'facade' : 'rubble'); poly(P.ink, pts, 0.7, true, 0.2); hatch(P.ink, pts, 0.8, 1.1, 0.35, (px, py) => (py > y ? 0.9 : 0.15));
+      if (T() < 0.3) for (let w = 0; w < 3; w++) { const wx = x + tr(-s / 2, s / 2), wy = y + tr(-s / 3, s / 4); poly(P.ink, rect(wx, wy, 3, 3.5), 0.4, true, 0); }
+    }
+    for (let q = 0; q < 6; q++) { const x = t.x + tr(0, t.w); curve(P.ink, [[x, -tr(10, 30)], [x + tr(-6, 6), -tr(30, 46)], [x + tr(-8, 8), -tr(40, 56)]], 0.5); }
+    const c = printed(P, false);
+    rubble.push({ x: t.x, ox: -40, oy: -70, w: t.w + 80, h: 90, c, x0: t.x, x1: t.x + t.w });
+    for (let k = 0; k < 8 + Math.round(t.d.h / 40); k++) crumbs.push({ x: clamp(t.x + rnd(-20, t.w + 20), 4, UW - 4), claimed: null, bait: false, at: clock });
+    cityDirty = true;
+  }
+
+  // ---------------------------------------------------------------- the city fights back
+  let alarm = 0, pest = null, pestCool = 0, captions = [];
+  const thresholds = () => [30, 55, 80].map((v) => v * Math.max(0.55, 1 - era * 0.12));
+  function caption(text, secs = 2.6) { captions.push({ text, at: clock, secs }); if (captions.length > 2) captions.shift(); }
+  function busiest() { let best = entrances[0], bn = -1; for (const e of entrances) { let n = 0; for (const [x, m] of mounds) if (Math.abs(x - e.x) < 40) n += m; if (n > bn) { bn = n; best = e; } } return best; }
+  // (Where the van or the mixer pulls up: just past the hole, or short of it where the street ends.)
+  const parkOf = (p) => { const sd = p.x + 56 > UW - 6 ? -1 : 1; return [p.x + 46 * sd, sd]; };
+  function stepPest(dt) {
+    alarm = Math.max(0, alarm - dt * 0.7);
+    if (leaks.length) alarm += dt * 0.6;
+    alarm += ants.filter((a) => a.surf).length * dt * 0.02;
+    alarm = Math.min(100, alarm);
+    pestCool -= dt;
+    // (A hole in the street is the city's first concern: cordoned, then grouted full.)
+    const open = holes.find((h) => !h.filled && clock - h.at > 20);
+    if (!pest && open) { pest = { kind: 'grout', x: open.cx, hole: open, t: 0, van: UW + 90, done: false }; caption('Engineers pump grout into the hole', 2.8); }
+    if (!pest && pestCool <= 0 && entrances.length && QUEEN.alive) {
+      const [b, s, c] = thresholds(), kind = alarm >= c ? 'concrete' : alarm >= s ? 'smoke' : alarm >= b ? 'bait' : null;
+      if (kind) { const e = busiest(); pest = { kind, x: e.x, t: 0, van: UW + 90, done: false }; caption(kind === 'bait' ? 'The exterminator is called' : kind === 'smoke' ? 'They fumigate' : 'They pour concrete', 2.6); }
+    }
+    if (!pest) return;
+    const p = pest; p.t += dt;
+    const park = parkOf(p)[0];
+    if (!p.done) p.van += (park - p.van) * Math.min(1, dt * 1.6);
+    else { p.van += dt * 160; if (p.van > UW + 110) { pest = null; pestCool = 14; alarm = Math.max(0, alarm - 22); } return; }
+    if (Math.abs(p.van - park) > 3) return;
+    if (p.kind === 'bait' && !p.laid) { p.laid = true; for (let k = 0; k < 9; k++) crumbs.push({ x: clamp(p.x + rnd(-50, 50), 4, UW - 4), claimed: null, bait: true, at: clock }); }
+    if (p.kind === 'smoke' && p.t < 11) for (let dx = -2; dx <= 2; dx++) { const j = gi(p.x + dx * CS, 1); if (j >= 0 && soil[j] === 0) smoke[j] = Math.min(1.5, smoke[j] + dt * 6); }
+    if (p.kind === 'grout') {
+      if (!p.queue) { p.queue = []; for (let i = 0; i < GW * Math.min(GH, 120); i++) if (soil[i] === 4) { const x = cxOf(i); if (x > p.hole.x0 - 60 && x < p.hole.x1 + 60) p.queue.push(i); } p.queue.sort((a, b) => b - a); }
+      const n = Math.min(p.queue.length, Math.ceil(dt * 200)); for (let k = 0; k < n; k++) { const i = p.queue.shift(); if (soil[i] === 4) { soil[i] = 3; markDug(cxOf(i), cyOf(i), 4); (p.wet || (p.wet = [])).push({ x: cxOf(i), y: cyOf(i), at: clock }); } } if (p.wet && p.wet.length > 260) p.wet.splice(0, p.wet.length - 260);
+      if (!p.queue.length && !p.hole.filled) { p.hole.filled = true; slabs = slabs.filter((s2) => s2.hole !== p.hole); wrecks = wrecks.filter((w) => w.hole !== p.hole); dirty = true; }
+    }
+    if (p.kind === 'concrete') { if (!p.queue) p.queue = pourOrder(p.x, 420 + era * 140); const n = Math.min(p.queue.length, Math.floor((p.acc = (p.acc || 0) + dt * 45))); p.acc -= n; for (let k = 0; k < n; k++) setConcrete(p.queue.shift()); }
+    if (p.t > (p.kind === 'bait' ? 4 : p.kind === 'smoke' ? 12 : 9) && (p.kind !== 'concrete' && p.kind !== 'grout' || !p.queue.length)) p.done = true;
+  }
+  function pourOrder(x, vol) {
+    const seen = new Uint8Array(GW * GH), out = [], q = [];
+    for (let dx = -4; dx <= 4; dx++) { const i = gi(x + dx * CS, 1); if (i >= 0 && soil[i] === 0 && !seen[i]) { seen[i] = 1; q.push(i); } }
+    while (q.length && out.length < vol) { const i = q.shift(); out.push(i); const xx = i % GW; for (const j of [i + GW, i - 1, i + 1, i - GW]) if (j >= 0 && j < GW * GH && Math.abs((j % GW) - xx) <= 1 && !seen[j] && soil[j] === 0 && cyOf(j) < REACH.concrete && !guardAt.has(j)) { seen[j] = 1; q.push(j); } }
+    return out;
+  }
+  function setConcrete(i) {
+    if (soil[i] !== 0) return;
+    soil[i] = 3; plan[i] = 0; water[i] = 0; smoke[i] = 0;
+    markDug(cxOf(i), cyOf(i), 4); dirty = true;
+    if (pest) { (pest.wet || (pest.wet = [])).push({ x: cxOf(i), y: cyOf(i), at: clock }); if (pest.wet.length > 260) pest.wet.shift(); }
+    for (const a of ants) if (!a.surf && gi(a.x, a.y) === i) kill(a);
+    if (QUEEN.alive && gi(QUEEN.x, QUEEN.y) === i) loseQueen();
+    if (PRIN.alive && gi(PRIN.x, PRIN.y) === i) { PRIN.alive = false; caption('The second queen is lost', 2.4); }
+  }
+  function kill(a) { const k = ants.indexOf(a); if (k < 0) return; ants.splice(k, 1); dead.push({ x: a.x, y: a.y, a: a.a, at: clock }); }
+  function loseQueen() {
+    if (!QUEEN.alive) return;
+    if (PRIN.alive) {
+      dead.push({ x: QUEEN.x, y: QUEEN.y, a: 0, at: clock, big: true });
+      const old = chambers.find((q) => q.role === 'queen'); if (old) old.role = 'nursery';
+      const nu = chambers.reduce((b, q) => (!b || Math.hypot(q.x - PRIN.x, q.y - PRIN.y) < Math.hypot(b.x - PRIN.x, b.y - PRIN.y) ? q : b), null); if (nu) nu.role = 'queen';
+      QUEEN.x = PRIN.x; QUEEN.y = PRIN.y; QUEEN.hurt = 0; QUEEN.go = null; QUEEN.tx = null; PRIN.alive = false;
+      caption('The queen is lost; the second queen carries on', 3.2); return;
+    }
+    plugs = []; rebuildGuards(); brood = []; queenPick = false;
+    QUEEN.alive = false; dead.push({ x: QUEEN.x, y: QUEEN.y, a: 0, at: clock, big: true });
+    for (const a of [...ants]) kill(a);
+    caption('The colony is exterminated', 3.5);
+    setTimeout(() => {
+      chambers = []; plans = []; plan.fill(0);
+      const bad = (x) => entrances.some((e) => Math.abs(e.x - x) < 70) || towers.some((t) => x > t.x - 16 && x < t.x + t.w + 16);
+      // (Down one of the ways through the works: a pipe's joint, a vent.)
+      const opts = SEAMS.filter((x) => !bad(x)), x = opts.length ? pick(opts) : pick(SEAMS);
+      found(x, 330, 24); EX = x; alarm = 0; pestCool = 25;
+      caption('A new queen comes down', 2.6);
+    }, 5000);
+  }
+  function stepSmoke() {
+    let lo = GH, hi = -1;
+    for (let i = 0; i < GW * GH; i++) if (smoke[i] > 0.003) { const r = (i / GW) | 0; if (r < lo) lo = r; if (r > hi) hi = r; }
+    if (hi < 0) return;
+    const r0 = Math.max(0, lo - 1), r1 = Math.min(GH - 1, hi + 1), nx = new Float32Array((r1 - r0 + 1) * GW);
+    for (let r = r0; r <= r1; r++) for (let x = 0; x < GW; x++) {
+      const i = r * GW + x; if (soil[i] !== 0 || water[i] > 0.5 || guardAt.has(i)) continue;
+      let s = smoke[i], sum = 0, c = 0;
+      for (const j of [i - 1, i + 1, i - GW, i + GW]) { if (j < 0 || j >= GW * GH || Math.abs((j % GW) - x) > 1 || soil[j] !== 0 || water[j] > 0.5 || guardAt.has(j)) continue; sum += smoke[j]; c++; }
+      nx[i - r0 * GW] = Math.max(0, s + 0.22 * (sum - c * s) - 0.005 - (r * CS > REACH.smoke ? 0.25 : 0));
+    }
+    smoke.set(nx, r0 * GW);
+  }
+
+  // ---------------------------------------------------------------- the ground giving way
+  // Under the street is made ground: loose, and held up only by what's under it. Where the ants leave a wide
+  // hollow, its roof drops into it a crumb at a time, so the hollow climbs; water running through washes it out
+  // faster. When one reaches the street, the street goes in.
+  let holes = [], wrecks = [], slabs = [], tubeBreaks = [], tubeBroken = false;
+  const LOOSE = 60; // (rows of made ground under the street, 180 units, that can give way)
+  const open4 = (v) => v === 0 || v === 4;
+  function subside() {
+    const rows = Math.min(GH - 2, LOOSE), changed = new Set();
+    let falls = 0;
+    for (let r = rows - 1; r >= 0 && falls < 60; r--) for (let x = 0; x < GW && falls < 60; x++) {
+      const i = r * GW + x; if (soil[i] !== 1 || changed.has(i)) continue;
+      const b = i + GW, vb = soil[b]; if (!open4(vb) || changed.has(b)) continue;
+      let sp = 1; for (let q = 1; q < 10 && x - q >= 0 && open4(soil[b - q]); q++) sp++; for (let q = 1; q < 10 && x + q < GW && open4(soil[b + q]); q++) sp++;
+      const wet = water[b] > 0.2 ? 0.3 : 0, p = vb === 4 ? 0.3 : sp >= 6 ? 0.025 * (sp - 5) + wet : wet * 0.4;
+      if (Math.random() >= p) continue;
+      // (The roof falls to the hollow's floor: the hollow moves up by a crumb.)
+      let j = b; while (j + GW < GW * GH && soil[j + GW] === vb) j += GW;
+      soil[i] = vb; soil[j] = 1; changed.add(i); changed.add(j); plan[i] = 0;
+      markDug(cxOf(i), cyOf(i), 3); markDug(cxOf(j), cyOf(j), 3);
+      for (const a of ants) if (!a.surf && gi(a.x, a.y) === j) kill(a);
+      falls++;
+    }
+    // (Water through the ground: it carries the soil off.)
+    let washed = 0;
+    for (let r = Math.min(GH - 2, 100); r >= 0 && washed < 24; r--) for (let x = 1; x < GW - 1 && washed < 24; x++) {
+      const i = r * GW + x; if (water[i] < 0.3 || soil[i] !== 0) continue;
+      for (const j of [i - 1, i + 1, i + GW, i - GW]) if (j >= 0 && soil[j] === 1 && Math.random() < 0.12) { soil[j] = 0; markDug(cxOf(j), cyOf(j), 3); washed++; }
+    }
+    if (falls || washed) dirty = true;
+    // A hollow come up through the street: the street gives way.
+    let x = 0;
+    while (x < GW) {
+      if (!open4(soil[x])) { x++; continue; }
+      let e = x; while (e < GW && open4(soil[e])) e++;
+      const any4 = (() => { for (let q = x; q < e; q++) if (soil[q] === 4) return true; return false; })();
+      if (e - x >= 6 && !any4) openHole(x, e);
+      x = e;
+    }
+    // Young holes widen: their walls crumble in, most near the top, a bell.
+    for (const h of holes) if (!h.filled && clock - h.at < 16) {
+      let grew = 0;
+      for (let r = 0; r < Math.min(GH, 50) && grew < 110; r++) for (let q = Math.max(1, Math.floor((h.cx - 95) / CS)); q < Math.min(GW - 1, Math.ceil((h.cx + 95) / CS)) && grew < 110; q++) {
+        const i = r * GW + q; if (soil[i] !== 1) continue;
+        if (!(soil[i - 1] === 4 || soil[i + 1] === 4 || soil[i + GW] === 4 || (i >= GW && soil[i - GW] === 4))) continue;
+        if (Math.random() < 0.16 * (1 - r / 50) + (soil[i + GW] === 4 ? 0.2 : 0)) { soil[i] = 4; markDug(cxOf(i), cyOf(i), 3); grew++; for (const a of ants) if (!a.surf && gi(a.x, a.y) === i) kill(a); }
+      }
+      let lo = GW, hi = 0; for (let q = 0; q < GW; q++) if (soil[q] === 4) { const cx = cxOf(q); if (Math.abs(cx - h.cx) < 120) { lo = Math.min(lo, q); hi = Math.max(hi, q); } }
+      if (hi >= lo) { h.x0 = lo * CS; h.x1 = (hi + 1) * CS; }
+    }
+    // The main, undermined, bursts; the subway's roof, with a hollow on it, comes down.
+    if (PIPE) {
+      let run = 0;
+      for (let x2 = PIPE.x0; x2 <= PIPE.x1; x2 += CS) {
+        const i = gi(x2, PIPE.y + PIPE.h + 3);
+        run = i >= 0 && open4(soil[i]) ? run + 1 : 0;
+        if (run >= 8 && !leaks.some((l) => Math.abs(l.x - x2) < 40)) { leaks.push({ x: x2 - 10, damp: 0 }); alarm += 10; caption('The main bursts', 2.4); run = 0; }
+      }
+    }
+    if (TUBE) {
+      let run = 0, start = 0;
+      for (let x2 = TUBE.x0; x2 <= TUBE.x1 + 3; x2 += CS) {
+        const i = gi(x2, TUBE.y - 2);
+        if (i >= 0 && open4(soil[i])) { if (!run) start = x2; run++; } else run = 0;
+        if (run >= 10 && !tubeBreaks.some((b) => x2 > b.x0 - 20 && start < b.x1 + 20)) { roofDown(start, x2); run = 0; }
+      }
+    }
+  }
+  function openHole(gx0, gx1) {
+    for (const t of trees) if (t.alive && !t.buried && t.x > gx0 * CS - 22 && t.x < (gx1 + 1) * CS + 22) { t.alive = false; caption('A street tree goes in, and its aphids with it', 2.6); }
+    const cx = ((gx0 + gx1) / 2) * CS, seen = new Uint8Array(GW * GH), q = [];
+    for (let g2 = gx0; g2 < gx1; g2++) { seen[g2] = 1; q.push(g2); }
+    while (q.length) {
+      const i = q.pop(); soil[i] = 4; plan[i] = 0;
+      const x = i % GW;
+      for (const j of [i - 1, i + 1, i + GW, i - GW]) if (j >= 0 && j < GW * GH && !seen[j] && Math.abs((j % GW) - x) <= 1 && soil[j] === 0 && Math.abs(cxOf(j) - cx) < 90 && cyOf(j) < 120) { seen[j] = 1; q.push(j); }
+    }
+    for (const a of [...ants]) { const i = gi(a.x, a.y); if (!a.surf && i >= 0 && soil[i] === 4) kill(a); }
+    const h = { x0: gx0 * CS, x1: gx1 * CS, cx, at: clock, filled: false };
+    holes.push(h);
+    markDug(cx, 120, 130); dirty = true;
+    alarm += 26;
+    caption('The street gives way', 2.8);
+    // (Its edges: the slab broken, hanging in, the bars trailing.)
+    for (const [x, dir] of [[h.x0, 1], [h.x1, -1]]) for (let q2 = 0; q2 < 2; q2++) slabs.push({ x: x + dir * q2 * 6, y: 4 + q2 * 3, w: rnd(12, 20), h: 4, a: dir > 0 ? rnd(0.5, 1.1) : Math.PI - rnd(0.5, 1.1), hole: h });
+    for (let q2 = 0; q2 < 12; q2++) dust.push({ x: rnd(h.x0, h.x1), y: rnd(-6, 2), r: rnd(5, 11), vx: rnd(-14, 14), vy: rnd(-4, -1), t: 0, life: rnd(3, 5), s: Math.random() * 9 });
+  }
+  function roofDown(x0, x1) {
+    tubeBreaks.push({ x0, x1 }); tubeBroken = true;
+    for (let y = TUBE.y - 1; y < TUBE.y + TUBE.h; y += CS) for (let x = x0; x <= x1; x += CS) { const i = gi(x, y); if (i >= 0 && soil[i] === 2) soil[i] = 4; }
+    markDug((x0 + x1) / 2, TUBE.y + TUBE.h / 2, (x1 - x0) / 2 + 50); dirty = true;
+    for (let q = 0; q < 6; q++) slabs.push({ x: rnd(x0, x1 - 10), y: TUBE.y + TUBE.h - 10 - q * 3, w: rnd(12, 22), h: 4, a: rnd(-0.4, 0.4), hole: null });
+    alarm += 30; caption('The subway roof gives way', 3);
+  }
+  // (How deep the open hole goes under a point, and under a stretch.)
+  function holeFloorAt(x) { let r = 0; while (r < GH) { const i = gi(x, r * CS + 1); if (i < 0 || soil[i] !== 4) break; r++; } return r * CS; }
+  function holeFloorUnder(x0, x1) { let m = 0; for (let x = x0; x <= x1; x += CS) m = Math.max(m, holeFloorAt(x)); return m; }
+  // (Filled with a building's rubble: earth again, and the rubble pressed into the print where it lies.)
+  function fillHole(x0, x1) {
+    const ch = chunk(0), cx2 = ch.pc.getContext('2d');
+    cx2.save(); cx2.setTransform(RU, 0, 0, RU, 0, 0);
+    for (let y = 0; y < 240; y += CS) for (let x = x0; x <= x1; x += CS) { const i = gi(x, y); if (i >= 0 && soil[i] === 4) { soil[i] = 1; if (Math.random() < 0.08) { const s2 = rnd(4, 11), a = rnd(0, 3); cx2.fillStyle = Math.random() < 0.5 ? '#e7ae9b' : '#efd2c4'; cx2.strokeStyle = OVER; cx2.lineWidth = 0.7; cx2.beginPath(); for (let k = 0; k < 5; k++) cx2.lineTo(x + Math.cos(a + k * 1.3) * s2, y + Math.sin(a + k * 1.3) * s2 * 0.6); cx2.closePath(); cx2.fill(); cx2.stroke(); } } }
+    cx2.restore();
+    for (const h of holes) if (!h.filled && h.cx > x0 - 30 && h.cx < x1 + 30) { h.filled = true; slabs = slabs.filter((s2) => s2.hole !== h); }
+    markDug((x0 + x1) / 2, 120, 140); dirty = true;
+  }
+  // A building going up: the site fenced, a lorry with the bricks, a crane lifting them, scaffolding rising a
+  // floor at a time with the building inside it; then the scaffold and the crane come down.
+  function site(t, time) {
+    const p = clamp(t.rise, 0, 1), d = t.d, Ht = d.h, x0 = t.x, w = t.w;
+    const raw = clamp((p - 0.08) / 0.74, 0, 1) * Ht, built = p >= 0.82 ? Ht : Math.floor(raw / 26) * 26;
+    if (built > 0) { const s2 = towerSprite(t); g.save(); g.translate(x0, 0); g.beginPath(); g.rect(s2.ox - 40, -built - 1, s2.w + 80, built + 41); g.clip(); g.drawImage(s2.c, s2.ox, s2.oy, s2.w, s2.h); g.restore(); }
+    g.strokeStyle = OVER; g.lineCap = 'round';
+    // Scaffold: standards, ledgers every lift, a brace in every other bay, boards where they're working.
+    if (p < 0.94) {
+      const sh = Math.min(Ht - 4, built + 30), fade = p > 0.84 ? 1 - (p - 0.84) / 0.1 : 1;
+      g.globalAlpha = 0.9 * fade; g.lineWidth = 0.55;
+      const xs = []; for (let x = x0 - 5; x <= x0 + w + 5; x += (w + 10) / Math.max(3, Math.round((w + 10) / 18))) xs.push(x);
+      for (const x of xs) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, -sh); g.stroke(); }
+      for (let y = -13; y > -sh; y -= 13) { g.beginPath(); g.moveTo(xs[0] - 2, y); g.lineTo(xs[xs.length - 1] + 2, y); g.stroke(); }
+      for (let i = 0; i < xs.length - 1; i += 2) for (let y = 0; y > -sh + 13; y -= 26) { g.beginPath(); g.moveTo(xs[i], y); g.lineTo(xs[i + 1], Math.max(-sh, y - 26)); g.stroke(); }
+      g.lineWidth = 1.2; for (let y = -26; y > -sh; y -= 26) { g.beginPath(); g.moveTo(xs[0] - 3, y); g.lineTo(xs[xs.length - 1] + 3, y); g.stroke(); }
+      g.globalAlpha = 1;
+    }
+    // Hoarding round the site.
+    if (p < 0.97) { g.fillStyle = PINK; g.fillRect(x0 - 9, -11, w + 18, 11); g.lineWidth = 0.8; g.strokeRect(x0 - 9, -11, w + 18, 11); g.lineWidth = 0.35; for (let x = x0 - 6; x < x0 + w + 9; x += 4) { g.beginPath(); g.moveTo(x, -11); g.lineTo(x, 0); g.stroke(); } }
+    // The crane.
+    if (p < 0.98) {
+      const side = x0 + w + 40 < UW ? 1 : -1, mx = side > 0 ? x0 + w + 18 : x0 - 18, mh = Ht + 36, L = w * 0.85 + 16;
+      g.lineWidth = 0.6;
+      g.beginPath(); g.moveTo(mx - 3, 0); g.lineTo(mx - 3, -mh); g.moveTo(mx + 3, 0); g.lineTo(mx + 3, -mh); g.stroke();
+      g.lineWidth = 0.35; g.beginPath(); for (let y = 0; y > -mh; y -= 7) { g.moveTo(mx - 3, y); g.lineTo(mx + 3, y - 3.5); g.lineTo(mx - 3, y - 7); } g.stroke();
+      const jy = -mh, jx1 = mx - side * L, cx2 = mx + side * 24;
+      g.lineWidth = 0.6; g.beginPath(); g.moveTo(cx2, jy); g.lineTo(jx1, jy); g.moveTo(cx2, jy + 4); g.lineTo(jx1, jy + 4); g.stroke();
+      g.lineWidth = 0.3; g.beginPath(); for (let x = mx; side > 0 ? x > jx1 : x < jx1; x -= side * 6) { g.moveTo(x, jy); g.lineTo(x - side * 3, jy + 4); g.lineTo(x - side * 6, jy); } g.stroke();
+      g.lineWidth = 0.5; g.beginPath(); g.moveTo(mx, jy - 10); g.lineTo(jx1 + side * L * 0.4, jy); g.moveTo(mx, jy - 10); g.lineTo(cx2, jy); g.moveTo(mx - 3, jy); g.lineTo(mx, jy - 10); g.lineTo(mx + 3, jy); g.stroke();
+      g.fillStyle = PINK; g.fillRect(Math.min(cx2, cx2 - side * 8) , jy + 4, 8, 7); g.strokeRect(Math.min(cx2, cx2 - side * 8), jy + 4, 8, 7);
+      g.fillRect(mx - 4, jy + 4, 8, 6); g.strokeRect(mx - 4, jy + 4, 8, 6);
+      // (A lift: the hook down to the pallets stacked by the mast, up with one, out along the jib, down onto the
+      // floor they're building, set down there, and back. What's landed sits on the floor till its walls go up.)
+      const T = 4.2, ph = time + x0 * 0.13, cyc = Math.floor(ph / T), f = (ph % T) / T, sx = mx - side * 10, topY = -built - 1, hTop = jy + 16;
+      const drop = (c) => x0 + w * (0.2 + 0.6 * ((c * 0.618 + x0 * 0.01) % 1)), dx = drop(cyc), stackTop = -12;
+      const ease = (q) => q * q * (3 - 2 * q), sg = (a2, b2) => ease(clamp((f - a2) / (b2 - a2), 0, 1));
+      let tx2, hy, load;
+      if (f < 0.14) { tx2 = sx; hy = hTop + (stackTop - hTop) * sg(0, 0.14); load = false; }
+      else if (f < 0.22) { tx2 = sx; hy = stackTop; load = f > 0.18; }
+      else if (f < 0.38) { tx2 = sx; hy = stackTop + (hTop - stackTop) * sg(0.22, 0.38); load = true; }
+      else if (f < 0.56) { tx2 = sx + (dx - sx) * sg(0.38, 0.56); hy = hTop; load = true; }
+      else if (f < 0.7) { tx2 = dx; hy = hTop + (topY - 5 - hTop) * sg(0.56, 0.7); load = true; }
+      else if (f < 0.78) { tx2 = dx; hy = topY - 5; load = false; }
+      else if (f < 0.9) { tx2 = dx; hy = topY - 5 + (hTop - topY + 5) * sg(0.78, 0.9); load = false; }
+      else { tx2 = dx + (sx - dx) * sg(0.9, 1); hy = hTop; load = false; }
+      const pallet = (px, py) => { g.fillStyle = PINK; g.fillRect(px - 5, py, 10, 4); g.lineWidth = 0.5; g.strokeRect(px - 5, py, 10, 4); g.lineWidth = 0.25; g.beginPath(); g.moveTo(px - 5, py + 2); g.lineTo(px + 5, py + 2); for (let q = -3; q < 5; q += 3) { g.moveTo(px + q, py); g.lineTo(px + q, py + 2); g.moveTo(px + q - 1.5, py + 2); g.lineTo(px + q - 1.5, py + 4); } g.stroke(); g.lineWidth = 0.6; g.beginPath(); g.moveTo(px - 5.5, py + 4.3); g.lineTo(px + 5.5, py + 4.3); g.stroke(); };
+      // (The stack by the mast, one fewer while one's up.)
+      const inAir = f > 0.18 && f < 0.7; for (let q = 0; q < (inAir ? 2 : 3); q++) pallet(sx, -4.3 - q * 4.6);
+      // (What's been landed on this floor since it was begun.)
+      if (t.lastBuilt !== built) { t.lastBuilt = built; t.floorAt = time; }
+      if (built > 0 || p > 0.08) for (let c = cyc; c > cyc - 4; c--) { const landed = c * T + 0.7 * T - x0 * 0.13; if (landed <= time && landed >= (t.floorAt || 0)) pallet(drop(c), topY - 4.6); }
+      g.strokeStyle = OVER; g.lineWidth = 0.3; g.beginPath(); g.moveTo(tx2 - 0.6, jy + 4); g.lineTo(tx2 - 0.6, hy - 2); g.moveTo(tx2 + 0.6, jy + 4); g.lineTo(tx2 + 0.6, hy - 2); g.stroke();
+      g.lineWidth = 0.6; g.strokeRect(tx2 - 2, jy + 4, 4, 2.5); g.fillStyle = OVER; g.fillRect(tx2 - 1.2, hy - 3, 2.4, 1.6);
+      g.lineWidth = 0.5; g.beginPath(); g.arc(tx2, hy - 0.6, 1.1, 0, Math.PI); g.stroke();
+      if (load) { g.lineWidth = 0.3; g.beginPath(); g.moveTo(tx2, hy); g.lineTo(tx2 - 5, hy + 4); g.moveTo(tx2, hy); g.lineTo(tx2 + 5, hy + 4); g.stroke(); pallet(tx2, hy + 4); }
+    }
+    if (p < 0.6) blit(SPR.lorry, (x0 - 44 > 10 ? x0 - 44 : x0 + w + 44), 0);
+  }
+
+  // (Round an open hole: posts and tape, and the men in hard hats looking in.)
+  function cordon(h, t) {
+    const age = clock - h.at; if (age < 1.5) return;
+    const a = h.x0 - 12, b = h.x1 + 12;
+    g.strokeStyle = OVER; g.lineWidth = 1;
+    for (const x of [a, b]) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, -14); g.stroke(); g.fillStyle = PINK; g.fillRect(x - 2, -15, 4, 3); }
+    g.setLineDash([4, 3]); g.beginPath(); g.moveTo(a, -12); g.quadraticCurveTo((a + b) / 2, -9 + Math.sin(t * 2) * 0.6, b, -12); g.stroke(); g.setLineDash([]);
+    if (age > 3) { blit(SPR.people[0], a - 10, 0); blit(SPR.people[2], b + 10, 0); g.fillStyle = OVER; for (const x of [a - 10, b + 10]) { g.beginPath(); g.arc(x, -13.6, 2.2, Math.PI, 0); g.fill(); } }
+  }
+
+  // ---------------------------------------------------------------- a city brought down
+  let fallen = null;
+  function checkCity() {
+    if (fallen) return;
+    if (peak >= 3 && downed >= Math.ceil(peak * 0.65)) {
+      fallen = { at: clock };
+      caption(`${NAMES[era % NAMES.length]} has fallen`, 3.4);
+      towers.filter((t) => !t.fall).forEach((t, k) => setTimeout(() => collapse(t, Math.random() < 0.5 ? -1 : 1), 500 + k * 700));
+      setTimeout(bury, 6000 + towers.length * 700);
+    }
+  }
+  const ERA_H = 159;
+  // The rubble settles; the ground's made up over it; and on that, a newer city. Everything below goes one
+  // layer deeper, the colony with it, and must dig its way back up.
+  function bury() {
+    const Rr = ERA_H / CS, n = GH * GW, sh = Rr * GW;
+    const ways = entrances.map((e) => e.x);
+    for (const arr of [soil, plan, water, still, smoke]) arr.copyWithin(sh, 0, n - sh);
+    trod = null; fills = [];
+    soil.fill(1, 0, sh); plan.fill(0, 0, sh); water.fill(0, 0, sh); still.fill(0, 0, sh); smoke.fill(0, 0, sh);
+    const old = chunks.map((c) => c.pc);
+    for (let k = chunks.length - 1; k >= 0; k--) {
+      const pc = document.createElement('canvas'); pc.width = old[k].width; pc.height = old[k].height; const x = pc.getContext('2d');
+      x.drawImage(old[k], 0, ERA_H * RU); if (k > 0) x.drawImage(old[k - 1], 0, (ERA_H - CH) * RU);
+      chunks[k].pc = pc;
+    }
+    for (const a of ants) if (a.surf) { const e = nearestEntrance(a.x); if (e) a.x = a.tx = e.x; a.y = a.ty = 2; a.surf = false; }
+    const dn = (o) => { if (o) o.y += ERA_H; };
+    [PIPE, GAS, TUBE, SEWER, STATION, QUEEN].forEach(dn); deposits.forEach(dn); chambers.forEach(dn); ants.forEach((a) => { a.y += ERA_H; a.ty += ERA_H; }); dead.forEach(dn);
+    MINES.forEach(dn); dn(PRIN); brood.forEach(dn); DECOR.forEach((d) => { d.dy += ERA_H; }); if (RIV) { dn(RIV); RIV.ants.forEach((a) => { a.y += ERA_H; a.ty += ERA_H; }); }
+    if (MOLE) { MOLE.y += ERA_H; MOLE.y0 += ERA_H; } QUEEN.go = null; QUEEN.tx = null;
+    plugs.forEach((p2) => { p2.y += ERA_H; p2.cells = p2.cells.map((i) => i + sh); }); rebuildGuards();
+    trees.forEach((t) => { t.alive = false; t.buried = true; });
+    plans.forEach((p) => { if (p.kind === 'room') p.y += ERA_H; else p.pts = p.pts.map(([x, y]) => [x, y + ERA_H]); });
+    eraLines = eraLines.map((e) => ({ ...e, y: e.y + ERA_H })); eraLines.push({ y: ERA_H, n: era });
+    // The new layer: the city's rubble, the old street's line, a dark band of ash.
+    P = plates(UW, ERA_H, 0, 0);
+    tex(5000 + era);
+    tint(rect(0, 0, UW, ERA_H), 'rubble');
+    stipple(P.ink, rect(0, 0, UW, ERA_H), 9000, 0.55, 1, (x, y) => 0.25 + 0.6 * (y / ERA_H) ** 3);
+    line(P.ink, -4, ERA_H - 2, UW + 4, ERA_H - 2, 1.8, 0);
+    hatch(P.ink, rect(0, ERA_H - 14, UW, 10), 0, 1, 0.45);
+    for (let q = 0; q < 70; q++) {
+      const x = tr(0, UW); if (ways.some((h) => Math.abs(h - x) < 18)) continue;
+      const y = tr(14, ERA_H - 20), s = tr(5, 14), a = tr(-0.8, 0.8);
+      const pts = [0, 1, 2, 3, 4].map((i) => [x + Math.cos(a + i * 1.3) * s * tr(0.6, 1.1), y + Math.sin(a + i * 1.3) * s * tr(0.4, 0.8)]);
+      solid(pts); tint(pts, T() < 0.4 ? 'facade' : 'brick'); poly(P.ink, pts, 0.7, true, 0.2); hatch(P.ink, pts, 0.8, 1.1, 0.35, (px, py) => (py > y ? 0.9 : 0.15));
+      if (T() < 0.35) for (let w = 0; w < 3; w++) poly(P.ink, rect(x + tr(-s / 2, s / 2), y + tr(-s / 3, s / 4), 3, 3.5), 0.4, true, 0);
+    }
+    const band = printed(P, true);
+    chunks[0].pc.getContext('2d').drawImage(band, 0, 0);
+    for (const ch of chunks) repaint(ch, 0, ch.y0, UW, ch.y0 + CH);
+    for (const h of ways) { for (let y = ERA_H + 2; y >= 0; y -= 2) markPlan(h, y, BITE + 0.4); plans.push({ kind: 'path', pts: [[h, ERA_H + 2], [h, 0]] }); }
+    rubble = []; crumbs = []; mounds = new Map(); leaks = []; pest = null; pestCool = 20; alarm = 0; dust = []; debris = []; holes = []; wrecks = []; slabs = []; tubeBreaks = tubeBreaks.map((b) => b);
+    era++;
+    initCity();
+    towers.forEach((t, k) => { t.rise = -k * 0.12; });
+    fallen = null; cityDirty = true; dirty = true;
+    caption(`Plate ${ROMAN[era] || era + 1}: ${NAMES[era % NAMES.length]} is built`, 3.4);
+  }
+  function stepBuild(dt) {
+    buildAt -= dt;
+    if (buildAt > 0 || fallen) return;
+    buildAt = Math.max(20, 44 - era * 6);
+    // (Where the street's free, a plot fitted to the room: between the buildings, clear of the colony's way in.)
+    const busy = towers.map((t) => [t.x - 4, t.x + t.w + 4]).concat(entrances.map((e) => [e.x - 22, e.x + 22])).sort((p2, q2) => p2[0] - q2[0]);
+    const gaps = []; let at = 2;
+    for (const [a2, b2] of busy) { if (a2 - at >= 60) gaps.push([at, a2]); at = Math.max(at, b2); }
+    if (UW + 20 - at >= 60) gaps.push([at, UW + 20]);
+    if (gaps.length) {
+      const [g0, g1] = pick(gaps), w = Math.min(g1 - g0 - 4, rnd(80, 130)), x = g0 + (g1 - g0 - w) / 2;
+      const t = tower(x, design(w)); t.rise = 0; towers.push(t); peak = Math.max(peak, towers.filter((q) => !q.fall).length + downed);
+      rubble = rubble.filter((r) => r.x1 < x - 4 || r.x0 > x + w + 4); cityDirty = true;
+    }
+  }
+
+  // ---------------------------------------------------------------- the things that move, printed once
+  let SPR = {};
+  function sprite(wu, hu, ox, oy, draw, seed) { P = plates(wu, hu, ox, oy); tex(seed); draw(P.ink); return { c: printed(P, false), ox, oy, w: wu, h: hu }; }
+  const blit = (s, x, y, a = 0) => { g.save(); g.translate(x, y); if (a) g.rotate(a); g.drawImage(s.c, s.ox, s.oy, s.w, s.h); g.restore(); };
+  function makeSprites() {
+    const car = (k) => { const body = [[-15, 0], [-15, -5], [-10, -6], [-6, -11], [6, -11], [10, -6], [15, -5], [15, 0]]; occlude(body); tint(body, 'facade'); poly(k, body, 0.9, true, 0.4); poly(k, [[-5.2, -6.2], [-1, -10], [-1, -6.2]], 0.5); poly(k, [[1, -6.2], [1, -10], [5.2, -6.2]], 0.5); hatch(k, [[-15, -2.4], [15, -2.4], [15, 0], [-15, 0]], 0, 0.8, 0.4); for (const wx of [-9, 9]) { occlude(ring(wx, 0, 3.4)); k.lineWidth = 0.8 * WM; k.beginPath(); k.arc(wx, 0, 3.2, 0, TAU); k.stroke(); } };
+    SPR.car = sprite(40, 24, -20, -16, car, 1);
+    SPR.bus = sprite(92, 36, -46, -30, (k) => { const body = [[-40, 0], [-40, -22], [-37, -25], [40, -25], [42, -21], [42, 0]]; occlude(body); tint(body, 'facade'); poly(k, body, 1.1, true, 0.6); for (let q = -35; q < 36; q += 9.5) { poly(k, rect(q, -21, 7.5, 8), 0.5); hatch(k, rect(q, -21, 7.5, 8), 0.9, 1.1, 0.35); } line(k, -40, -10, 42, -10, 0.6); for (const wx of [-26, 28]) { occlude(ring(wx, 0, 4.6)); k.lineWidth = 0.9 * WM; k.beginPath(); k.arc(wx, 0, 4.4, 0, TAU); k.stroke(); } }, 2);
+    SPR.cart = sprite(34, 40, -17, -36, (k) => { const um = [[-12, -24], [0, -32], [12, -24]]; occlude(um); tint(um, 1); poly(k, um, 0.8); line(k, 0, -24, 0, -13, 0.7); const bx = rect(-9, -13, 18, 10); occlude(bx); tint(bx, 'facade'); poly(k, bx, 0.8); for (const wx of [-5, 5]) { k.lineWidth = 0.7 * WM; k.beginPath(); k.arc(wx, -2, 2.2, 0, TAU); k.stroke(); } }, 3);
+    SPR.tube = sprite(150, 60, -2, -2, (k) => { const body = [[0, 4], [4, 0], [136, 0], [140, 4], [140, 52], [0, 52]]; occlude(body); tint(body, 0.6); poly(k, body, 1, true, 0.5); for (let w = 8; w < 126; w += 17) { poly(k, rect(w, 7, 12, 14), 0.5); hatch(k, rect(w, 7, 12, 14), 0.9, 1.4, 0.3); } line(k, 0, 43, 140, 43, 0.5); hatch(k, rect(0, 43, 140, 9), 0, 1, 0.35); }, 4);
+    SPR.metro = sprite(150, 34, -2, -2, (k) => { const body = [[0, 3], [3, 0], [137, 0], [140, 3], [140, 26], [0, 26]]; occlude(body); tint(body, 0.6); poly(k, body, 1, true, 0.5); for (let w = 8; w < 128; w += 15) { poly(k, rect(w, 5, 10, 10), 0.5); hatch(k, rect(w, 5, 10, 10), 0.9, 1.4, 0.3); } }, 5);
+    SPR.people = [0, 1, 2].map((v) => sprite(12, 20, -6, -17, (k) => { k.beginPath(); k.arc(0, -13, 1.6, 0, TAU); k.fill(); const b = [[-1.7, -11], [1.7, -11], [1.3, -5], [-1.3, -5]]; poly(k, b, 0.5); hatch(k, b, 0.8, 0.7, 0.4); line(k, -0.8, -5, -1.6 - v * 0.4, 0, 0.6, 0); line(k, 0.8, -5, 1.6 + v * 0.3, 0, 0.6, 0); }, 6 + v));
+    SPR.van = sprite(64, 36, -30, -30, (k) => { const body = [[-26, 0], [-26, -17], [-23, -20], [8, -20], [8, -13], [18, -12], [26, -6], [26, 0]]; occlude(body); tint(body, 'facade'); poly(k, body, 1, true, 0.4); poly(k, rect(11, -10.5, 7, 4.5), 0.5); k.lineWidth = 0.7 * WM; k.beginPath(); k.arc(-9, -10, 6.5, 0, TAU); k.stroke(); k.beginPath(); k.ellipse(-11.5, -10, 2, 1.4, 0, 0, TAU); k.ellipse(-8.5, -10, 1.2, 1, 0, 0, TAU); k.ellipse(-6.4, -10, 1.2, 1.1, 0, 0, TAU); k.fill(); line(k, -14, -15, -4, -5, 1); for (const wx of [-15, 15]) { occlude(ring(wx, 0, 3.6)); k.lineWidth = 0.8 * WM; k.beginPath(); k.arc(wx, 0, 3.4, 0, TAU); k.stroke(); } }, 9);
+    SPR.lorry = sprite(80, 40, -38, -34, (k) => { const cab = [[18, 0], [18, -18], [26, -18], [34, -9], [34, 0]]; occlude(cab); tint(cab, 'facade'); poly(k, cab, 0.9); poly(k, rect(21, -15, 7, 6), 0.5); line(k, -32, -6, 18, -6, 1); line(k, -32, -6, -32, -2, 0.8); for (const bx of [-28, -12]) { const pl = rect(bx, -18, 14, 12); occlude(pl); tint(pl, 'brick'); poly(k, pl, 0.7); for (let y = -15; y < -6; y += 3) line(k, bx, y, bx + 14, y, 0.35, 0); } for (const wx of [-22, 2, 26]) { occlude(ring(wx, 1, 3.8)); k.lineWidth = 0.8 * WM; k.beginPath(); k.arc(wx, 1, 3.6, 0, TAU); k.stroke(); } }, 11);
+    SPR.cvan = sprite(50, 30, -24, -24, (k) => { const body = [[-21, 0], [-21, -15], [6, -15], [9, -10], [18, -8], [21, -4], [21, 0]]; occlude(body); tint(body, 'facade'); poly(k, body, 0.9, true, 0.4); poly(k, rect(9, -9, 6, 4), 0.45); line(k, -21, -6, 21, -6, 0.4); for (const wx of [-13, 13]) { occlude(ring(wx, 0, 3.4)); k.lineWidth = 0.8 * WM; k.beginPath(); k.arc(wx, 0, 3.2, 0, TAU); k.stroke(); } }, 12);
+    SPR.tree = sprite(48, 64, -24, -60, (k) => {
+      const tk = [[-1.8, 0], [-1.2, -22], [1.2, -22], [1.8, 0]]; occlude(tk); tint(tk, 0.6); poly(k, tk, 0.6, true, 0.2);
+      const cr = Array.from({ length: 24 }, (_, i) => { const a = (i / 24) * TAU, r = 15 + Math.sin(i * 2.7) * 2.4; return [Math.cos(a) * r, -37 + Math.sin(a) * r * 0.85]; });
+      occlude(cr); tint(cr, 0.35); poly(k, cr, 0.7, true, 0.2); hatch(k, cr, 0.9, 1.4, 0.35, (x, y) => (x > 2 || y > -33 ? 0.75 : 0.08));
+      for (let q = 0; q < 16; q++) { const a = q * 2.4, r = Math.sqrt(q / 16) * 11; k.lineWidth = 0.4 * WM; k.beginPath(); k.arc(Math.cos(a) * r, -37 + Math.sin(a) * r * 0.8, 2.3, Math.PI * 0.9, Math.PI * 2.1); k.stroke(); }
+      line(k, 0, -22, -6, -30, 0.5, 0); line(k, 0, -22, 5, -31, 0.5, 0);
+      const grate = rect(-6, -1.2, 12, 1.2); poly(k, grate, 0.4, true, 0);
+    }, 41);
+    SPR.bare = sprite(48, 64, -24, -60, (k) => {
+      const tk = [[-1.8, 0], [-1.2, -22], [1.2, -22], [1.8, 0]]; occlude(tk); tint(tk, 0.6); poly(k, tk, 0.6, true, 0.2);
+      const br = (x, y, a, l, d) => { if (d > 4) return; const x2 = x + Math.cos(a) * l, y2 = y + Math.sin(a) * l; line(k, x, y, x2, y2, 0.7 - d * 0.12, 0); br(x2, y2, a - tr(0.3, 0.6), l * 0.7, d + 1); br(x2, y2, a + tr(0.3, 0.6), l * 0.7, d + 1); };
+      br(0, -22, -Math.PI / 2, 10, 0);
+    }, 42);
+    SPR.mole = sprite(40, 26, -20, -13, (k) => {
+      const b = ring(0, 0, 13, 7.5, 24); occlude(b); tint(b, 1.25); poly(k, b, 1, true, 0.3); hatch(k, b, 0.3, 0.8, 0.4, (x, y) => (y > -1 ? 0.95 : 0.55)); for (let q = -9; q < 10; q += 2.2) line(k, q, -6.5 + Math.abs(q) * 0.12, q + 1.4, -4.5, 0.3, 0);
+      const sn = [[11.5, -2.5], [17.5, -0.5], [11.5, 2.5]]; occlude(sn); tint(sn, 0.3); poly(k, sn, 0.6, true, 0);
+      for (const [px, py] of [[8, 5.5], [-6, 6.5]]) { const paw = ring(px, py, 3.4, 2.1, 9); occlude(paw); tint(paw, 0.3); poly(k, paw, 0.5, true, 0); for (let q = -1; q <= 1; q++) line(k, px + 2.5, py + q, px + 5, py + q * 1.6, 0.35, 0); }
+      k.beginPath(); k.arc(8.5, -2.4, 0.6, 0, TAU); k.fill();
+    }, 77);
+    SPR.mixer = sprite(70, 40, -34, -34, (k) => { const cab = [[10, 0], [10, -16], [18, -16], [26, -8], [26, 0]]; occlude(cab); tint(cab, 'facade'); poly(k, cab, 0.9); const drum = [[-26, -1], [-26, -14], [-22, -19], [4, -16], [8, -10], [8, -1]]; occlude(drum); tint(drum, 1); poly(k, drum, 1); for (let q = -20; q < 4; q += 7) line(k, q, -17, q - 3, -2, 0.7); for (const wx of [-18, 0, 18]) { occlude(ring(wx, 1, 3.6)); k.lineWidth = 0.8 * WM; k.beginPath(); k.arc(wx, 1, 3.4, 0, TAU); k.stroke(); } }, 10);
+  }
+
+  // ---------------------------------------------------------------- the frame and the paper, printed once
+  function drawBase() {
+    const r = mul(3);
+    bg.setTransform(1, 0, 0, 1, 0, 0);
+    bg.fillStyle = bg.createPattern(paperTile, 'repeat'); bg.fillRect(0, 0, base.width, base.height);
+    // (The frame: one solid green, printed; its moulding left in the paper.)
+    const wu = W / S, hu = H / S;
+    P = plates(wu, hu, -IN.x / S, -G / S);
+    tex(77);
+    const fx = (v) => (v - IN.x) / S, fy = (v) => (v - G) / S;
+    const outer = rect(fx(F.x), fy(F.y), F.w / S, F.h / S), inner = rect(fx(IN.x), fy(IN.y), IN.w / S, IN.h / S);
+    P.ink.save(); path(P.ink, outer); P.ink.fill(); P.ink.globalCompositeOperation = 'destination-out'; path(P.ink, inner); P.ink.fill(); P.ink.restore();
+    const ridge = (x, y, v) => erase(P.ink, (c) => { c.lineWidth = 1.6; for (let k = -1; k <= 1; k++) { c.beginPath(); if (v) { c.moveTo(x + k * 5, y - 9); c.lineTo(x + k * 5, y + 9); } else { c.moveTo(x - 9, y + k * 5); c.lineTo(x + 9, y + k * 5); } c.stroke(); } });
+    ridge(fx(F.x + 7), fy(F.y + F.h - 40), false); ridge(fx(F.x + 7), fy(F.y + 60), false);
+    erase(P.ink, (c) => { c.lineWidth = 1.3; c.beginPath(); c.moveTo(fx(F.x + 4), fy(F.y + 30)); c.lineTo(fx(F.x + 4), fy(F.y + F.h - 30)); c.stroke(); });
+    const pc = printed(P, false);
+    bg.drawImage(pc, 0, 0);
+  }
+
+  // ---------------------------------------------------------------- water, finding its way down
+  function stepWater() {
+    for (const l of leaks) {
+      let got = false;
+      for (let y = PIPE.y + PIPE.h + 1; y < PIPE.y + PIPE.h + 26 && !got; y += CS) { const i = gi(l.x, y); if (i >= 0 && soil[i] === 0) { water[i] = Math.min(1.6, water[i] + 0.55); got = true; } }
+      l.damp = Math.min(34, l.damp + (got ? 0.05 : 0.25));
+      for (let a = 0; a < 6; a++) { const q = rnd(0, Math.PI), r = rnd(0, l.damp); const i = gi(l.x + Math.cos(q) * r, PIPE.y + PIPE.h + Math.sin(q) * r); if (i >= 0 && soil[i] === 0) water[i] = Math.min(1.4, water[i] + 0.12); }
+    }
+    let moved = false;
+    const tableRow = (L.table + era * ERA_H) / CS;
+    for (const c of chambers) if (c.role === 'sump') for (let dy = -c.r * 0.6 - 2; dy <= c.r * 0.6 + 2; dy += CS) for (let dx = -c.r * 1.4; dx <= c.r * 1.4; dx += CS) { const i = gi(c.x + dx, c.y + dy); if (i >= 0 && water[i] > 0 && still[i] !== 2) { water[i] *= 0.4; moved = true; } }
+    for (let y = GH - 2; y >= 0; y--) for (let x = 0; x < GW; x++) {
+      const i = y * GW + x;
+      if (still[i] === 2) water[i] = 1;
+      else if (y > tableRow && soil[i] === 0 && Math.random() < 0.012) water[i] = Math.min(1.2, water[i] + 0.3);
+      let w = water[i]; if (w <= 0.001) continue;
+      const b = i + GW;
+      if (soil[b] === 0 && water[b] < 1) { const m = Math.min(w, 1 - water[b]); water[b] += m; w -= m; moved = true; }
+      if (w > 0.02) for (const n of [i - 1, i + 1]) { const nx = n % GW; if (Math.abs(nx - x) === 1 && soil[n] === 0 && water[n] < w - 0.01) { const m = (w - water[n]) * 0.3; water[n] += m; w -= m; moved = true; } }
+      if (!still[i]) w = Math.max(0, w - 0.0025);
+      water[i] = w;
+    }
+    if (moved || leaks.length) dirty = true;
+  }
+
+  // ---------------------------------------------------------------- ants
+  const N8 = (i) => [i - 1, i + 1, i - GW, i + GW, i - GW - 1, i - GW + 1, i + GW - 1, i + GW + 1];
+  function cellStep(a, f) {
+    const i = gi(a.x, a.y); if (i < 0) return false;
+    let best = -1, bv = f[i]; const x = i % GW;
+    for (const j of N8(i)) { if (j < 0 || j >= GW * GH || Math.abs((j % GW) - x) > 1 || !pass(j)) continue; if (f[j] < bv || (f[j] === bv && best >= 0 && Math.random() < 0.3)) { bv = f[j]; best = j; } }
+    if (best < 0) return false;
+    a.tx = cxOf(best) + rnd(-0.8, 0.8); a.ty = cyOf(best) + rnd(-0.8, 0.8);
+    return true;
+  }
+  function wander(a) {
+    const i = gi(a.x, a.y); if (i < 0) return;
+    // (No idling on the track: an ant there with nothing to do heads home.)
+    if (soil[i] === 5 && fNest && cellStep(a, fNest)) return;
+    const x = i % GW, n = [i - 1, i + 1, i - GW, i + GW].filter((j) => j >= 0 && j < GW * GH && Math.abs((j % GW) - x) <= 1 && pass(j) && soil[j] !== 5);
+    if (!n.length) return;
+    let j = n[(Math.random() * n.length) | 0]; const fx = Math.cos(a.a), fy = Math.sin(a.a);
+    for (const k of n) if ((cxOf(k) - a.x) * fx + (cyOf(k) - a.y) * fy > 0.5 && Math.random() < 0.6) j = k;
+    a.tx = cxOf(j); a.ty = cyOf(j);
+  }
+  function think(a) {
+    const diggers = ants.filter((b) => b.job === 'dig').length, out = ants.filter((b) => b.job === 'forage').length, mining = ants.filter((b) => b.job === 'mine').length;
+    const free = crumbs.filter((c) => !c.claimed).length, i = gi(a.x, a.y);
+    if (i >= 0 && fFood[i] < 1e8 && mining < ants.length * 0.3 && Math.random() < 0.6) { a.job = 'mine'; return; }
+    if (free && out < Math.min(free * 1.5, ants.length * 0.35) && Math.random() < 0.5) { a.job = 'forage'; return; }
+    if (hasDig && diggers < ants.length * 0.7) { a.job = 'dig'; return; }
+    a.job = 'idle';
+  }
+  function moveAnt(a, dt) {
+    a.step += dt * 14;
+    const sp = (a.surf ? 64 : 50) * (a.carry ? 0.85 : 1), dx = a.tx - a.x, dy = a.ty - a.y, d = Math.hypot(dx, dy);
+    if (d > 0.4) { const want = Math.atan2(dy, dx), da = Math.atan2(Math.sin(want - a.a), Math.cos(want - a.a)); a.a += da * Math.min(1, dt * 14); const s = Math.min(d, sp * dt * (Math.abs(da) < 1.6 ? 1 : 0.45)); a.x += (dx / d) * s; a.y += (dy / d) * s; return d - s <= 0.4; }
+    return true;
+  }
+  // (Where ants go most, the floor wears: a track of fine dots down the middle of the busy tunnels.)
+  let trod = null;
+  function stepAnt(a, dt) {
+    if (!a.surf) { if (!trod || trod.length !== cap) trod = new Float32Array(cap); const i = gi(a.x, a.y); if (i >= 0) trod[i] = Math.min(1, trod[i] + dt * 0.5); }
+    if (!a.surf) { const i = gi(a.x, a.y); if (i >= 0 && smoke[i] > 0.25 && Math.random() < dt * smoke[i] * 1.4) { kill(a); return; } }
+    if (a.wait > 0) { a.wait -= dt; return; }
+    if (!moveAnt(a, dt)) return;
+    if (a.surf) return surfAnt(a);
+    if (!a.carry && (a.job === 'idle' ? Math.random() < 0.12 : Math.random() < 0.01)) think(a);
+    if (a.carry === 'grain' || (a.job === 'forage' && !a.carry)) {
+      { const i = gi(a.x, a.y); if (i >= 0 && !(fSurf[i] < 1e8)) { a.carry = null; a.job = 'idle'; wander(a); return; } }
+      if (!cellStep(a, fSurf)) { const i = gi(a.x, a.y); if (i >= 0 && i < GW) { a.surf = true; a.ty = -1.5; a.y = -1; a.tx = a.x; a.want = a.carry === 'grain' ? 'mound' : 'crumb'; } else wander(a); }
+      return;
+    }
+    if (a.carry === 'crumb' || a.carry === 'bait') {
+      if (!cellStep(a, fStore)) { const i = gi(a.x, a.y); if (i >= 0 && fStore[i] === 0) { if (a.carry === 'bait') { if (a.y > REACH.bait) { if (!baitSaid) { baitSaid = true; caption('The bait goes stale on the long way down', 2.6); } } else poison += 2.5; } else stock++; a.carry = null; a.wait = 0.4; a.job = 'idle'; } else wander(a); }
+      return;
+    }
+    if (a.job === 'mine') {
+      if (!cellStep(a, fFood)) { const i = gi(a.x, a.y), d = deposits.find((q) => q.food >= 1 && Math.hypot(q.x - a.x, q.y - a.y) < q.r * 1.6 + 6); if (i >= 0 && fFood[i] === 0 && d) { d.food -= 1; a.load = d.label; if (d.food < 1) dirty = true; if (d.raid) { alarm += 0.8; if (!d.said) { d.said = true; caption(`They raid ${d.raid}`, 2.4); } } a.carry = 'crumb'; a.wait = 0.4; } else { a.job = 'idle'; wander(a); } }
+      return;
+    }
+    if (a.job === 'dig') {
+      if (!hasDig) { a.job = 'idle'; return; }
+      if (!cellStep(a, fDig)) {
+        const i = gi(a.x, a.y);
+        if (i >= 0 && fDig[i] === 0) {
+          const x = i % GW, n = [i - 1, i + 1, i - GW, i + GW].filter((j) => j >= 0 && j < GW * GH && Math.abs((j % GW) - x) <= 1 && plan[j] && soil[j] >= 1 && soil[j] <= 3);
+          if (n.length) {
+            let j = n[(Math.random() * n.length) | 0];
+            if (soil[j] !== 1) { gnaw(a, j); return; } const bites = rocky(cyOf(j)) || clay(cyOf(j)) ? 1 : cyOf(j) > 160 ? 3 : 2;
+            for (let b = 0; b < bites && j >= 0; b++) { stamp(cxOf(j), cyOf(j), BITE); const jx = j % GW, m = N8(j).filter((q) => q >= 0 && q < GW * GH && Math.abs((q % GW) - jx) <= 1 && plan[q] && soil[q] === 1); j = m.length ? m[(Math.random() * m.length) | 0] : -1; }
+            if (cyOf(j) > 160) { a.wait = bites > 1 ? 0.5 : 1.4; } else { a.carry = 'grain'; a.wait = bites > 1 ? 0.7 : 1.6; }
+          } else { a.job = 'idle'; dirty = true; }
+        } else wander(a);
+      }
+      return;
+    }
+    if (Math.random() < 0.35) { if (!cellStep(a, fNest)) wander(a); } else wander(a);
+  }
+  // Pipe and concrete give, but slowly: a cell at a time, and what's inside comes out.
+  let gasSaid = 0;
+  function gnaw(a, j) {
+    const hard = soil[j], x = cxOf(j), y = cyOf(j);
+    soil[j] = 0; plan[j] = 0; markDug(x, y, CS); dirty = true;
+    a.carry = y > 160 ? null : 'grain'; a.wait = hard === 3 ? 4 : 2.5;
+    if (PIPE && y >= PIPE.y - 2 && y <= PIPE.y + PIPE.h + 2 && !leaks.some((l) => Math.abs(l.x - x) < 30)) { leaks.push({ x, damp: 0 }); alarm += 8; caption('They chew into the main', 2.4); }
+    if (GAS && y >= GAS.y - 2 && y <= GAS.y + GAS.h + 2) { smoke[j] = 0.9; if (clock - gasSaid > 8) { gasSaid = clock; caption('Gas in the tunnels', 2.2); } }
+  }
+  function surfAnt(a) {
+    if (a.want === 'mound') {
+      const e = nearestEntrance(a.x); if (!e) return;
+      if (a.dropX == null) a.dropX = e.x + rnd(-12, 12);
+      if (Math.abs(a.x - a.dropX) > 1) { a.tx = a.dropX; a.ty = -1.5; return; }
+      const k = Math.round(e.x / 10) * 10; mounds.set(k, (mounds.get(k) || 0) + 1);
+      a.carry = null; a.dropX = null; a.want = 'home';
+    } else if (a.want === 'crumb') {
+      let c = crumbs.find((q) => q.claimed === a);
+      if (!c) { c = crumbs.filter((q) => !q.claimed).sort((p, q) => Math.abs(p.x - a.x) - Math.abs(q.x - a.x))[0]; if (c) c.claimed = a; else { a.want = 'home'; a.job = 'idle'; return; } }
+      if (Math.abs(a.x - c.x) > 1) { a.tx = c.x; a.ty = -1.5; return; }
+      crumbs.splice(crumbs.indexOf(c), 1); a.load = 'crumbs'; a.carry = c.bait ? 'bait' : 'crumb'; a.wait = 0.3; a.want = 'home';
+    } else {
+      const e = nearestEntrance(a.x); if (!e) return;
+      if (Math.abs(a.x - e.x) > 1.5) { a.tx = e.x; a.ty = -1.5; return; }
+      a.surf = false; a.y = 2; a.ty = 3; a.tx = e.x;
+      if (!a.carry) a.job = 'idle';
+    }
+  }
+  const nearestEntrance = (x) => entrances.reduce((b, e) => (!b || Math.abs(e.x - x) < Math.abs(b.x - x) ? e : b), null);
+  function scout(t) {
+    if (t - scoutAt < 8 || hasDig || ants.length < 30) return;
+    scoutAt = t;
+    let deep = -1;
+    for (let i = GW * GH - 1; i >= 0; i--) if (soil[i] === 0 && fNest[i] < 1e8) { deep = i; break; }
+    if (deep < 0) return;
+    let x = cxOf(deep), y = cyOf(deep), a = Math.PI / 2 + rnd(-0.9, 0.9);
+    chunk(Math.floor((y + 200) / CH));
+    const n = 20 + ((Math.random() * 16) | 0);
+    for (let s = 0; s < n; s++) {
+      a = clamp(a + rnd(-0.35, 0.35), 0.25, Math.PI - 0.25);
+      const nx = clamp(x + Math.cos(a) * 5, 8, UW - 8), ny = y + Math.sin(a) * 5, i = gi(nx, ny);
+      if (i < 0) break;
+      if (soil[i] >= 2) { a += Math.random() < 0.5 ? 1.2 : -1.2; continue; }
+      x = nx; y = ny; markPlan(x, y, BITE);
+    }
+    if (Math.random() < 0.35) { for (let q = 0; q < TAU; q += 0.4) for (let r = 0; r <= 12; r += 3) markPlan(x + Math.cos(q) * r * 1.3, y + Math.sin(q) * r * 0.6, BITE); chambers.push({ x, y, r: 12, role: Math.random() < 0.5 ? 'larder' : 'nursery' }); }
+  }
+  // An ant: a speck, the overprint's dark, a body and the flicker of legs.
+  function drawAnt(a, big, upside) {
+    const s = big === true ? 2.4 : big || 1;
+    g.save(); g.translate(a.x, a.y); g.rotate(a.a); g.scale(s, upside ? -s : s);
+    g.fillStyle = a.rival ? PINK : OVER; g.beginPath(); g.ellipse(-1.3, 0, 1.25, 0.8, 0, 0, TAU); g.ellipse(0.4, 0, 0.6, 0.45, 0, 0, TAU); g.ellipse(1.5, 0, 0.6, 0.55, 0, 0, TAU); g.fill();
+    if (a.rival) { g.strokeStyle = OVER; g.lineWidth = 0.3; g.stroke(); }
+    if (big || upside) { g.strokeStyle = OVER; g.lineWidth = 0.3; const ph = upside ? 0.8 : Math.sin(a.step) * 0.5; for (const sd of [-1, 1]) { g.beginPath(); g.moveTo(-0.6, 0); g.lineTo(-1.2 + ph * sd, sd * 1.6); g.moveTo(0.4, 0); g.lineTo(0.6, sd * 1.7); g.moveTo(0.8, 0); g.lineTo(1.6 - ph * sd, sd * 1.5); g.stroke(); } }
+    if (a.carry) { g.fillStyle = a.carry === 'grain' ? '#c98c78' : a.carry === 'bait' ? '#7a8fb8' : DEPC[a.load] || '#d9b24c'; g.beginPath(); if (a.load === 'aphids' && a.carry === 'crumb') g.ellipse(2.7, 0, 1.3, 0.9, 0, 0, TAU); else g.arc(2.8, 0, 1.25, 0, TAU); g.fill(); g.strokeStyle = OVER; g.lineWidth = 0.22; g.stroke(); }
+    g.restore();
+  }
+
+  // ---------------------------------------------------------------- looking deeper
+  // The view: how close (Z, one to two and a half), and where (camX across, camY down, in units).
+  let camY = 0, camV = 0, camX = 0, Z = 1;
+  const SZ = () => S * Z;
+  function clampCam() {
+    camX = clamp(camX, 0, UW - UW / Z);
+    camY = Math.max(camY, -(SKY + 40) + (G - IN.y) / SZ());
+    if (Z <= 1.001) camY = Math.max(camY, -20);
+    chunk(Math.max(0, Math.floor((camY + (IN.y + IN.h - G) / SZ()) / CH)) + 1);
+  }
+  function look(dy) { camY += dy; clampCam(); }
+
+  // ---------------------------------------------------------------- the hand
+  let hand = null, pan = null;
+  const fingers = new Map();
+  const mid = () => { let x = 0, y = 0; for (const f of fingers.values()) { x += f.x; y += f.y; } return { x: x / fingers.size, y: y / fingers.size }; };
+  const spread = () => { const f = [...fingers.values()]; return f.length < 2 ? 1 : Math.hypot(f[0].x - f[1].x, f[0].y - f[1].y); };
+  // (Two fingers: pinched, closer or further; moved, the view goes with them, the point under them staying put.)
+  function pinchStart() { const m = mid(); return { two: true, d0: spread(), z0: Z, wx: wx(m.x), wy: wy(m.y), y: m.y, t: performance.now() }; }
+  const wx = (cx) => (cx - IN.x) / SZ() + camX, wy = (cy) => (cy - G) / SZ() + camY;
+  top.addEventListener('pointerdown', (e) => {
+    top.setPointerCapture?.(e.pointerId);
+    fingers.set(e.pointerId, { x: e.clientX, y: e.clientY }); camV = 0;
+    if (fingers.size >= 2) { hand = null; pan = pinchStart(); return; }
+    if (e.clientX > IN.x + IN.w || e.clientX < IN.x || e.clientY < IN.y || e.clientY > IN.y + IN.h) { pan = { y: e.clientY, t: performance.now(), one: true }; return; }
+    const x = wx(e.clientX), y = wy(e.clientY);
+    hand = { id: e.pointerId, x0: x, y0: y, pts: [[x, y]], t0: performance.now(), still: performance.now(), hx: x, hy: y, below: y > -10, len: 0, holdR: 0 };
+  });
+  top.addEventListener('pointermove', (e) => {
+    const f = fingers.get(e.pointerId); if (!f) return;
+    f.x = e.clientX; f.y = e.clientY;
+    if (pan && pan.two && fingers.size >= 2) {
+      const m = mid(), now = performance.now(), oy = camY;
+      Z = clamp(pan.z0 * spread() / Math.max(10, pan.d0), 1, 2.5);
+      camX = pan.wx - (m.x - IN.x) / SZ(); camY = pan.wy - (m.y - G) / SZ(); clampCam();
+      camV = ((camY - oy) / Math.max(8, now - pan.t)) * 1000; pan.t = now;
+      return;
+    }
+    if (pan) { const y = pan.one ? e.clientY : mid().y, now = performance.now(), d = (pan.one ? (y - pan.y) * 3 : pan.y - y) / SZ(); look(d); camV = (d / Math.max(8, now - pan.t)) * 1000; pan.y = y; pan.t = now; return; }
+    if (!hand || e.pointerId !== hand.id) return;
+    const x = wx(e.clientX), y = wy(e.clientY), [lx, ly] = hand.pts[hand.pts.length - 1], L = Math.hypot(x - lx, y - ly);
+    if (L < 3) return;
+    hand.len += L; hand.pts.push([x, y]); if (y > -10) hand.below = true;
+    if (Math.hypot(x - hand.hx, y - hand.hy) > 14) { commitChamber(); hand.hx = x; hand.hy = y; hand.still = performance.now(); }
+  });
+  for (const type of ['pointerup', 'pointercancel']) top.addEventListener(type, (e) => {
+    fingers.delete(e.pointerId);
+    if (pan) { if (!fingers.size) { if (performance.now() - pan.t > 120) camV = 0; pan = null; } else if (fingers.size >= 2) pan = pinchStart(); else pan = { y: mid().y, t: performance.now() }; return; }
+    if (!hand || e.pointerId !== hand.id) return;
+    finishHand();
+  });
+  addEventListener('wheel', (e) => {
+    e.preventDefault();
+    // (A trackpad's pinch comes as a wheel with ctrl held: closer or further about the pointer.)
+    if (e.ctrlKey) { const px = wx(e.clientX), py = wy(e.clientY); Z = clamp(Z * Math.exp(-e.deltaY * 0.01), 1, 2.5); camX = px - (e.clientX - IN.x) / SZ(); camY = py - (e.clientY - G) / SZ(); clampCam(); }
+    else { camX += e.deltaX / SZ(); look(e.deltaY / SZ()); }
+  }, { passive: false });
+  function commitChamber() {
+    if (!hand.below || hand.holdR < 10 || hand.hy < 16) { hand.holdR = 0; return; }
+    { const i = gi(hand.hx, hand.hy); if (i < 0 || soil[i] >= 2) { hand.holdR = 0; hand.chambered = true; return; } }
+    const r = hand.holdR;
+    for (let a = 0; a < TAU; a += 0.25) for (let q = 0; q <= r; q += 3) markPlan(hand.hx + Math.cos(a) * q * 1.4, hand.hy + Math.sin(a) * q * 0.6, BITE);
+    linkToNest(hand.hx, hand.hy);
+    const role = chambers.filter((c) => c.role === 'larder').length > chambers.filter((c) => c.role === 'nursery').length ? 'nursery' : 'larder';
+    chambers.push({ x: hand.hx, y: hand.hy, r, role }); plans.push({ kind: 'room', x: hand.hx, y: hand.hy, r });
+    hand.holdR = 0; hand.chambered = true;
+  }
+  function linkToNest(x, y) {
+    const t = gi(x, y); if (t < 0) return false;
+    if (fNest && fNest[t] < 1e8 && pass(t)) return true;
+    const way = findWay(colonyCells(), t);
+    if (!way) { caption('There is no way through to there', 2.2); return false; }
+    planWay(way); return true;
+  }
+  function finishHand() {
+    commitChamber();
+    const tap = hand.len < 12 && performance.now() - hand.t0 < 400;
+    if (tap && hand.below && tapQueen(hand.x0, hand.y0)) { /* (the queen picked up, or put down) */ }
+    else if (tap && hand.below && tapRoom(hand.x0, hand.y0)) { /* (a room's use changed, or the queen sent) */ }
+    else if (tap && Math.abs(hand.y0 - (PIPE.y + PIPE.h / 2)) < 22 && hand.x0 >= PIPE.x0 && hand.x0 <= PIPE.x1) toggleLeak(hand.x0);
+    else if (tap && hand.below && togglePlug(hand.x0, hand.y0)) { /* (guards posted or stood down) */ }
+    else if (hand.below && !hand.chambered && hand.len >= 20) {
+      // (The drawn line, less the points that can't be dug; the gaps bridged by the found way.)
+      const pts = hand.pts.map(([x, y]) => [x, Math.max(1, y)]).filter(([x, y]) => { const i = gi(x, y); return i >= 0 && stepCost(i) > 0; });
+      if (pts.length && linkToNest(pts[0][0], pts[0][1])) {
+        const ok = (ax, ay, bx, by) => { const n = Math.ceil(Math.hypot(bx - ax, by - ay) / 1.5); for (let j = 0; j <= n; j++) { const i = gi(ax + ((bx - ax) * j) / n, ay + ((by - ay) * j) / n); if (i < 0 || !stepCost(i)) return false; } return true; };
+        for (let k = 1; k < pts.length; k++) {
+          const [ax, ay] = pts[k - 1], [bx, by] = pts[k];
+          if (ok(ax, ay, bx, by)) { const n = Math.ceil(Math.hypot(bx - ax, by - ay) / 2); for (let j = 0; j <= n; j++) markPlan(ax + ((bx - ax) * j) / n, ay + ((by - ay) * j) / n, BITE + 0.4, true); }
+          else { const way = findWay([gi(ax, ay)], gi(bx, by)); if (way) planWay(way, false); }
+        }
+        plans.push({ kind: 'path', pts });
+      }
+    }
+    hand = null;
+    document.getElementById('key').style.opacity = '0.55';
+  }
+  function toggleLeak(x) {
+    const l = leaks.find((q) => Math.abs(q.x - x) < 20);
+    if (l) leaks.splice(leaks.indexOf(l), 1); else { leaks.push({ x, damp: 0 }); alarm += 6; caption('The main bursts', 2); }
+  }
+
+  // The mixer at work: the drum turning (its blades go round), a chute let down off the back, and the concrete
+  // running down it in a ribbon into the hole; under the ground, the wet front's sheen where it's still spreading.
+  function pour(p, t, on) {
+    const sd = parkOf(p)[1];
+    g.save(); g.translate(p.van, 0); g.scale(sd, 1);
+    g.beginPath(); g.moveTo(-26, -1); g.lineTo(-26, -14); g.lineTo(-22, -19); g.lineTo(4, -16); g.lineTo(8, -10); g.lineTo(8, -1); g.closePath(); g.clip();
+    g.strokeStyle = OVER; g.lineWidth = 0.7; const off = (t * (on ? 9 : 3)) % 7;
+    g.beginPath(); for (let q = -34 + off; q < 12; q += 7) { g.moveTo(q, -19); g.lineTo(q - 4, -1); } g.stroke(); g.restore();
+    if (!on) return;
+    const lx = p.van - 27 * sd, ly = -9, ex = p.x, ey = 1, cx = (lx + ex) / 2 + 6 * sd, cy = -16;
+    g.strokeStyle = OVER; g.lineWidth = 1; g.lineCap = 'round'; g.beginPath(); g.moveTo(p.van - 24 * sd, -12); g.lineTo(lx - 6 * sd, ly + 2); g.stroke();
+    const at = (u) => { const a = 1 - u; return [a * a * lx + 2 * a * u * cx + u * u * ex, a * a * ly + 2 * a * u * cy + u * u * ey]; };
+    const L = [], R = []; for (let k = 0; k <= 16; k++) { const u = k / 16, [x, y] = at(u), w = 2.6 - u * 1.1 + Math.sin(u * 12 - t * 10) * 0.2; L.push([x - w * 0.5, y - w * 0.4]); R.push([x + w * 0.5, y + w * 0.4]); }
+    g.fillStyle = '#c3c6b4'; g.beginPath(); g.moveTo(...L[0]); for (const q of L) g.lineTo(...q); for (const q of R.reverse()) g.lineTo(...q); g.closePath(); g.fill();
+    g.lineWidth = 0.35; g.stroke();
+    g.strokeStyle = PAPER; g.lineWidth = 0.4; g.globalAlpha = 0.8; g.beginPath(); for (let k = 0; k < 4; k++) { const u = ((t * 1.4 + k / 4) % 1), [x, y] = at(u), [x2, y2] = at(Math.min(1, u + 0.05)); g.moveTo(x, y); g.lineTo(x2, y2); } g.stroke(); g.globalAlpha = 1;
+    g.fillStyle = '#c3c6b4'; g.strokeStyle = OVER; g.lineWidth = 0.35; g.beginPath(); g.ellipse(ex, 0.5, 3 + Math.sin(t * 6) * 0.4, 1.1, 0, 0, TAU); g.fill(); g.stroke();
+  }
+  function drawWet(t) {
+    const p = pest; if (!p || !p.wet) return;
+    g.strokeStyle = OVER; g.lineWidth = 0.3;
+    for (const w of p.wet) { const a = (clock - w.at) / 1.2; if (a > 1) continue; g.globalAlpha = 0.45 * (1 - a); g.beginPath(); g.moveTo(w.x - 1.2, w.y + Math.sin(w.x + t * 3) * 0.3); g.lineTo(w.x + 1.2, w.y); g.stroke(); }
+    g.globalAlpha = 1;
+  }
+
+  // ---------------------------------------------------------------- brood
+  // The queen lays; the eggs are put in the nursery nearest her (her own room, if there's none). An egg, then a
+  // larva, then a pupa in its cocoon, then an ant. Slow up near the street; faster in the clay; fastest in warm rock.
+  let brood = [], hatches = [];
+  const GROW = 20;
+  function layEggs(n) {
+    const rooms = chambers.filter((c) => (c.role === 'nursery' || c.role === 'queen') && gi(c.x, c.y) >= 0 && soil[gi(c.x, c.y)] === 0 && Math.hypot(c.x - QUEEN.x, c.y - QUEEN.y) < 160);
+    const room = rooms.sort((a, b) => (a.role === 'nursery' ? 0 : 1) - (b.role === 'nursery' ? 0 : 1) || brood.filter((q) => q.room === a).length - brood.filter((q) => q.room === b).length)[0];
+    for (let q = 0; q < n; q++) {
+      let x = QUEEN.x + rnd(-6, 6), y = QUEEN.y + rnd(-1, 2);
+      if (room) for (let tries = 0; tries < 12; tries++) { const a = rnd(0, TAU), r = Math.sqrt(Math.random()) * room.r * 0.85, px = room.x + Math.cos(a) * r * 1.3, py = room.y + 2 + Math.sin(a) * r * 0.35, i = gi(px, py); if (i >= 0 && soil[i] === 0) { x = px; y = py; break; } }
+      brood.push({ x, y, t: rnd(0, 1.5), room, a: rnd(-0.6, 0.6) });
+    }
+  }
+  function stepBrood(dt) {
+    for (const b of brood) {
+      b.t += dt * (lay(b.y) > L.warm ? 2 : clay(b.y) ? 1.5 : 1);
+      const i = gi(b.x, b.y);
+      if (i < 0 || soil[i] !== 0 || smoke[i] > 0.3 || water[i] > 0.6) { b.dead = true; continue; }
+      if (b.t >= GROW) { b.dead = true; ants.push(newAnt(b.x, b.y)); hatches.push({ x: b.x, y: b.y, at: clock }); }
+    }
+    brood = brood.filter((b) => !b.dead);
+    hatches = hatches.filter((h) => clock - h.at < 0.8);
+  }
+  // (Drawn as an entomologist's plate would: the egg a grain of rice, the larva a curled grub ringed with segments,
+  // the pupa a cocoon in the pink.)
+  function drawBrood(t, vy0, vy1) {
+    g.strokeStyle = OVER;
+    for (const b of brood) {
+      if (b.y < vy0 - 4 || b.y > vy1 + 4) continue;
+      const k = b.t / GROW; g.save(); g.translate(b.x, b.y); g.rotate(b.a); g.scale(1.5, 1.5); g.lineWidth = 0.3;
+      if (k < 0.3) { g.fillStyle = '#fbf6ea'; g.beginPath(); g.ellipse(0, 0, 0.55, 0.85, 0, 0, TAU); g.fill(); g.stroke(); }
+      else if (k < 0.62) { const s = 0.8 + (k - 0.3) * 2.2; g.fillStyle = '#fbf6ea'; g.lineWidth = 0.3; g.beginPath(); g.arc(0, 0, s, Math.PI * 0.15, Math.PI * 1.75); g.arc(0, 0, s * 0.35, Math.PI * 1.75, Math.PI * 0.15, true); g.closePath(); g.fill(); g.stroke(); g.lineWidth = 0.18; for (let q = 0; q < 5; q++) { const a = Math.PI * (0.3 + q * 0.28); g.beginPath(); g.moveTo(Math.cos(a) * s * 0.4, Math.sin(a) * s * 0.4); g.lineTo(Math.cos(a) * s, Math.sin(a) * s); g.stroke(); } }
+      else { g.fillStyle = '#efc9b8'; g.beginPath(); g.ellipse(0, 0, 0.95, 1.9, 0, 0, TAU); g.fill(); g.stroke(); g.lineWidth = 0.2; g.beginPath(); g.moveTo(-0.9, -0.5); g.lineTo(0.9, -0.5); g.moveTo(-0.8, 0.6); g.lineTo(0.8, 0.6); g.stroke(); }
+      g.restore();
+    }
+    for (const h of hatches) { const q = (clock - h.at) / 0.8; g.globalAlpha = 1 - q; g.lineWidth = 0.3; g.beginPath(); g.arc(h.x, h.y, 1.5 + q * 4, 0, TAU); g.stroke(); }
+    g.globalAlpha = 1;
+    if (queenPick && QUEEN.alive) { g.strokeStyle = PENCIL; g.lineWidth = 0.7; g.setLineDash([2, 3]); g.beginPath(); g.arc(QUEEN.x, QUEEN.y, 9 + Math.sin(t * 4), 0, TAU); g.stroke(); g.setLineDash([]); }
+  }
+
+  // ---------------------------------------------------------------- what the colony makes of its rooms
+  // A room's use, changed with a tap: a larder; a nursery (the queen moves to the deepest one); a fungus garden,
+  // which takes food and gives back three times as much, if it's below the works; a sump, which drinks water.
+  const ROLES = ['larder', 'nursery', 'garden', 'sump'], ROLE_NAME = { larder: 'A larder', nursery: 'A nursery', garden: 'A fungus garden', sump: 'A sump, to drink the water' };
+  const DEPC = { honey: '#d99a3a', seeds: '#c98c78', aphids: GREEN, flour: '#fbf6ea', cheese: '#e2bd5c', cargo: '#c9a24a', scraps: '#c98c78', 'their stores': '#d9b24c' };
+  let baitSaid = false;
+  function tapRoom(x, y) {
+    // (A fingertip's slack round each room: a room is small on the plate.)
+    const c = chambers.find((q) => ((x - q.x) / (q.r * 1.4 + 10)) ** 2 + ((y - q.y) / (q.r * 0.6 + 9)) ** 2 < 1 && soil[gi(q.x, q.y)] === 0);
+    if (!c) return false;
+    if (queenPick) { queenMove(c); return true; }
+    if (c.role === 'queen') { caption("The queen's room: tap her to move her", 2); return true; }
+    c.role = ROLES[(ROLES.indexOf(c.role) + 1) % ROLES.length]; c.raw = 0; c.ripe = 0;
+    caption(ROLE_NAME[c.role] + (c.role === 'garden' && c.y < 300 ? ' (too near the street to grow)' : ''), 1.8); dirty = true;
+    return true;
+  }
+  function stepRooms(dt) {
+    for (const c of chambers) {
+      if (c.role !== 'garden' || c.y < 300) continue;
+      const ci = gi(c.x, c.y); if (ci < 0 || soil[ci] !== 0) continue;
+      c.raw = c.raw || 0; c.ripe = c.ripe || 0; c.feed = (c.feed || 0) + dt; c.pick = (c.pick || 0) + dt;
+      if (c.feed > 5 && stock >= 1 && c.raw < 24) { c.feed = 0; stock -= 1; c.raw += 3; }
+      if (c.raw > 0) { const m = Math.min(c.raw, dt * 0.25); c.raw -= m; c.ripe += m; }
+      if (c.pick > 1.5 && c.ripe >= 1) { c.pick = 0; c.ripe -= 1; stock += 1; }
+    }
+  }
+
+  // Guards: soldiers holding a tunnel with their heads. Ants go by; smoke, concrete and the other colony don't.
+  let plugs = []; const guardAt = new Set();
+  function rebuildGuards() { guardAt.clear(); for (const p2 of plugs) for (const i of p2.cells) guardAt.add(i); }
+  function togglePlug(x, y) {
+    const old = plugs.find((p2) => Math.hypot(p2.x - x, p2.y - y) < 10);
+    if (old) { plugs.splice(plugs.indexOf(old), 1); for (let q = 0; q < old.n; q++) ants.push(newAnt(old.x, old.y)); rebuildGuards(); caption('The guards stand down', 1.6); return true; }
+    // (The nearest bit of tunnel to the fingertip.)
+    let i = -1, bd = 15;
+    for (let dy = -14; dy <= 14; dy += CS) for (let dx = -14; dx <= 14; dx += CS) { const j = gi(x + dx, y + dy), d = Math.hypot(dx, dy); if (j >= 0 && d < bd && soil[j] === 0 && fNest[j] < 1e8 && water[j] < 0.5) { bd = d; i = j; } }
+    if (i < 0) return false; x = cxOf(i); y = cyOf(i);
+    if (ants.length < 24 + plugs.length * 12) { caption('No ants to spare for guards', 1.8); return true; }
+    const cells = []; for (let dy = -8; dy <= 8; dy += CS) for (let dx = -8; dx <= 8; dx += CS) { const j = gi(x + dx, y + dy); if (j >= 0 && soil[j] === 0 && Math.hypot(dx, dy) <= 8) cells.push(j); }
+    for (let q = 0; q < 3; q++) { let b = null, bd = Infinity; for (const a of ants) { if (a.surf) continue; const d = Math.hypot(a.x - x, a.y - y); if (d < bd) { bd = d; b = a; } } if (b) ants.splice(ants.indexOf(b), 1); }
+    plugs.push({ x, y, n: 3, cells }); rebuildGuards(); caption('Guards hold the tunnel', 1.8);
+    return true;
+  }
+  function loseGuard(x, y) {
+    const p2 = plugs.find((q) => Math.hypot(q.x - x, q.y - y) < 12); if (!p2) return;
+    dead.push({ x: p2.x, y: p2.y, a: -Math.PI / 2, at: clock }); p2.n--; if (p2.n <= 0) { plugs.splice(plugs.indexOf(p2), 1); rebuildGuards(); caption('The guards are overrun', 2); }
+  }
+
+  // The queen goes down: to the deepest nursery, if there's a way, walking it slowly. Safe below the smoke.
+  // (Tap her, then tap a room: she walks there, if there's a way, and lays there from then on.)
+  let fQ = null, queenPick = false;
+  function tapQueen(x, y) {
+    if (!QUEEN.alive || Math.hypot(x - QUEEN.x, y - QUEEN.y) > 14) return false;
+    queenPick = !queenPick; caption(queenPick ? 'Now tap a room to send the queen there' : 'The queen stays', 2.4); return true;
+  }
+  function queenMove(best) {
+    queenPick = false;
+    if (!QUEEN.alive || QUEEN.go || !best || best.role === 'queen') return;
+    if (alloc !== cap) fields();
+    if (!fQ || fQ.length !== cap) fQ = new Int32Array(cap);
+    bfs(fQ, [gi(best.x, best.y)]);
+    const qi = gi(QUEEN.x, QUEEN.y); if (qi < 0 || !(fQ[qi] < 1e8)) { caption('There is no way through to there yet', 2.4); return; }
+    QUEEN.go = best; QUEEN.tx = null; caption(`The queen sets off for ${Math.round(best.y / M)} m${best.y > REACH.smoke ? ', below the smoke' : ''}`, 2.8);
+  }
+  function stepQueen(dt) {
+    const c = QUEEN.go; if (!c || !QUEEN.alive) return;
+    if (QUEEN.tx == null || Math.hypot(QUEEN.tx - QUEEN.x, QUEEN.ty - QUEEN.y) < 0.4) {
+      const i = gi(QUEEN.x, QUEEN.y); if (i < 0) { QUEEN.go = null; return; }
+      if (fQ[i] <= 1 || Math.hypot(c.x - QUEEN.x, c.y - QUEEN.y) < 4) { const old = chambers.find((q) => q.role === 'queen'); if (old) old.role = 'nursery'; c.role = 'queen'; QUEEN.go = null; QUEEN.tx = null; dirty = true; return; }
+      let best = -1, bv = fQ[i]; const x = i % GW;
+      for (const j of N8(i)) { if (j < 0 || j >= GW * GH || Math.abs((j % GW) - x) > 1 || !pass(j)) continue; if (fQ[j] < bv) { bv = fQ[j]; best = j; } }
+      if (best < 0) { QUEEN.go = null; return; }
+      QUEEN.tx = cxOf(best); QUEEN.ty = cyOf(best);
+    }
+    const dx = QUEEN.tx - QUEEN.x, dy = QUEEN.ty - QUEEN.y, d = Math.hypot(dx, dy) || 1, s2 = Math.min(d, dt * 26);
+    QUEEN.x += (dx / d) * s2; QUEEN.y += (dy / d) * s2; QUEEN.a = Math.atan2(dy, dx);
+  }
+  // A second queen, raised in a nursery far from the first: if one is lost, the colony goes on.
+  const PRIN = { alive: false, x: 0, y: 0, hurt: 0 };
+  function raiseSecond() {
+    if (PRIN.alive || !QUEEN.alive || QUEEN.go || ants.length < 110) return;
+    const c = chambers.find((q) => q.role === 'nursery' && Math.hypot(q.x - QUEEN.x, q.y - QUEEN.y) > 140 && gi(q.x, q.y) >= 0 && soil[gi(q.x, q.y)] === 0 && fNest[gi(q.x, q.y)] < 1e8);
+    if (!c) return;
+    PRIN.alive = true; PRIN.x = c.x; PRIN.y = c.y + 2; PRIN.hurt = 0; caption('A second queen is raised', 2.6);
+  }
+
+  // Street trees, a few to each town: their roots come down into the made ground, and on the roots, aphids, which
+  // an ant can milk for as long as the tree lives. A tree dies if the ground goes from under it.
+  let trees = [];
+  function plantTrees() {
+    const spots = [72, 250, 372, 486].filter((x) => Math.abs(x - EX) > 40 && !entrances.some((e) => Math.abs(e.x - x) < 30)).sort(() => Math.random() - 0.5).slice(0, 3);
+    for (const x0 of spots) {
+      const x = x0 + rnd(-8, 8), roots = [];
+      for (let q = 0; q < 6; q++) { let rx = x, ry = 1, a = Math.PI / 2 + rnd(-1.2, 1.2); const pts = [[rx, ry]]; for (let s2 = 0; s2 < 7; s2++) { a += rnd(-0.45, 0.45); rx += Math.cos(a) * 4.5; ry = Math.min(31, ry + Math.abs(Math.sin(a)) * 4); pts.push([rx, ry]); } roots.push(pts); }
+      hollow(x, 26, 6, 3.4); markDug(x, 26, 9);
+      const t = { x, alive: true, roots, s: rnd(0.85, 1.12), buried: false };
+      deposits.push({ x, y: 26, r: 4, food: 4, max: 12, label: 'aphids', t: 0, regen: 2.5, tree: t });
+      trees.push(t);
+    }
+    dirty = true;
+  }
+
+  // The other colony: keeps to itself until your tunnels meet its own, then comes for your larder.
+  let fRiv = null;
+  const kill2 = (r) => { const k = RIV.ants.indexOf(r); if (k >= 0) RIV.ants.splice(k, 1); dead.push({ x: r.x, y: r.y, a: r.a, at: clock, rival: true }); };
+  function stepRivals(dt) {
+    if (!RIV || RIV.gone || !fRiv || !fStore) return;
+    const ri = gi(RIV.x, RIV.y), linked = ri >= 0 && fStore[ri] < 1e8 && QUEEN.alive;
+    if (linked && !RIV.met) { RIV.met = true; caption('The other colony finds your tunnels', 2.8); }
+    for (const r of [...RIV.ants]) {
+      if (r.wait > 0) { r.wait -= dt; continue; }
+      if (moveAnt(r, dt)) {
+        const i = gi(r.x, r.y); if (i < 0) continue;
+        if (r.carry) { if (!cellStep(r, fRiv)) { if (fRiv[i] === 0) { r.carry = null; RIV.loot++; r.wait = 0.5; if (RIV.loot % 3 === 0 && RIV.ants.length < 60) RIV.ants.push({ ...newAnt(RIV.x, RIV.y), rival: true }); } else wander(r); } }
+        else if (linked && r.raid) { if (!cellStep(r, fStore)) { if (fStore[i] === 0 && stock >= 1) { stock -= 1; r.carry = 'crumb'; r.wait = 0.4; } else { r.raid = false; wander(r); } } }
+        else { if (linked && Math.random() < 0.03) r.raid = true; if (fRiv[i] > 20 && Math.random() < 0.5) cellStep(r, fRiv); else wander(r); }
+      }
+      // (Where they meet, a fight either side may lose; guards win most.)
+      if (guardAt.has(gi(r.x, r.y)) && Math.random() < dt * 2) { if (Math.random() < 0.75) { kill2(r); continue; } loseGuard(r.x, r.y); }
+      if (Math.random() < dt * 3) { const a = ants.find((b) => !b.surf && Math.abs(b.x - r.x) < 1.8 && Math.abs(b.y - r.y) < 1.8); if (a) { if (Math.random() < 0.5) kill(a); else { kill2(r); continue; } } }
+    }
+    if (!RIV.ants.length && RIV.met) { RIV.gone = true; caption('The other colony is gone; its stores are yours', 3); }
+  }
+
+  // A mole: now and then one comes through the deep ground where you've dug, and fills your tunnels behind it.
+  let MOLE = null, moleAt = 80;
+  function stepMole(dt) {
+    if (!MOLE) {
+      moleAt -= dt; if (moleAt > 0 || !fNest) return; moleAt = rnd(70, 120);
+      const cands = [], i0 = gi(0, L.harbour + era * ERA_H); if (i0 < 0) return;
+      for (let i = i0; i < GW * GH; i += 37) if (soil[i] === 0 && fNest[i] < 1e8 && still[i] !== 2) cands.push(i);
+      if (!cands.length) return;
+      const i = pick(cands), dir = Math.random() < 0.5 ? 1 : -1;
+      MOLE = { x: dir > 0 ? -30 : UW + 30, y: cyOf(i), y0: cyOf(i), dir, t: 0, said: false };
+      return;
+    }
+    const m = MOLE; m.t += dt; m.x += m.dir * dt * 13; m.y = m.y0 + Math.sin(m.t * 0.7) * 9;
+    if (m.x > -12 && m.x < UW + 12) {
+      let ate = false;
+      for (let dy = -11; dy <= 11; dy += CS) for (let dx = -16; dx <= 16; dx += CS) {
+        if ((dx / 16) ** 2 + (dy / 11) ** 2 > 1) continue; const x = m.x + dx, y = m.y + dy;
+        if (QUEEN.alive && Math.hypot(x - QUEEN.x, y - QUEEN.y) < 14) continue;
+        const i = gi(x, y); if (i >= 0 && soil[i] === 0 && still[i] !== 2) { soil[i] = 1; plan[i] = 0; water[i] = 0; ate = true; }
+      }
+      if (ate) { markDug(m.x, m.y, 18); dirty = true; if (!m.said) { m.said = true; caption('A mole comes through, filling the tunnels behind it', 2.8); } }
+      for (const a of [...ants]) if (!a.surf && Math.abs(a.x - m.x) < 16 && Math.abs(a.y - m.y) < 11) kill(a);
+      if (RIV) for (const r of [...RIV.ants]) if (Math.abs(r.x - m.x) < 10 && Math.abs(r.y - m.y) < 7) kill2(r);
+      for (const p2 of [...plugs]) if (Math.hypot(p2.x - m.x, p2.y - m.y) < 11) { plugs.splice(plugs.indexOf(p2), 1); rebuildGuards(); }
+      if (PRIN.alive && Math.abs(PRIN.x - m.x) < 10 && Math.abs(PRIN.y - m.y) < 7) { PRIN.alive = false; caption('The mole takes the second queen', 2.4); }
+    }
+    if (m.x < -40 || m.x > UW + 40) MOLE = null;
+  }
+
+  // The old workings' timbers, once the colony's in them, give way here and there.
+  function stepMines() {
+    for (const m of MINES) {
+      if (!m.used) { for (let x = m.x0 + 4; x < m.x1; x += 24) { const i = gi(x, m.y + m.h / 2); if (i >= 0 && soil[i] === 0 && fNest && fNest[i] < 1e8) { m.used = true; break; } } }
+      if (!m.used) continue;
+      m.at += 0.7; if (m.at < 22 || Math.random() > 0.07) continue; m.at = 0;
+      const x0 = rnd(m.x0, m.x1 - 26), cells = [];
+      for (let y = m.y - 3; y < m.y + m.h; y += CS) for (let x = x0; x < x0 + 26; x += CS) { const i = gi(x, y); if (i >= 0 && soil[i] === 0) cells.push(i); }
+      fills.push({ cells: cells.sort((a, b) => (cyOf(a) - cyOf(b)) * 100 + (Math.abs(cxOf(a) - x0 - 13) - Math.abs(cxOf(b) - x0 - 13))), rate: 70 });
+      caption('Old timbers give way in the workings', 2.4);
+    }
+  }
+  // (Earth coming in: a few cells at a time from the top down, so a fall is seen to happen.)
+  let fills = [];
+  function stepFills(dt) {
+    for (const f of fills) { const n = Math.min(f.cells.length, Math.ceil(dt * f.rate)); for (let k = 0; k < n; k++) { const i = f.cells.shift(); if (soil[i] !== 0) continue; soil[i] = 1; plan[i] = 0; water[i] = 0; markDug(cxOf(i), cyOf(i), 4); dirty = true; for (const a of [...ants]) if (!a.surf && gi(a.x, a.y) === i) kill(a); } }
+    fills = fills.filter((f) => f.cells.length);
+  }
+  // The sewer, now and then, flushes: the silt under it, good scraps, is under water for a while.
+  let flushAt = 45;
+  function stepSewer(dt) {
+    flushAt -= dt; if (flushAt > 0) return; flushAt = rnd(40, 60);
+    const d = deposits.find((q) => q.silt); if (!d || !fNest) return; const i = gi(d.x, d.y); if (i < 0 || !(fNest[i] < 1e8)) return;
+    for (let dy = -6; dy <= 6; dy += CS) for (let dx = -11; dx <= 11; dx += CS) { const j = gi(d.x + dx, d.y + dy); if (j >= 0 && soil[j] === 0) water[j] = 1.3; }
+    dirty = true; caption('The sewer flushes', 2);
+  }
+  // (Each layer named, the first time the view comes down to it.)
+  const seenL = new Set();
+  function seeLayers() {
+    const midY = camY + (IN.y + IN.h * 0.5 - G) / SZ();
+    let last = null; for (const [y, name] of LAYERS) if (!seenL.has(name) && midY > y + era * ERA_H) { seenL.add(name); last = name; }
+    if (last) caption(last, 2.6);
+  }
+
+  // ---------------------------------------------------------------- each frame
+  let trainSaid = -99, last = performance.now(), subAt = 0, slowAt = 0, paintAt = 0, waterAt = 0, clock = 0, cityDirty = true;
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now; clock += dt;
+    if (!pan && Math.abs(camV) > 5) { look(camV * dt); camV *= Math.exp(-dt * 3.2); if (camY <= -20 && Z <= 1.001) camV = 0; }
+    if (dirty && now - fieldsAt > 240) { fields(); fieldsAt = now; }
+    if (now - waterAt > 80) { stepWater(); stepSmoke(); waterAt = now; }
+    if (now - paintAt > 100) { paintAt = now; for (const ch of chunks) if (ch && ch.dirty) { const d = ch.dirty; ch.dirty = null; repaint(ch, d[0], d[1], d[2], d[3]); } }
+    for (const a of [...ants]) stepAnt(a, dt);
+    if (poison > 0 && ants.length) { const k = Math.min(poison, dt * 1.2); poison -= k; if (Math.random() < k) kill(pick(ants)); }
+    if (PRIN.alive) { const pi = gi(PRIN.x, PRIN.y); if (pi >= 0 && smoke[pi] > 0.3) { PRIN.hurt += dt; if (PRIN.hurt > 2.5) { PRIN.alive = false; caption('The second queen is lost', 2.4); } } else PRIN.hurt = Math.max(0, PRIN.hurt - dt * 0.3); }
+    if (QUEEN.alive) { const qi = gi(QUEEN.x, QUEEN.y); if (qi >= 0 && smoke[qi] > 0.3) { QUEEN.hurt += dt; if (QUEEN.hurt > 2.5) loseQueen(); } else QUEEN.hurt = Math.max(0, QUEEN.hurt - dt * 0.3); }
+    if (stock >= 2 && ants.length + brood.length < 420 && QUEEN.alive && !QUEEN.go) { stock -= 2; layEggs(2); }
+    stepBrood(dt);
+    if (Math.random() < dt / 20 && carts.length < 3) carts.push({ x: rnd(20, UW - 20), t: 0, life: rnd(40, 80) });
+    for (const c of carts) { c.t += dt; c.life -= dt; if (c.t > 1.6 && crumbs.length < 26) { c.t = 0; crumbs.push({ x: clamp(c.x + rnd(-20, 20), 4, UW - 4), claimed: null, bait: false, at: clock }); } }
+    carts = carts.filter((c) => c.life > 0);
+    crumbs = crumbs.filter((c) => !c.bait || clock - c.at < 45 || c.claimed);
+    for (const d of deposits) if (d.regen && d.food < d.max && (!d.tree || d.tree.alive)) { d.t += dt; if (d.t > d.regen) { d.t = 0; d.food += 1; dirty = true; } }
+    stepRooms(dt); stepQueen(dt); stepFills(dt); stepRivals(dt); stepMole(dt); stepSewer(dt);
+    train.at -= dt; if (train.at <= 0 && train.x < -998 && !tubeBroken) train.x = TUBE.x0 - 300;
+    if (train.x > -998) { const stopAt = tubeBreaks.length ? Math.min(...tubeBreaks.map((b) => b.x0)) - 6 : 1e9; train.x = Math.min(train.x + dt * 150, stopAt - 142); if (train.x > TUBE.x1 + 50 + 2 * 144) { train.x = -999; train.at = rnd(8, 14); } }
+    if (train.x > -998) { const bed = TUBE.y + TUBE.h - 8; for (const a of [...ants]) if (!a.surf && a.y > bed - 7 && a.y < bed && a.x > train.x - 292 && a.x < train.x + 140 && Math.random() < dt * 0.06) { kill(a); if (clock - trainSaid > 25) { trainSaid = clock; caption('A train runs over the ones on the track', 2.2); } } }
+    { const stopAt = (STATION.x0 + STATION.x1) / 2 + 120; train2.at -= dt; if (train2.at <= 0 && train2.x < -998) train2.x = STATION.x0 - 120;
+      if (train2.x > -998) { if (train2.stop > 0) train2.stop -= dt; else { const before = train2.x; train2.x += dt * (!train2.stopped && Math.abs(train2.x - stopAt) < 90 ? 60 : 160); if (!train2.stopped && before < stopAt && train2.x >= stopAt) { train2.stop = 3.5; train2.stopped = true; } } if (train2.x > STATION.x1 + 460) { train2.x = -999; train2.at = rnd(7, 12); train2.stopped = false; } } }
+    for (const lane of [0, 1]) if (Math.random() < dt / 3.2 && cars.filter((c) => c.lane === lane).length < 4) {
+      const r = Math.random(), kind = r < 0.58 ? 'car' : r < 0.74 ? 'cvan' : r < 0.86 ? 'bus' : 'lorry';
+      const V = { car: [70, 130], cvan: [55, 95], bus: [38, 62], lorry: [38, 66] }[kind], len = { car: 32, cvan: 42, bus: 84, lorry: 72 }[kind];
+      const x = lane ? UW + 60 : -60;
+      if (!cars.some((c) => c.lane === lane && Math.abs(c.x - x) < (c.len + len) / 2 + 20)) cars.push({ lane, x, kind, len, vmax: rnd(V[0], V[1]), v: rnd(V[0], V[1]) * 0.8 });
+    }
+    for (const c of cars) {
+      const dir = c.lane ? -1 : 1;
+      let gap = Infinity, ahead = null;
+      for (const o of cars) if (o !== c && o.lane === c.lane) { const dd = (o.x - c.x) * dir; if (dd > 0 && dd < gap) { gap = dd; ahead = o; } }
+      let target = c.vmax; const need = (c.len + (ahead ? ahead.len : 0)) / 2 + 8;
+      if (ahead && gap < need + 40) target = Math.min(target, ahead.v);
+      if (ahead && gap < need) target = 0;
+      // (Taped off ahead: they pull up short of it.)
+      for (const h of holes) if (!h.filled && clock - h.at > 1.5) { const edge = dir > 0 ? h.x0 - 18 - c.len / 2 : h.x1 + 18 + c.len / 2, dd = (edge - c.x) * dir; if (dd > -3 && dd < 70) target = Math.min(target, Math.max(0, dd * 1.6)); }
+      c.v += clamp(target - c.v, -170 * dt, 50 * dt); c.x += c.v * dir * dt;
+      // (Over an open hole: in it goes.)
+      const h = holes.find((q) => !q.filled && c.x > q.x0 + 2 && c.x < q.x1 - 2);
+      if (h) { c.gone = true; wrecks.push({ s: SPR[c.kind], x: c.x, y: 0, vy: 0, a: 0, va: rnd(1.6, 2.4) * dir, hole: h, rest: false, flip: c.lane }); if (!h.carSaid) { h.carSaid = true; caption(c.kind === 'bus' ? 'A bus goes in' : 'A car goes in', 2.4); } alarm += 6; }
+    }
+    cars = cars.filter((c) => !c.gone && c.x < UW + 90 && c.x > -90);
+    for (const w of wrecks) if (!w.rest) { w.vy += dt * 320; w.y += w.vy * dt; w.a = Math.sign(w.va) * Math.min(1.25, Math.abs(w.a + w.va * dt)); const fl = holeFloorAt(w.x) - 8; if (w.y >= fl) { w.y = fl; w.rest = true; } }
+    for (const c of carts) { const h = holes.find((q) => !q.filled && c.x > q.x0 && c.x < q.x1); if (h) { c.life = 0; wrecks.push({ s: SPR.cart, x: c.x, y: 0, vy: 0, a: 0, va: 2, hole: h, rest: false }); } }
+    for (const d of dust) { d.t += dt; d.x += d.vx * dt; d.y += d.vy * dt; d.vy *= 0.985; d.vx *= 0.99; d.r += dt * 3; }
+    dust = dust.filter((d) => d.t < d.life);
+    for (const d of debris) { d.vy += dt * 120; d.x += d.vx * dt; d.y += d.vy * dt; d.a += d.va * dt; }
+    debris = debris.filter((d) => d.y < 4);
+    stepTowers(dt); stepPest(dt); stepBuild(dt);
+    if (now - slowAt > 700) { slowAt = now; settle(); scout(clock); checkCity(); raiseSecond(); stepMines(); seeLayers(); if (trod) for (let i = 0; i < GW * GH; i++) if (trod[i] > 0) trod[i] = trod[i] < 0.01 ? 0 : trod[i] * 0.985; }
+    if (now - subAt > 450) { subAt = now; subside(); }
+    if (cityDirty) { cityDirty = false; drawCity(); }
+    dead = dead.filter((d) => clock - d.at < 14);
+    draw(clock);
+    requestAnimationFrame(frame);
+  }
+  function settle() {
+    for (const t of towers) {
+      if (t.fall || t.rise < 1) continue;
+      const { f, side } = hollowUnder(t);
+      if (f > 0.07 && !t.cracked) { t.want = side * rnd(0.012, 0.025); alarm += 10; crack(t, side); }
+      if (f > 0.15) collapse(t, side);
+    }
+  }
+
+  function draw(t) {
+    g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, top.width, top.height);
+    g.save(); g.beginPath(); g.rect(IN.x * DPR, IN.y * DPR, IN.w * DPR, IN.h * DPR); g.clip();
+    g.setTransform(RU * Z, 0, 0, RU * Z, (IN.x - camX * SZ()) * DPR, (G - camY * SZ()) * DPR);
+    const vy0 = camY - (G - IN.y) / SZ(), vy1 = camY + (IN.y + IN.h - G) / SZ();
+    if (vy0 < 10) {
+      g.drawImage(cityC, 0, cityC.oy, UW, cityC.height / RU);
+      for (const tw of towers) { if (tw.fall) { drawSprite(g, towerSprite(tw), tw.x, 0, tw.tilt, tw.fall.sink, tw.fall.floor); } else if (tw.rise < 1 && tw.rise > 0) site(tw, t); }
+    }
+    for (let k = Math.max(0, Math.floor(vy0 / CH)); k <= Math.floor(vy1 / CH); k++) g.drawImage(chunk(k).c, 0, k * CH, UW, CH);
+    // The trains.
+    if (vy1 > TUBE.y && vy0 < TUBE.y + TUBE.h) { for (const a of ants) if (!a.surf && a.y > TUBE.y && a.y < TUBE.y + TUBE.h) drawAnt(a); if (train.x > -998) { g.save(); g.beginPath(); g.rect(TUBE.x0, TUBE.y + 8, TUBE.x1 - TUBE.x0, TUBE.h - 16); g.clip(); for (let c = 0; c < 3; c++) blit(SPR.tube, train.x - c * 144, TUBE.y + 14); g.restore(); } }
+    if (vy1 > STATION.y && vy0 < STATION.y + STATION.h) {
+      const S2 = STATION, floor = S2.y + S2.h - 26;
+      g.save(); g.beginPath(); g.rect(S2.x0 + 3, S2.y + 3, S2.x1 - S2.x0 - 6, S2.h - 6); g.clip();
+      for (let k = 0; k < 10; k++) blit(SPR.people[k % 3], S2.x0 + 24 + k * ((S2.x1 - S2.x0 - 44) / 10) + Math.sin(t * 0.3 + k) * 2, floor);
+      if (train2.x > -998) for (let c = 0; c < 3; c++) blit(SPR.metro, train2.x - c * 144, floor + 5);
+      g.restore();
+    }
+    // Water: in the green, as fine level lines.
+    for (const l of leaks) { g.fillStyle = 'rgba(28,94,43,0.10)'; g.beginPath(); g.ellipse(l.x, PIPE.y + PIPE.h + l.damp * 0.4, l.damp * 1.1, l.damp * 0.7, 0, 0, TAU); g.fill(); const k = (t * 3 + l.x) % 1; g.fillStyle = GREEN; g.beginPath(); g.ellipse(l.x, PIPE.y + PIPE.h + 2 + k * 10, 0.9, 1.6, 0, 0, TAU); g.fill(); }
+    const r0 = Math.max(0, Math.floor(vy0 / CS)), r1 = Math.min(GH, Math.ceil(vy1 / CS));
+    g.strokeStyle = GREEN; g.lineWidth = 0.7;
+    for (let r = r0; r < r1; r++) for (let x = 0; x < GW; x++) { const w = water[r * GW + x]; if (w > 0.05 && (r & 1)) { g.globalAlpha = Math.min(0.9, w); g.beginPath(); g.moveTo(x * CS - 0.4, (r + 0.5) * CS); g.lineTo(x * CS + CS + 0.4, (r + 0.5) * CS); g.stroke(); } }
+    if (trod) { g.fillStyle = OVER; for (let r = r0; r < r1; r++) for (let x = 0; x < GW; x++) { const i = r * GW + x, w = trod[i]; if (w < 0.15 || soil[i] !== 0) continue; g.globalAlpha = Math.min(0.5, w * 0.55); const h = (i * 2654435761) >>> 0; g.fillRect(x * CS + ((h & 7) / 7) * 2.4, r * CS + (((h >> 3) & 7) / 7) * 2.4, 0.55, 0.55); if (w > 0.5) g.fillRect(x * CS + (((h >> 6) & 7) / 7) * 2.4, r * CS + (((h >> 9) & 7) / 7) * 2.4, 0.5, 0.5); } g.globalAlpha = 1; }
+    g.fillStyle = OVER;
+    for (let r = r0; r < r1; r++) for (let x = 0; x < GW; x++) { const s = smoke[r * GW + x]; if (s > 0.05) { g.globalAlpha = Math.min(0.45, s * 0.4); g.beginPath(); g.arc((x + 0.5) * CS + Math.sin(r * 7 + x) * 0.8, (r + 0.5) * CS, 0.7 + s, 0, TAU); g.fill(); } }
+    g.globalAlpha = 1;
+    // What's in the hollows the ground came with: drawn fresh, since the dug paper shows through the print.
+    for (const d of DECOR) if (d.y1 + d.dy > vy0 && d.y0 + d.dy < vy1) { g.save(); g.translate(0, d.dy); d.fn(g, t, d.dy); g.restore(); }
+    // The street trees' roots, down into the made ground.
+    if (vy0 < 40) { g.strokeStyle = OVER; g.lineCap = 'round'; for (const tr2 of trees) { if (tr2.buried) continue; g.globalAlpha = tr2.alive ? 0.85 : 0.35; for (const rt of tr2.roots) { g.lineWidth = 0.7; g.beginPath(); g.moveTo(rt[0][0], rt[0][1]); for (const [x, y] of rt) g.lineTo(x, y); g.stroke(); } } g.globalAlpha = 1; }
+    // The exterminator's reach, pencilled in as a surveyor would: a dashed line across, a note at its end.
+    g.font = `italic ${(17 / Z).toFixed(1)}px ${DISPLAY}`; g.textAlign = 'right'; g.textBaseline = 'bottom';
+    for (const [y, txt] of [[REACH.concrete, 'concrete is pumped no deeper'], [REACH.bait, 'bait spoils below here'], [REACH.smoke, 'smoke sinks no further']]) {
+      if (y < vy0 || y > vy1) continue;
+      g.strokeStyle = PENCIL; g.fillStyle = PENCIL; g.globalAlpha = 0.7; g.lineWidth = 0.6; g.setLineDash([2, 4]); g.beginPath(); g.moveTo(0, y); g.lineTo(UW, y); g.stroke(); g.setLineDash([]); g.fillText(txt, UW - 6, y - 1.5);
+    }
+    g.globalAlpha = 1;
+    // Tunnels drawn but not yet dug: a pencilled dash.
+    plans = plans.filter((p) => (p.kind === 'room' ? planLeftIn(p) : p.pts.some(([x, y]) => { for (let yy = -6; yy <= 6; yy += 3) for (let xx = -6; xx <= 6; xx += 3) { const i = gi(x + xx, y + yy); if (i >= 0 && plan[i]) return true; } return false; })));
+    g.strokeStyle = PENCIL; g.globalAlpha = 0.5; g.lineWidth = 0.9; g.setLineDash([3, 5]); g.lineCap = 'round';
+    for (const p of plans) { g.beginPath(); if (p.kind === 'room') g.ellipse(p.x, p.y, p.r * 1.4 + 3, p.r * 0.6 + 3, 0, 0, TAU); else { g.moveTo(p.pts[0][0], p.pts[0][1]); for (const [x, y] of p.pts) g.lineTo(x, y); } g.stroke(); }
+    g.setLineDash([]); g.globalAlpha = 1;
+    // What's kept in each room, and food the ground keeps.
+    for (const c of chambers) {
+      if (c.y < vy0 - 30 || c.y > vy1 + 30) continue;
+      const ci = gi(c.x, c.y); if (ci < 0 || soil[ci] !== 0) continue;
+      if (c.role === 'larder') { const n = Math.min(30, stock * 3 + 3); for (let k = 0; k < n; k++) { const a = k * 2.4, r = Math.sqrt(k / 30) * c.r; g.fillStyle = k % 3 ? '#d9b24c' : '#c98c78'; g.beginPath(); g.ellipse(c.x + Math.cos(a) * r * 1.3, c.y + 3 + Math.sin(a) * r * 0.4, 1.2, 0.9, a, 0, TAU); g.fill(); } }
+      else if (c.role === 'garden') { const n = Math.min(26, Math.round((c.raw || 0) + (c.ripe || 0)) + 3); g.strokeStyle = OVER; g.lineWidth = 0.35; for (let k = 0; k < n; k++) { const a = k * 2.4 + 0.3, r = Math.sqrt((k + 1) / 26) * c.r; g.fillStyle = k < (c.ripe || 0) ? '#efe2c0' : '#fbf6ea'; g.beginPath(); g.arc(c.x + Math.cos(a) * r * 1.3, c.y + 2 + Math.sin(a) * r * 0.35, 1.7, 0, TAU); g.fill(); g.stroke(); } }
+      else if (c.role === 'sump') { g.strokeStyle = OVER; g.lineWidth = 0.5; g.globalAlpha = 0.7; for (let k = 0; k < 3; k++) { g.beginPath(); g.moveTo(c.x - c.r * (1 - k * 0.2), c.y + c.r * 0.3 - k * 2); g.lineTo(c.x + c.r * (1 - k * 0.2), c.y + c.r * 0.3 - k * 2); g.stroke(); } g.globalAlpha = 1; }
+    }
+    drawBrood(t, vy0, vy1); drawWet(t);
+    for (const d of deposits) { if (d.y < vy0 - 30 || d.y > vy1 + 30) continue; const n = Math.ceil(Math.min(d.food, 30) / 1.3); for (let k = 0; k < n; k++) { const a = k * 2.4, r = Math.sqrt(k / 24) * d.r; g.fillStyle = DEPC[d.label] || '#d9b24c'; g.beginPath(); g.ellipse(d.x + Math.cos(a) * r * 1.3, d.y + 2 + Math.sin(a) * r * 0.4, 1.3, 1, a, 0, TAU); g.fill(); } }
+    for (const d of dead) { g.globalAlpha = clamp(1 - (t - d.at - 10) / 4, 0, 1); drawAnt(d, d.big, true); }
+    g.globalAlpha = 1;
+    if (QUEEN.alive) drawAnt({ x: QUEEN.x, y: QUEEN.y, a: QUEEN.go ? QUEEN.a || 0 : Math.sin(t * 0.4) * 0.3 + Math.PI, step: t * (QUEEN.go ? 6 : 1) }, true);
+    if (PRIN.alive) drawAnt({ x: PRIN.x, y: PRIN.y, a: Math.sin(t * 0.5 + 2) * 0.3, step: t }, 1.9);
+    for (const p2 of plugs) for (let q = 0; q < p2.n; q++) drawAnt({ x: p2.x + (q - (p2.n - 1) / 2) * 3.2, y: p2.y, a: -Math.PI / 2 + (q - 1) * 0.35, step: t * 0.4 + q }, 1.5);
+    if (RIV) for (const r of RIV.ants) if (r.y > vy0 - 6 && r.y < vy1 + 6) drawAnt(r, 1.15);
+    if (MOLE && MOLE.y > vy0 - 20 && MOLE.y < vy1 + 20) { g.save(); g.translate(MOLE.x, MOLE.y); g.rotate(Math.cos(MOLE.t * 0.7) * 0.15 * MOLE.dir); g.scale(MOLE.dir < 0 ? -1.7 : 1.7, 1.7); g.drawImage(SPR.mole.c, SPR.mole.ox, SPR.mole.oy, SPR.mole.w, SPR.mole.h); g.restore(); }
+    for (const a of ants) if (!a.surf && a.y > vy0 - 6 && a.y < vy1 + 6 && !(a.y > TUBE.y && a.y < TUBE.y + TUBE.h)) drawAnt(a);
+    // On the street.
+    if (vy0 < 10) {
+      for (const [x, n] of mounds) { const h = Math.min(18, 1 + Math.sqrt(n) * 1.1), w = h * 3; g.fillStyle = PINK; g.beginPath(); g.moveTo(x - w, 0); g.quadraticCurveTo(x, -h * 2, x + w, 0); g.closePath(); g.fill(); g.fillStyle = OVER; for (let k = 0; k < Math.min(60, n); k++) { const u = ((k * 0.618) % 1) * 2 - 1, v = (k * 0.377) % 1; g.fillRect(x + u * w * 0.7, -0.5 - v * h * (1 - u * u) * 0.9, 0.7, 0.7); } }
+      for (const c of crumbs) { g.fillStyle = c.bait ? '#7a8fb8' : '#d9b24c'; g.beginPath(); g.ellipse(c.x, -1.6, 1.4, 1, 0.3, 0, TAU); g.fill(); }
+      for (const h of holes) if (!h.filled) cordon(h, t);
+      for (const s2 of slabs) { g.save(); g.translate(s2.x, s2.y); g.rotate(s2.a); g.fillStyle = PINK; g.fillRect(0, -s2.h / 2, s2.w, s2.h); g.strokeStyle = OVER; g.lineWidth = 0.9; g.strokeRect(0, -s2.h / 2, s2.w, s2.h); g.lineWidth = 0.5; for (let q = 2; q < s2.w; q += 2.5) { g.beginPath(); g.moveTo(q, -s2.h / 2); g.lineTo(q - 1.5, s2.h / 2); g.stroke(); } g.beginPath(); g.moveTo(s2.w, -1); g.quadraticCurveTo(s2.w + 4, 0, s2.w + 3, 5); g.moveTo(s2.w, 1); g.quadraticCurveTo(s2.w + 5, 3, s2.w + 2, 8); g.stroke(); g.restore(); }
+      for (const w of wrecks) { g.save(); g.translate(w.x, w.y); g.rotate(w.a); if (w.flip) g.scale(-1, 1); g.drawImage(w.s.c, w.s.ox, w.s.oy, w.s.w, w.s.h); g.restore(); }
+      for (const tr2 of trees) if (!tr2.buried) { g.save(); g.translate(tr2.x, 0); g.scale(tr2.s, tr2.s); const sp = tr2.alive ? SPR.tree : SPR.bare; g.drawImage(sp.c, sp.ox, sp.oy, sp.w, sp.h); g.restore(); }
+      for (const c of carts) blit(SPR.cart, c.x, 0);
+      for (const lane of [1, 0]) for (const c of cars) if (c.lane === lane) { const s2 = SPR[c.kind]; g.save(); g.translate(c.x, lane ? -2.5 : 0); if (lane) g.scale(-1, 1); g.drawImage(s2.c, s2.ox, s2.oy, s2.w, s2.h); g.restore(); }
+      if (pest) {
+        const mix = pest.kind === 'concrete' || pest.kind === 'grout';
+        const [pk, sd] = parkOf(pest);
+        { const sp = mix ? SPR.mixer : SPR.van; g.save(); g.translate(pest.van, 0); g.scale(sd, 1); g.drawImage(sp.c, sp.ox, sp.oy, sp.w, sp.h); g.restore(); }
+        const parked = !pest.done && Math.abs(pest.van - pk) < 4;
+        if (mix) pour(pest, t, parked && pest.queue && pest.queue.length > 0);
+        else if (parked && pest.kind !== 'bait') {
+          g.strokeStyle = OVER; g.lineWidth = 1.2; g.lineCap = 'round'; g.beginPath(); g.moveTo(pest.van - 22 * sd, -8); g.quadraticCurveTo(pest.x + 12 * sd, -16 + Math.sin(t * 6) * 2, pest.x, 2); g.stroke();
+          if (pest.kind === 'smoke') for (let k = 0; k < 5; k++) { const q = (t * 0.6 + k / 5) % 1; g.fillStyle = `rgba(28,94,43,${(0.25 * (1 - q)).toFixed(2)})`; g.beginPath(); g.arc(pest.x + Math.sin(k * 2 + t) * 8, -6 - q * 40, 4 + q * 10, 0, TAU); g.fill(); }
+        }
+      }
+      for (const a of ants) if (a.surf) drawAnt(a);
+      // Dust and falling pieces, in the green, stippled.
+      // (Dust drawn as the chimneys' smoke is: a few loops of fine line, rolling low and thinning out.)
+      g.strokeStyle = OVER;
+      for (const d of dust) { const al = Math.min(1, d.t * 3) * (1 - d.t / d.life); g.globalAlpha = al * 0.7; g.lineWidth = 0.35; g.beginPath(); for (let q = 0; q < 3; q++) { const a = d.s + q * 2.1, cx = d.x + Math.cos(a) * d.r * 0.5, cy = d.y - Math.abs(Math.sin(a)) * d.r * 0.3, r = d.r * (0.45 + 0.15 * q); g.moveTo(cx + Math.cos(Math.PI * 0.95) * r, cy + Math.sin(Math.PI * 0.95) * r); g.arc(cx, cy, r, Math.PI * 0.95, Math.PI * 2.1); } g.stroke(); }
+      g.globalAlpha = 1;
+      g.globalAlpha = 1;
+      g.strokeStyle = OVER; g.lineWidth = 0.8;
+      for (const d of debris) { g.save(); g.translate(d.x, d.y); g.rotate(d.a); g.fillStyle = PINK; g.fillRect(-d.s / 2, -d.s / 3, d.s, d.s * 0.66); g.strokeRect(-d.s / 2, -d.s / 3, d.s, d.s * 0.66); g.restore(); }
+    }
+    if (hand && hand.below) {
+      g.lineCap = 'round'; const held = (performance.now() - hand.still) / 1000;
+      hand.holdR = held > 0.35 ? Math.min(30, 8 + (held - 0.35) * 18) : 0;
+      g.strokeStyle = PENCIL; g.globalAlpha = 0.6; g.setLineDash([3, 5]); g.lineWidth = 1;
+      if (hand.holdR && hand.hy > 16) { g.beginPath(); g.ellipse(hand.hx, hand.hy, hand.holdR * 1.4 + 3, hand.holdR * 0.6 + 3, 0, 0, TAU); g.stroke(); }
+      else if (hand.pts.length > 1) { g.beginPath(); g.moveTo(hand.pts[0][0], Math.max(1, hand.pts[0][1])); for (const [x, y] of hand.pts) g.lineTo(x, Math.max(1, y)); g.stroke(); }
+      g.setLineDash([]); g.globalAlpha = 1;
+    }
+    g.restore();
+    drawCaptions(t); drawGauge(); drawHead(t);
+  }
+  function planLeftIn(p) { for (let a = 0; a < TAU; a += 0.6) for (let q = 0; q <= p.r; q += 4) { const i = gi(p.x + Math.cos(a) * q * 1.4, p.y + Math.sin(a) * q * 0.6); if (i >= 0 && plan[i]) return true; } return false; }
+  // (What happens, as a caption set under the plate's image: an italic line on a band of the paper.)
+  function drawCaptions(t) {
+    g.setTransform(DPR, 0, 0, DPR, 0, 0);
+    captions = captions.filter((c) => t - c.at < c.secs);
+    let y = IN.y + 26;
+    for (const c of captions) {
+      const k = t - c.at, a = Math.min(1, k * 3, (c.secs - k) * 2);
+      g.save(); g.globalAlpha = a; g.font = `italic 500 19px ${DISPLAY}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+      const w = g.measureText(c.text).width + 30;
+      g.fillStyle = 'rgba(243,236,220,0.9)'; g.fillRect(IN.x + IN.w / 2 - w / 2, y - 14, w, 28);
+      g.strokeStyle = OVER; g.lineWidth = 0.8; g.beginPath(); g.moveTo(IN.x + IN.w / 2 - w / 2 + 8, y + 11); g.lineTo(IN.x + IN.w / 2 + w / 2 - 8, y + 11); g.stroke();
+      g.fillStyle = OVER; g.fillText(c.text, IN.x + IN.w / 2, y);
+      g.restore(); y += 34;
+    }
+  }
+  // (Down the frame's right side, a gauge in metres; where each buried city lies, its plate's number.)
+  function drawGauge() {
+    g.setTransform(DPR, 0, 0, DPR, 0, 0);
+    const x = IN.x + IN.w + 1;
+    g.save(); g.beginPath(); g.rect(x, IN.y, F.x + F.w - x, IN.h); g.clip();
+    g.strokeStyle = PAPER; g.fillStyle = PAPER; g.lineWidth = 1; g.lineCap = 'round'; g.font = `italic 11px ${DISPLAY}`; g.textAlign = 'left'; g.textBaseline = 'middle';
+    const m0 = Math.max(0, Math.floor((camY - (G - IN.y) / SZ()) / M)), m1 = Math.ceil((camY + (IN.y + IN.h - G) / SZ()) / M);
+    for (let m = m0; m <= m1; m++) {
+      const y = G + (m * M - camY) * SZ(); if (y < IN.y + 2 || y > IN.y + IN.h - 2) continue;
+      const big = m % 5 === 0; if (!big && SZ() * M < 4) continue;
+      g.beginPath(); g.moveTo(x + 2, y); g.lineTo(x + (big ? 8 : 5), y); g.stroke();
+      if (big && m > 0 && m % 10 === 0) g.fillText(String(m), x + 9, y + 0.5);
+    }
+    for (const e of eraLines) { const y = G + (e.y - camY) * SZ(); if (y < IN.y || y > IN.y + IN.h) continue; g.fillStyle = OVER; g.beginPath(); g.moveTo(x + 1, y - 5); g.lineTo(x + 9, y); g.lineTo(x + 1, y + 5); g.closePath(); g.fill(); g.fillStyle = PAPER; g.fillText(ROMAN[e.n] || '·', x + 10, y + 0.5); }
+    g.restore();
+  }
+  // (On the frame's head: the plate's number and its street; the city's alarm, ten notches.)
+  function drawHead(t) {
+    g.setTransform(DPR, 0, 0, DPR, 0, 0);
+    const y = F.y + F.t / 2 + 0.5, [b, s, c] = thresholds();
+    g.save(); g.fillStyle = PAPER; g.font = `italic 500 13px ${DISPLAY}`; g.textAlign = 'left'; g.textBaseline = 'middle';
+    g.fillText(`Plate ${ROMAN[era] || era + 1} · ${NAMES[era % NAMES.length]}`, F.x + 14, y);
+    const x0 = F.x + F.w - 24 - 10 * 8;
+    const shake = alarm > b ? Math.sin(t * 20) * 0.25 : 0;
+    g.save(); g.translate(x0 - 12, y); g.rotate(shake); g.beginPath(); g.moveTo(-4, 3); g.quadraticCurveTo(-4, -5, 0, -5); g.quadraticCurveTo(4, -5, 4, 3); g.closePath(); g.fill(); g.beginPath(); g.arc(0, 4.2, 1.2, 0, TAU); g.fill(); g.restore();
+    g.lineWidth = 1;
+    for (let k = 0; k < 10; k++) { const v = (k + 1) * 10, on = alarm >= v - 5; g.beginPath(); g.rect(x0 + k * 8, y - 3, 5.5, 6); if (on) { g.fillStyle = v > c ? OVER : PAPER; g.fill(); if (v > c) { g.strokeStyle = PAPER; g.stroke(); } } else { g.strokeStyle = 'rgba(243,236,220,0.7)'; g.stroke(); } }
+    g.restore();
+  }
+
+  layout();
+  bg.setTransform(DPR, 0, 0, DPR, 0, 0); bg.fillStyle = PAPER; bg.fillRect(0, 0, W, H);
+  bg.fillStyle = OVER; bg.font = `italic 500 20px ${DISPLAY}`; bg.textAlign = 'center'; bg.fillText('Pulling the print…', W / 2, H / 2);
+  setTimeout(start, 40);
+  function start() {
+  makePaper();
+  makeSprites();
+  cityC = document.createElement('canvas'); cityC.width = Math.ceil(UW * RU); cityC.oy = -(SKY + 90); cityC.height = Math.ceil((SKY + 100) * RU); cityX = cityC.getContext('2d');
+  chunk(0);
+  EX = 548;
+  found(EX, 330, 30);
+  initCity(); drawBase(); drawCity();
+  for (const ch of chunks) if (ch && ch.dirty) { const d = ch.dirty; ch.dirty = null; repaint(ch, d[0], d[1], d[2], d[3]); }
+  fields();
+  requestAnimationFrame(frame);
+  }
+})();
+</script>

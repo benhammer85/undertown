@@ -1,0 +1,653 @@
+<title>Undertown Plates</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Spectral:ital,wght@0,400;1,400&display=swap">
+<style>
+  /* Layout: a gallery wall, two framed plates side by side (stacked on a phone), each with its museum label. */
+  :root {
+    --wall: #e9e5dd;
+    --label: #2b2723;
+    --muted: #6f675e;
+    --rule: #cfc8bc;
+    --mat: #fbf8f1;
+    --display: "Cormorant Garamond", "Iowan Old Style", Georgia, serif;
+    --body: "Spectral", Georgia, serif;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --wall: #1d1b19; --label: #ece6dc; --muted: #a39a8e; --rule: #3a3631; --mat: #f3efe6; color-scheme: dark; } }
+  :root[data-theme="dark"] { --wall: #1d1b19; --label: #ece6dc; --muted: #a39a8e; --rule: #3a3631; --mat: #f3efe6; color-scheme: dark; }
+  body { background: var(--wall); color: var(--label); font-family: var(--body); }
+  main { max-width: 1240px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 36px 56px; }
+  header { max-width: 60ch; margin-bottom: 28px; }
+  h1 { font-family: var(--display); font-weight: 600; font-size: clamp(30px, 5vw, 44px); line-height: 1.05; margin: 0 0 10px; text-wrap: balance; letter-spacing: 0.01em; }
+  header p { margin: 0; color: var(--muted); font-size: 15.5px; line-height: 1.55; }
+  .wall { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 40px 36px; }
+  figure { margin: 0; min-width: 0; display: grid; gap: 14px; }
+  .frame { background: var(--mat); padding: clamp(14px, 3vw, 30px); box-shadow: 0 1px 0 rgba(0,0,0,.06), 0 18px 40px -22px rgba(0,0,0,.45); }
+  canvas { display: block; width: 100%; height: auto; aspect-ratio: 600 / 960; max-width: 100%; background: #f3ecdc; }
+  canvas.detail { aspect-ratio: 1 / 1; }
+  figcaption { display: grid; gap: 4px; border-top: 1px solid var(--rule); padding-top: 12px; }
+  .tag { font-family: var(--body); font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+  .name { font-family: var(--display); font-style: italic; font-size: 22px; line-height: 1.2; }
+  .medium { font-size: 14px; color: var(--muted); line-height: 1.5; }
+</style>
+
+<main>
+  <header>
+    <h1>The Subsidence of Tallow Row</h1>
+    <p>A city block gives way over the colony's workings: the street sags and opens, a building pancakes into the void, the water main bursts, and under it all runs the network of tunnels that did it.</p>
+  </header>
+  <div class="wall">
+    <figure>
+      <div class="frame"><canvas id="a" width="1200" height="1920" aria-label="A two-colour screenprint in green and pink of a city block collapsing into a sinkhole, with an ant colony's tunnels below."></canvas></div>
+      <figcaption>
+        <span class="tag">Plate II</span>
+        <span class="name">The Subsidence of Tallow Row</span>
+        <span class="medium">Screenprint in two inks, green and pink, overprinting to a third. The pink's lighter tones laid as a halftone.</span>
+      </figcaption>
+    </figure>
+    <figure>
+      <div class="frame"><canvas id="d" width="1200" height="1200" class="detail" aria-label="A close detail of the same print: the collapsing building, the hole, the ink's texture."></canvas></div>
+      <figcaption>
+        <span class="tag">Detail</span>
+        <span class="name">The ink, up close</span>
+        <span class="medium">Where the drawing is dense the green fills in; the mesh breaks its edges; the pink sits a little off the green, as it was laid.</span>
+      </figcaption>
+    </figure>
+  </div>
+</main>
+
+<script>
+(() => {
+  const PW = 600, PH = 960, GR = 430; // (the plate, and the street's level on it)
+  const TAU = Math.PI * 2;
+  const mul = (a) => () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  // Two random streams: the scene's own (the same for both plates) and the hand's (each mark's tremor).
+  let T = mul(1);
+  const tex = (s) => { T = mul(s * 7919 + 13); };
+  const tr = (a, b) => a + T() * (b - a);
+
+  // ---------------------------------------------------------------- the plates and the hand
+  let P; // { ink, tint, acc, pal }
+  function plate(pal) {
+    const mk = () => { const c = document.createElement('canvas'); c.width = PW * 2; c.height = PH * 2; const x = c.getContext('2d'); x.scale(2, 2); x.lineCap = 'round'; x.lineJoin = 'round'; return x; };
+    const p = { ink: mk(), tint: mk(), acc: mk(), pal };
+    p.ink.strokeStyle = p.ink.fillStyle = pal.ink; p.acc.strokeStyle = p.acc.fillStyle = pal.acc;
+    return p;
+  }
+  // A confident line: nearly straight, a little tremor, overshooting its ends a touch, as a draughtsman's does.
+  function line(c, x1, y1, x2, y2, w = 1, over = 1) {
+    w = Math.max(w, 0.62);
+    const dx = x2 - x1, dy = y2 - y1, L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L, ov = over * Math.min(1, L / 18);
+    const ax = x1 - ux * ov * tr(0, 1.1), ay = y1 - uy * ov * tr(0, 1.1), bx = x2 + ux * ov * tr(0.2, 1.4), by = y2 + uy * ov * tr(0.2, 1.4);
+    const n = Math.max(1, Math.ceil(L / 9)), ph = tr(0, 9), amp = 0.16 + 0.1 * Math.min(1, w);
+    c.lineWidth = w * tr(0.88, 1.1); c.beginPath(); c.moveTo(ax, ay);
+    for (let k = 1; k <= n; k++) { const t = k / n, off = Math.sin(t * 2.6 + ph) * amp + tr(-0.06, 0.06); c.lineTo(ax + (bx - ax) * t - uy * off, ay + (by - ay) * t + ux * off); }
+    c.stroke();
+  }
+  function poly(c, pts, w = 1, closed = true, over = 1) { const n = pts.length; for (let k = 0; k < (closed ? n : n - 1); k++) { const a = pts[k], b = pts[(k + 1) % n]; line(c, a[0], a[1], b[0], b[1], w, over); } }
+  const rect = (x, y, w, h) => [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
+  function path(c, pts) { c.beginPath(); c.moveTo(pts[0][0], pts[0][1]); for (let k = 1; k < pts.length; k++) c.lineTo(pts[k][0], pts[k][1]); c.closePath(); }
+  function curve(c, pts, w = 1) { c.lineWidth = Math.max(w, 0.6); c.beginPath(); c.moveTo(pts[0][0], pts[0][1]); for (let k = 1; k < pts.length - 1; k++) { const m = [(pts[k][0] + pts[k + 1][0]) / 2, (pts[k][1] + pts[k + 1][1]) / 2]; c.quadraticCurveTo(pts[k][0], pts[k][1], m[0], m[1]); } const l = pts[pts.length - 1]; c.lineTo(l[0], l[1]); c.stroke(); }
+  // Hatching: parallel strokes laid by hand across a shape, broken now and then, lighter where tone says so.
+  function hatch(c, pts, ang, gap, w = 0.5, tone = () => 1) {
+    w = Math.max(w, 0.5); gap *= 1.25;
+    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+    for (const [x, y] of pts) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, R = Math.hypot(x1 - x0, y1 - y0) / 2 + 2, ca = Math.cos(ang), sa = Math.sin(ang);
+    c.save(); path(c, pts); c.clip(); c.lineWidth = w;
+    for (let o = -R; o <= R; o += gap * tr(0.85, 1.15)) {
+      let s = -R;
+      while (s < R) {
+        const len = tr(10, 34), e = Math.min(R, s + len);
+        const px = cx + ca * s - sa * o, py = cy + sa * s + ca * o, qx = cx + ca * e - sa * o, qy = cy + sa * e + ca * o;
+        if (T() < tone((px + qx) / 2, (py + qy) / 2)) { const j = tr(-0.25, 0.25); c.beginPath(); c.moveTo(px, py + j); c.lineTo(qx, qy - j); c.stroke(); }
+        s = e + (T() < 0.25 ? tr(0.5, 2.5) : 0);
+      }
+    }
+    c.restore();
+  }
+  function stipple(c, pts, n, r0 = 0.35, r1 = 0.8, tone = () => 1) {
+    n = Math.round(n * 0.55); r0 = Math.max(r0, 0.55); r1 = Math.max(r1, 0.95);
+    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+    for (const [x, y] of pts) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+    c.save(); path(c, pts); c.clip();
+    for (let k = 0; k < n; k++) { const x = tr(x0, x1), y = tr(y0, y1); if (T() < tone(x, y)) { c.beginPath(); c.arc(x, y, tr(r0, r1), 0, TAU); c.fill(); } }
+    c.restore();
+  }
+  function occlude(pts) { for (const c of [P.ink, P.tint, P.acc]) { c.save(); c.globalCompositeOperation = 'destination-out'; path(c, pts); c.fill(); c.restore(); } }
+  function tint(pts, col) { P.tint.fillStyle = col; path(P.tint, pts); P.tint.fill(); }
+  function erase(c, fn) { c.save(); c.globalCompositeOperation = 'destination-out'; fn(c); c.restore(); }
+
+  // ---------------------------------------------------------------- windows, cornices, the vocabulary of a facade
+  function window_(x, y, w, h, kind, dark) {
+    const k = P.ink;
+    poly(k, rect(x, y, w, h), 0.55, true, 0.4);
+    if (kind === 'arch') { k.lineWidth = 0.7; k.beginPath(); k.arc(x + w / 2, y, w / 2 + 0.8, Math.PI, 0); k.stroke(); hatch(k, [[x, y], [x + w, y], ...Array.from({ length: 7 }, (_, i) => { const a = (i / 6) * Math.PI; return [x + w / 2 + Math.cos(a) * w / 2, y - Math.sin(a) * w / 2]; })], 0.9, 1.4, 0.35); }
+    else line(k, x - 1.2, y - 1.3, x + w + 1.2, y - 1.3, 0.9, 0.3);
+    line(k, x - 1.5, y + h + 1, x + w + 1.5, y + h + 1, 0.8, 0.3);
+    line(k, x + w / 2, y, x + w / 2, y + h, 0.35, 0);
+    line(k, x, y + h * 0.48, x + w, y + h * 0.48, 0.35, 0);
+    // (Dark inside, or catching the sky.)
+    if (dark) { hatch(k, rect(x, y, w, h), 0.95, 1.1, 0.45); hatch(k, rect(x, y, w, h), -0.6, 1.6, 0.35); }
+    else { hatch(k, rect(x, y, w, h), 0.9, 2.2, 0.3, (px, py) => (py - y < h * 0.45 ? 0.75 : 0.15)); }
+    hatch(k, rect(x, y, 1.4, h), 1.57, 0.9, 0.35);
+  }
+  function cornice(x, y, w, depth = 7) {
+    const k = P.ink;
+    poly(k, rect(x - 4, y - depth, w + 8, depth * 0.55), 1.1);
+    poly(k, rect(x - 2, y - depth * 0.45, w + 4, depth * 0.45), 0.8);
+    for (let q = x; q < x + w; q += 3.2) line(k, q, y - depth * 0.42, q, y - depth * 0.12, 0.5, 0);
+    hatch(k, rect(x - 2, y, w + 4, 3.2), 0, 0.9, 0.4);
+  }
+  // (Retired with the town's New York look: kept as no-ops so the plate still draws.)
+  function fireEscape(x, y0, floors, fh, w = 22) {
+    return;
+    const k = P.ink;
+    for (let f = 0; f < floors; f++) {
+      const y = y0 + f * fh;
+      line(k, x - 2, y, x + w + 2, y, 0.8, 0.4); line(k, x - 2, y - 6, x + w + 2, y - 6, 0.5, 0.2);
+      for (let q = x - 2; q <= x + w + 2; q += 2.6) line(k, q, y - 6, q, y, 0.3, 0);
+      if (f < floors - 1) { const a = f % 2 ? [x + 2, y] : [x + w - 2, y], b = f % 2 ? [x + w - 2, y + fh - 6] : [x + 2, y + fh - 6]; line(k, a[0], a[1], b[0], b[1], 0.6); for (let s = 0.15; s < 1; s += 0.14) { const px = a[0] + (b[0] - a[0]) * s, py = a[1] + (b[1] - a[1]) * s; line(k, px - 2, py, px + 2, py, 0.35, 0); } }
+    }
+  }
+  function waterTower(x, y, s = 1) {
+    return;
+    const k = P.ink, w = 22 * s, h = 20 * s, legs = 12 * s;
+    for (const q of [0.1, 0.4, 0.6, 0.9]) line(k, x + w * q, y, x + w * q + (q - 0.5) * 3, y - legs, 0.6);
+    line(k, x, y - legs * 0.5, x + w, y - legs * 0.5, 0.4, 0); line(k, x + w * 0.1, y, x + w * 0.9, y - legs, 0.35, 0); line(k, x + w * 0.9, y, x + w * 0.1, y - legs, 0.35, 0);
+    const top = y - legs - h;
+    occlude(rect(x, top, w, h)); poly(k, rect(x, top, w, h), 0.9);
+    for (let q = top + 3; q < top + h; q += 4) line(k, x, q, x + w, q, 0.4, 0.2);
+    for (let q = x + 2; q < x + w; q += 2.2) line(k, q, top, q, top + h, 0.25, 0);
+    hatch(k, rect(x + w * 0.6, top, w * 0.4, h), 1.57, 1, 0.45);
+    occlude([[x - 2, top], [x + w / 2, top - 9 * s], [x + w + 2, top]]); poly(k, [[x - 2, top], [x + w / 2, top - 9 * s], [x + w + 2, top]], 0.9);
+    hatch(k, [[x + w / 2, top - 9 * s], [x + w + 2, top], [x + w / 2, top]], 1.2, 1, 0.4);
+  }
+
+  // ---------------------------------------------------------------- buildings
+  function masonry(b) {
+    tex(b.id);
+    const k = P.ink, top = GR - b.h, sil = rect(b.x, top, b.w, b.h);
+    occlude(sil);
+    if (b.tone) tint(sil, P.pal.facade);
+    // Brick coursing, faint, heavier toward the shaded edge.
+    hatch(k, sil, 0, 2.6, 0.25, (x) => 0.12 + 0.35 * ((x - b.x) / b.w) ** 2);
+    // Storefront.
+    const sf = b.fh * 1.35, sy = GR - sf;
+    line(k, b.x, sy, b.x + b.w, sy, 1.1);
+    for (let q = b.x + 4; q < b.x + b.w - 10; q += 18) { poly(k, rect(q, sy + 6, 13, sf - 9), 0.6); hatch(k, rect(q, sy + 6, 13, sf - 9), 0.9, 1.6, 0.3, (x, y) => (y < sy + 14 ? 0.8 : 0.25)); }
+    hatch(k, [[b.x - 3, sy + 1], [b.x + b.w + 3, sy + 1], [b.x + b.w + 1, sy + 6], [b.x - 1, sy + 6]], 0.9, 1.1, 0.45);
+    // Floors.
+    const cols = Math.max(2, Math.floor((b.w - 6) / 17)), cw = (b.w - 6) / cols;
+    for (let f = 0; f < b.floors; f++) {
+      const y = sy - (f + 1) * b.fh + b.fh * 0.3;
+      for (let c = 0; c < cols; c++) { if (b.skip && b.skip(f, c)) continue; window_(b.x + 3 + c * cw + cw * 0.22, y, cw * 0.56, b.fh * 0.56, b.arch && f === b.floors - 1 ? 'arch' : 'square', T() < (b.dark ?? 0.22)); }
+      if (f % 3 === 2) { line(k, b.x, sy - (f + 1) * b.fh + 1.5, b.x + b.w, sy - (f + 1) * b.fh + 1.5, 0.6, 0.6); line(k, b.x, sy - (f + 1) * b.fh + 3, b.x + b.w, sy - (f + 1) * b.fh + 3, 0.4, 0.4); }
+    }
+    poly(k, sil, 1.5, true, 1.2);
+    cornice(b.x, top + 1, b.w, 7);
+    if (b.fire) fireEscape(b.x + b.fire, sy - b.fh * 0.12, b.floors, b.fh, 20);
+    if (b.tower) waterTower(b.x + b.tower, top - 6, 1);
+  }
+  function deco(b) {
+    tex(b.id);
+    const k = P.ink, steps = [[0, 0.62], [0.12, 0.8], [0.24, 0.9], [0.36, 0.96]];
+    const shape = []; let y = GR;
+    const pts = [[b.x, GR]];
+    for (const [ins, frac] of steps) { const yy = GR - b.h * frac; pts.push([b.x + b.w * ins, y], [b.x + b.w * ins, yy]); y = yy; }
+    pts.push([b.x + b.w / 2, GR - b.h - 18]);
+    for (let s = steps.length - 1; s >= 0; s--) { const [ins, frac] = steps[s], yy = GR - b.h * frac, yPrev = s ? GR - b.h * steps[s - 1][1] : GR; pts.push([b.x + b.w * (1 - ins), yy], [b.x + b.w * (1 - ins), yPrev]); }
+    pts.push([b.x + b.w, GR]);
+    occlude(pts);
+    if (b.tone) tint(pts, P.pal.facade);
+    // Piers rising the full height; dark spandrels between, the deco verticals.
+    for (const [ins, frac] of steps) {
+      const x0 = b.x + b.w * ins, x1 = b.x + b.w * (1 - ins), yTop = GR - b.h * frac, n = Math.max(3, Math.round((x1 - x0) / 9));
+      for (let q = 0; q <= n; q++) { const x = x0 + ((x1 - x0) * q) / n; line(k, x, yTop + 2, x, GR - 22, q % 2 ? 0.35 : 0.6, 0); }
+      for (let q = 0; q < n; q++) { if (q % 2) continue; const x = x0 + ((x1 - x0) * q) / n, w = (x1 - x0) / n; hatch(k, rect(x + 1, yTop + 4, w - 2, GR - 26 - yTop), 1.57, 1.1, b.fine ? 0.25 : 0.38, (px, py) => 0.35 + 0.5 * (((py - yTop) / 9) % 1 > 0.55 ? 1 : 0)); }
+    }
+    // Crown: arched tiers and a needle.
+    const cx = b.x + b.w / 2, ct = GR - b.h * 0.96;
+    for (let r = 1; r <= 3; r++) { k.lineWidth = b.fine ? 0.4 : 0.6; k.beginPath(); k.arc(cx, ct + 10 * r, b.w * (0.14 + 0.05 * r), Math.PI, 0); k.stroke(); for (let a = 0.2; a < Math.PI; a += 0.32) line(k, cx - Math.cos(a) * b.w * (0.14 + 0.05 * r), ct + 10 * r - Math.sin(a) * b.w * (0.14 + 0.05 * r), cx - Math.cos(a) * b.w * (0.1 + 0.05 * r), ct + 10 * r - Math.sin(a) * b.w * (0.1 + 0.05 * r), 0.35, 0); }
+    poly(k, pts, b.fine ? 0.8 : 1.4, true, 1);
+    hatch(k, pts, 1.57, b.fine ? 3 : 2, 0.3, (x) => (x > cx ? 0.75 : 0.05));
+  }
+  function glass(b) {
+    tex(b.id);
+    const k = P.ink, top = GR - b.h, sil = rect(b.x, top, b.w, b.h);
+    occlude(sil);
+    if (b.tone) tint(sil, P.pal.facade);
+    const fh = 11, mw = 9, f = b.fine ? 0.6 : 1;
+    for (let y = GR - 30; y > top; y -= fh) { line(k, b.x, y, b.x + b.w, y, 0.45 * f, 0.2); if (!b.fine) hatch(k, rect(b.x, y - 2.6, b.w, 2.6), 0, 0.8, 0.3); }
+    for (let x = b.x + mw; x < b.x + b.w; x += mw) line(k, x, top, x, GR - 30, 0.3 * f, 0);
+    // (The sky and the next tower caught in the glass: bands of reflection.)
+    for (let r = 0; r < (b.fine ? 3 : 5); r++) { const y0 = top + tr(20, b.h - 120), h = tr(30, 90), sk = tr(0.35, 0.6); hatch(k, [[b.x, y0], [b.x + b.w, y0 - b.w * sk], [b.x + b.w, y0 - b.w * sk + h], [b.x, y0 + h]], -0.5, b.fine ? 2.6 : 1.6, 0.3 * f); }
+    poly(k, rect(b.x, GR - 30, b.w, 30), 1); for (let x = b.x + 6; x < b.x + b.w - 6; x += 16) poly(k, rect(x, GR - 26, 12, 26), 0.5);
+    poly(k, sil, b.fine ? 0.8 : 1.5, true, 1.2);
+  }
+
+  // ---------------------------------------------------------------- the building going down
+  function collapse() {
+    tex(501);
+    const k = P.ink, x = 236, w = 128, fh = 25, upper = 9;
+    // The upper floors, still whole, dropping and turning as the floors under them give.
+    const by = 512, cx = x + w / 2;
+    k.save(); P.tint.save(); P.acc.save();
+    for (const c of [k, P.tint, P.acc]) { c.translate(cx, by); c.rotate(-0.12); c.translate(-cx, -by); }
+    const top = by - upper * fh - 10;
+    // (Its broken underside: jagged, floors torn.)
+    const jag = []; for (let q = 0; q <= 18; q++) jag.push([x + w - (w * q) / 18 + tr(-2, 2), by + tr(-3, 9) + (T() < 0.22 ? tr(8, 20) : 0) - (T() < 0.15 ? tr(6, 12) : 0)]);
+    const sil = [[x, top], [x + w, top], ...jag.slice(0, 1).map(([a, b2]) => [x + w, b2]), ...jag, [x, jag[jag.length - 1][1]]];
+    occlude(sil);
+    if (P.pal.facadeOn) tint(sil, P.pal.facade);
+    hatch(k, sil, 0, 2.6, 0.25, (px) => 0.12 + 0.35 * ((px - x) / w) ** 2);
+    const cols = 6, cw = (w - 6) / cols;
+    for (let f = 0; f < upper; f++) {
+      const y = by - (f + 1) * fh + fh * 0.32;
+      for (let c = 0; c < cols; c++) {
+        const dark = T() < 0.45, wx = x + 3 + c * cw + cw * 0.22;
+        window_(wx, y, cw * 0.56, fh * 0.56, f === upper - 1 ? 'arch' : 'square', dark);
+        // (Glass gone from some: the frame racked, shards.)
+        if (T() < 0.25) { line(k, wx, y, wx + cw * 0.56, y + fh * 0.56, 0.4); line(k, wx + cw * 0.3, y + fh * 0.1, wx + cw * 0.1, y + fh * 0.5, 0.35); }
+      }
+      line(k, x, by - f * fh - 1, x + w, by - f * fh - 1, 0.35, 0.5);
+    }
+    poly(k, sil, 1.5, true, 1.1);
+    cornice(x, top + 1, w, 7);
+    waterTower(x + 78, top - 6, 0.9);
+    // A crack through the whole block, opening downward.
+    k.lineWidth = 0.9; let px = x + 40, py = top + 18; k.beginPath(); k.moveTo(px, py);
+    for (let s = 0; s < 14; s++) { px += tr(-3, 7); py += tr(8, 13); k.lineTo(px, py); } k.stroke();
+    hatch(k, [[x + 40, top + 18], [x + 46, top + 18], [px + 6, py], [px, py]], 0.4, 0.8, 0.5);
+    for (const c of [k, P.tint, P.acc]) c.restore();
+    // Under it, the floors that gave: pancaked slabs, crushed together, rubble between.
+    tex(502);
+    let sy = by + 12;
+    for (let s = 0; s < 4; s++) {
+      const a = tr(-0.2, 0.1), l = w * tr(0.55, 0.95), sx = x + tr(-14, 30), th = tr(3.4, 5);
+      const pts = [[sx, sy], [sx + l, sy + Math.sin(a) * l], [sx + l, sy + Math.sin(a) * l + th], [sx, sy + th]];
+      occlude(pts); poly(k, pts, 0.9); hatch(k, pts, 0, 0.9, 0.4);
+      // (Ends of rebar curling out of the broken slabs.)
+      for (const e of [0, 1]) for (let q = 0; q < 3; q++) { const ex = e ? sx + l : sx, ey = sy + (e ? Math.sin(a) * l : 0) + 1.5; curve(k, [[ex, ey], [ex + (e ? 1 : -1) * tr(3, 7), ey + tr(-4, 4)], [ex + (e ? 1 : -1) * tr(6, 11), ey + tr(-2, 7)]], 0.4); }
+      const gap = tr(2.5, 4.5);
+      for (let q = 0; q < 10; q++) { const rx = sx + tr(4, l - 4), ry = sy + th + gap / 2, rs = tr(1.5, 3.4); const pp = [[rx - rs, ry], [rx, ry - rs * 0.7], [rx + rs, ry + 0.4], [rx, ry + rs * 0.6]]; occlude(pp); poly(k, pp, 0.45, true, 0.2); }
+      sy += th + gap;
+    }
+    // Pieces of facade in the air.
+    tex(503);
+    for (let q = 0; q < 16; q++) {
+      const fx = tr(x - 30, x + w + 30), fy = tr(by - 40, by + 70), s = tr(2, 7), a = tr(0, TAU);
+      const pp = [0, 1, 2, 3].map((i) => [fx + Math.cos(a + i * 1.7) * s * tr(0.6, 1.1), fy + Math.sin(a + i * 1.7) * s * tr(0.6, 1.1)]);
+      occlude(pp); poly(k, pp, 0.6, true, 0.2); if (s > 4) hatch(k, pp, 0.6, 1, 0.35);
+      line(k, fx, fy - s - 2, fx + tr(-1, 1), fy - s - tr(6, 12), 0.25, 0);
+    }
+  }
+  // The neighbour on the right, its corner sheared away: the rooms laid open.
+  function sheared(b) {
+    tex(b.id);
+    const k = P.ink, top = GR - b.h;
+    const cut = [[b.x, top + 70], [b.x + 22, top + 110], [b.x + 14, top + 150], [b.x + 34, top + 196], [b.x + 26, GR - 60], [b.x + 6, GR - 30]];
+    const sil = [[b.x, top], [b.x + b.w, top], [b.x + b.w, GR], [b.x, GR], [b.x, GR - 30], ...cut.slice().reverse()];
+    const solidSil = [[b.x, top], [b.x + b.w, top], [b.x + b.w, GR], [b.x + 6, GR], ...cut.slice().reverse()];
+    occlude(sil);
+    if (b.tone) tint(solidSil, P.pal.facade);
+    hatch(k, solidSil, 0, 2.6, 0.25, (x) => 0.12 + 0.35 * ((x - b.x) / b.w) ** 2);
+    const fh = 25, cols = 4, cw = (b.w - 6) / cols;
+    for (let f = 0; f < b.floors; f++) {
+      const y = GR - fh * 1.35 - (f + 1) * fh + fh * 0.3;
+      for (let c = 0; c < cols; c++) { const wx = b.x + 3 + c * cw + cw * 0.22; let inside = true; if (wx < b.x + 38) inside = false; if (inside) window_(wx, y, cw * 0.56, fh * 0.56, 'square', T() < 0.3); }
+    }
+    // The opened rooms: floor slabs ending raggedly, a lamp, a table, a picture askew.
+    for (let f = 0; f < b.floors; f++) {
+      const y = GR - fh * 1.35 - f * fh; if (y < top + 70) continue;
+      const e = b.x + tr(4, 18);
+      line(k, e, y, b.x + 38, y, 1.1, 0.3); hatch(k, rect(e, y, b.x + 38 - e, 2.8), 0, 0.8, 0.45);
+      hatch(k, rect(e, y - fh + 3, b.x + 38 - e, fh - 3), 0.95, 1.3, 0.3);
+      if (f % 3 === 0) { poly(k, rect(e + 8, y - 6, 9, 1.2), 0.6); line(k, e + 9, y - 5, e + 9, y, 0.5); line(k, e + 16, y - 5, e + 16, y, 0.5); }
+      if (f % 3 === 1) { line(k, e + 10, y, e + 10, y - 12, 0.5); poly(k, [[e + 7, y - 12], [e + 13, y - 12], [e + 11.5, y - 16], [e + 8.5, y - 16]], 0.5); }
+      if (f % 3 === 2) { k.save(); k.translate(e + 12, y - 15); k.rotate(0.2); poly(k, rect(0, 0, 8, 6), 0.5); k.restore(); }
+      // (Rebar hanging where the slab broke.)
+      curve(k, [[e, y + 1], [e - 3, y + 5], [e - 2, y + 10]], 0.4);
+    }
+    poly(k, solidSil, 1.5, true, 1.1);
+    poly(k, cut, 1.1, false, 0.4);
+    cornice(b.x + 30, top + 1, b.w - 30, 6);
+  }
+  // The neighbour on the left: stepped cracks up its brick, leaning a little toward the hole.
+  function cracked(b) {
+    P.ink.save(); P.tint.save(); P.acc.save();
+    for (const c of [P.ink, P.tint, P.acc]) { c.translate(b.x + b.w, GR); c.rotate(0.022); c.translate(-(b.x + b.w), -GR); }
+    masonry(b);
+    tex(b.id + 1); const k = P.ink;
+    let x = b.x + b.w - 6, y = GR - 40; k.lineWidth = 0.8; k.beginPath(); k.moveTo(x, y);
+    for (let s = 0; s < 22; s++) { if (s % 2) x -= tr(3, 6); else y -= tr(4, 8); k.lineTo(x, y); } k.stroke();
+    x = b.x + b.w - 2; y = GR - 150; k.beginPath(); k.moveTo(x, y); for (let s = 0; s < 14; s++) { if (s % 2) x -= tr(2, 5); else y -= tr(3, 6); k.lineTo(x, y); } k.stroke();
+    for (const c of [P.ink, P.tint, P.acc]) c.restore();
+  }
+
+  // ---------------------------------------------------------------- the street
+  function figure(x, y, s, lean) {
+    const k = P.ink; k.save(); k.translate(x, y); k.rotate(lean); k.scale(s, s);
+    k.beginPath(); k.arc(0, -10.5, 1.5, 0, TAU); k.fill();
+    poly(k, [[-1.6, -8.6], [1.6, -8.6], [1.2, -3.6], [-1.2, -3.6]], 0.5); hatch(k, [[-1.6, -8.6], [1.6, -8.6], [1.2, -3.6], [-1.2, -3.6]], 0.8, 0.7, 0.4);
+    line(k, -0.8, -3.6, -2.6, 0, 0.6, 0); line(k, 0.8, -3.6, 2.2, 0, 0.6, 0); line(k, -1.4, -8, -3.4, -5, 0.5, 0); line(k, 1.4, -8, 3.6, -9.5, 0.5, 0);
+    k.restore();
+  }
+  function car(x, y, a, s = 1, crushed = 0) {
+    const k = P.ink; k.save(); k.translate(x, y); k.rotate(a); k.scale(s, s);
+    const body = [[-15, 0], [-15, -5], [-10, -6], [-6, -11], [6, -11], [10, -6], [15, -5], [15 - crushed, 0]];
+    occlude(body); poly(k, body, 0.9, true, 0.4);
+    poly(k, [[-5.2, -6.2], [-1, -10], [-1, -6.2]], 0.5); poly(k, [[1, -6.2], [1, -10], [5.2, -6.2]], 0.5);
+    hatch(k, [[-5.2, -6.2], [-1, -10], [-1, -6.2]], 0.9, 0.9, 0.35);
+    hatch(k, [[-15, -2.4], [15, -2.4], [15, 0], [-15, 0]], 0, 0.8, 0.4);
+    for (const wx of [-9, 9]) { k.save(); occlude(Array.from({ length: 10 }, (_, i) => [wx + Math.cos((i / 10) * TAU) * 3.2, Math.sin((i / 10) * TAU) * 3.2])); k.restore(); k.lineWidth = 0.8; k.beginPath(); k.arc(wx, 0, 3.2, 0, TAU); k.stroke(); k.beginPath(); k.arc(wx, 0, 1.1, 0, TAU); k.fill(); }
+    k.restore();
+  }
+  function bus(x, y, a) {
+    const k = P.ink; k.save(); k.translate(x, y); k.rotate(a);
+    const body = [[-38, 0], [-38, -22], [-35, -25], [38, -25], [40, -21], [40, 0]];
+    occlude(body); poly(k, body, 1.1, true, 0.6);
+    for (let q = -33; q < 34; q += 9.5) { poly(k, rect(q, -21, 7.5, 8), 0.5); hatch(k, rect(q, -21, 7.5, 8), 0.9, 1.1, 0.35, (px, py) => (py < -16 ? 0.9 : 0.3)); }
+    line(k, -38, -10, 40, -10, 0.6); hatch(k, rect(-38, -10, 78, 3), 0, 0.9, 0.4);
+    poly(k, rect(31, -12, 7, 12), 0.5);
+    for (const wx of [-24, 26]) { occlude(Array.from({ length: 10 }, (_, i) => [wx + Math.cos((i / 10) * TAU) * 4.4, Math.sin((i / 10) * TAU) * 4.4])); k.lineWidth = 0.9; k.beginPath(); k.arc(wx, 0, 4.4, 0, TAU); k.stroke(); k.beginPath(); k.arc(wx, 0, 1.5, 0, TAU); k.fill(); }
+    k.restore();
+  }
+  function lamp(x) { const k = P.ink; line(k, x, GR, x, GR - 34, 0.8, 0.2); curve(k, [[x, GR - 34], [x + 1, GR - 38], [x + 6, GR - 38]], 0.7); poly(k, [[x + 4, GR - 38], [x + 9, GR - 38], [x + 8, GR - 35], [x + 5, GR - 35]], 0.5); }
+
+  // ---------------------------------------------------------------- the ground, layer by layer
+  const HOLE = { l: 226, r: 374, y0: GR + 10, bot: 604 };
+  const holeShape = () => {
+    // (Bell-shaped, undercut: wider below the street than at it, the walls crumbling, the floor a slump.)
+    tex(301);
+    const pts = [[HOLE.l, GR + 12]], n = 22, D = HOLE.bot - GR - 12;
+    const wall = (t) => Math.sin(Math.min(1, t * 1.25) * Math.PI * 0.62) * 38 - t * t * 30;
+    for (let q = 1; q <= n; q++) { const t = q / n; pts.push([HOLE.l - wall(t) + tr(-4, 4) + (q % 3 === 0 ? tr(-5, 3) : 0), GR + 12 + t * D]); }
+    for (let q = 1; q < 8; q++) pts.push([HOLE.l - wall(1) + ((HOLE.r - HOLE.l) + 2 * wall(1)) * (q / 8), HOLE.bot + Math.sin((q / 8) * Math.PI) * 6 + tr(-2, 2)]);
+    for (let q = n; q >= 1; q--) { const t = q / n; pts.push([HOLE.r + wall(t) * 0.9 + tr(-4, 4) + (q % 3 === 0 ? tr(-3, 5) : 0), GR + 12 + t * D]); }
+    pts.push([HOLE.r, GR + 12]);
+    return pts;
+  };
+  function ground() {
+    const k = P.ink, soilPts = [[0, GR], [PW, GR], [PW, PH], [0, PH]], hole = holeShape();
+    tint(soilPts, P.pal.soil);
+    // Depth: stipple growing denser, a deeper tint below the old city.
+    tex(201);
+    tint([[0, 700], [PW, 690], [PW, PH], [0, PH]], P.pal.soilDeep);
+    stipple(k, soilPts, 26000, 0.3, 0.75, (x, y) => 0.12 + 0.55 * ((y - GR) / (PH - GR)) ** 1.4);
+    for (let s = 0; s < 6; s++) { const y = 470 + s * 72 + tr(-8, 8); const pts = []; for (let x = -10; x <= PW + 10; x += 20) pts.push([x, y + Math.sin(x / 70 + s) * 5]); curve(k, pts, 0.3); }
+    // Pavement and base course.
+    tint(rect(0, GR, PW, 12), P.pal.paving);
+    hatch(k, rect(0, GR, PW, 12), 0, 1.1, 0.45);
+    for (let q = 0; q < 220; q++) { const x = tr(0, PW), y = tr(GR + 13, GR + 28), r = tr(0.8, 2); k.lineWidth = 0.4; k.beginPath(); k.ellipse(x, y, r, r * 0.7, tr(0, 3), 0, TAU); k.stroke(); }
+    line(k, 0, GR, PW, GR, 1.6, 0); line(k, 0, GR + 12, PW, GR + 12, 0.7, 0);
+    // Water main (in its length), joints and shade.
+    const mainY = 476;
+    for (const [a, b] of [[0, 236], [366, PW]]) {
+      const pts = rect(a, mainY, b - a, 13); occlude(pts); tint(pts, P.pal.pipe);
+      line(k, a, mainY, b, mainY, 1, 0); line(k, a, mainY + 13, b, mainY + 13, 1, 0);
+      hatch(k, pts, 0, 1, 0.4, (x, y) => ((y - mainY) / 13) ** 2);
+      for (let x = a + 30; x < b - 10; x += 64) { poly(k, rect(x, mainY - 2, 5, 17), 0.7); }
+    }
+    // Duct bank in section, and a gas line.
+    tex(203);
+    const db = rect(54, 512, 66, 34); occlude(db); tint(db, P.pal.concrete); poly(k, db, 1); stipple(k, db, 260, 0.3, 0.8);
+    for (let r = 0; r < 2; r++) for (let c = 0; c < 3; c++) { const x = 66 + c * 21, y = 522 + r * 15; occlude(Array.from({ length: 12 }, (_, i) => [x + Math.cos((i / 12) * TAU) * 5.5, y + Math.sin((i / 12) * TAU) * 5.5])); k.lineWidth = 0.8; k.beginPath(); k.arc(x, y, 5.5, 0, TAU); k.stroke(); hatch(k, Array.from({ length: 12 }, (_, i) => [x + Math.cos((i / 12) * TAU) * 5.5, y + Math.sin((i / 12) * TAU) * 5.5]), 0.8, 1, 0.35, (px, py) => (py > y ? 0.9 : 0.2)); }
+    for (const [a, b] of [[0, 52], [122, 222], [378, PW]]) { const pts = rect(a, 505, b - a, 5); occlude(pts); poly(k, pts, 0.7); hatch(k, pts, 0, 0.9, 0.35, (x, y) => (y > 507 ? 0.9 : 0.2)); }
+    // Brick sewer, egg-shaped, in section.
+    tex(204);
+    const sx = 500, sy = 566;
+    const egg = (r) => Array.from({ length: 40 }, (_, i) => { const a = (i / 40) * TAU, s = Math.sin(a) > 0 ? 1.18 : 0.92; return [sx + Math.cos(a) * r, sy + Math.sin(a) * r * s]; });
+    occlude(egg(36)); tint(egg(36), P.pal.brick); poly(k, egg(36), 1.1, true, 0.2); poly(k, egg(27), 0.9, true, 0.2);
+    for (let i = 0; i < 40; i++) { const a = (i / 40) * TAU, s = Math.sin(a) > 0 ? 1.18 : 0.92; line(k, sx + Math.cos(a) * 27, sy + Math.sin(a) * 27 * s, sx + Math.cos(a) * 36, sy + Math.sin(a) * 36 * s, 0.4, 0); }
+    erase(P.tint, (c) => { path(c, egg(26.4)); c.fill(); });
+    hatch(k, egg(26.4), 0.7, 1.6, 0.3, (x, y) => (x > sx ? 0.7 : 0.25));
+    water([[sx - 22, sy + 18], [sx + 22, sy + 18], [sx + 14, sy + 29], [sx - 14, sy + 29]]);
+    // The subway, in its length: a concrete box, a train, the roof cracked under the hole.
+    tex(205);
+    const ty = 612, th = 78, wt = 8;
+    occlude(rect(0, ty, PW, th)); tint(rect(0, ty, PW, wt), P.pal.concrete); tint(rect(0, ty + th - wt, PW, wt), P.pal.concrete);
+    hatch(k, rect(0, ty, PW, wt), 0.78, 1.5, 0.4); hatch(k, rect(0, ty + th - wt, PW, wt), 0.78, 1.5, 0.4);
+    stipple(k, rect(0, ty, PW, wt), 500, 0.3, 0.7); stipple(k, rect(0, ty + th - wt, PW, wt), 500, 0.3, 0.7);
+    line(k, 0, ty, PW, ty, 1.2, 0); line(k, 0, ty + wt, PW, ty + wt, 0.8, 0); line(k, 0, ty + th - wt, PW, ty + th - wt, 0.8, 0); line(k, 0, ty + th, PW, ty + th, 1.2, 0);
+    for (let x = 6; x < PW; x += 10) line(k, x, ty + wt, x, ty + th - wt - 16, 0.25, 0);
+    hatch(k, rect(0, ty + wt, PW, th - 2 * wt), 0, 1.8, 0.28, (x, y) => (y > ty + th - wt - 16 ? 0.9 : 0.12));
+    for (let x = 0; x < PW; x += 7) line(k, x, ty + th - wt - 3, x + 3, ty + th - wt, 0.35, 0);
+    // (The train, stopped: two cars and the front of a third, people standing.)
+    for (const cx0 of [20, 168, 316, 464]) {
+      const cw = 140, cy0 = ty + wt + 8, ch = th - 2 * wt - 18;
+      const body = [[cx0, cy0 + 4], [cx0 + 4, cy0], [cx0 + cw - 4, cy0], [cx0 + cw, cy0 + 4], [cx0 + cw, cy0 + ch], [cx0, cy0 + ch]];
+      occlude(body); poly(k, body, 1, true, 0.5);
+      for (let w = cx0 + 8; w < cx0 + cw - 14; w += 17) { poly(k, rect(w, cy0 + 7, 12, 14), 0.5); hatch(k, rect(w, cy0 + 7, 12, 14), 0.9, 1.4, 0.3, () => 0.45); figure(w + 6, cy0 + 21, 0.8, 0); }
+      line(k, cx0, cy0 + ch - 9, cx0 + cw, cy0 + ch - 9, 0.5, 0); hatch(k, rect(cx0, cy0 + ch - 9, cw, 9), 0, 1, 0.35);
+      for (const wx of [cx0 + 16, cx0 + 30, cx0 + cw - 30, cx0 + cw - 16]) { k.lineWidth = 0.7; k.beginPath(); k.arc(wx, cy0 + ch + 2, 3, 0, TAU); k.stroke(); }
+    }
+    // (Its roof cracked where the hole bears on it.)
+    tex(206);
+    for (let c = 0; c < 6; c++) { let x = tr(250, 350), y = ty; k.lineWidth = 0.7; k.beginPath(); k.moveTo(x, y); for (let s = 0; s < 5; s++) { x += tr(-6, 6); y += tr(2, 4); k.lineTo(x, y); } k.stroke(); }
+    for (let q = 0; q < 26; q++) { const x = tr(240, 360), y = ty + wt + tr(1, 10), r = tr(0.8, 2.2); k.beginPath(); k.ellipse(x, y, r, r * 0.7, tr(0, 3), 0, TAU); k.stroke(); }
+    // The old city, buried: a cobbled street, the footing of walls, a lamp-post's base.
+    tex(207);
+    const oy = 772;
+    for (let x = 4; x < PW; x += tr(6, 9)) { const w = tr(4.5, 7); const pts = Array.from({ length: 8 }, (_, i) => [x + w / 2 + Math.cos((i / 8) * TAU) * w / 2, oy + Math.sin((i / 8) * TAU) * 2.4]); occlude(pts); tint(pts, P.pal.cobble); poly(k, pts, 0.5, true, 0); }
+    for (const [x, w, h] of [[70, 92, 46], [428, 104, 54]]) {
+      const pts = rect(x, oy - h, w, h); occlude(pts); tint(pts, P.pal.brick); poly(k, pts, 0.9);
+      for (let r = 0; r < h / 5; r++) { line(k, x, oy - h + r * 5, x + w, oy - h + r * 5, 0.3, 0); for (let q = x + (r % 2) * 5; q < x + w; q += 10) line(k, q, oy - h + r * 5, q, oy - h + r * 5 + 5, 0.3, 0); }
+      hatch(k, pts, 0.8, 1.8, 0.3, (px) => (px > x + w * 0.6 ? 0.7 : 0.1));
+    }
+    poly(k, rect(296, oy - 20, 6, 20), 0.6); poly(k, rect(293, oy - 2, 12, 2), 0.6);
+    // A few stones, deep.
+    for (let q = 0; q < 26; q++) { const x = tr(10, PW - 10), y = tr(810, PH - 10), r = tr(2.5, 7); const pts = Array.from({ length: 9 }, (_, i) => [x + Math.cos((i / 9) * TAU) * r * tr(0.8, 1.15), y + Math.sin((i / 9) * TAU) * r * 0.7 * tr(0.8, 1.15)]); occlude(pts); tint(pts, P.pal.stone); poly(k, pts, 0.6, true, 0); hatch(k, pts, 0.8, 1.1, 0.35, (px, py) => (py > y ? 0.8 : 0.1)); }
+    return hole;
+  }
+  function water(pts) {
+    if (P.pal.waterInk) { hatch(P.ink, pts, 0, 1.2, 0.45); for (let y = Math.min(...pts.map((p) => p[1])) + 1; y < Math.max(...pts.map((p) => p[1])); y += 3.4) { /* (ripples) */ } }
+    else { P.acc.fillStyle = P.pal.acc; path(P.acc, pts); P.acc.fill(); hatch(P.acc, pts, 0, 1.6, 0.45); }
+  }
+  function waterLine(c, pts, w) { (P.pal.waterInk ? P.ink : P.acc).lineWidth = w; curve(P.pal.waterInk ? P.ink : P.acc, pts, w); }
+
+  // ---------------------------------------------------------------- the colony
+  function colony(hole) {
+    const k = P.ink;
+    tex(401);
+    const Q = [420, 880];
+    const trunks = [
+      [Q, [384, 836], [350, 792], [318, 744], [304, 700], [300, 690], [300, 612], [298, 596]],
+      [Q, [470, 840], [512, 790], [540, 742], [556, 700], [558, 690], [558, 612], [548, 588], [522, 536], [470, 520], [430, 486], [410, 452]],
+      [Q, [356, 874], [270, 860], [190, 828], [130, 790], [100, 748], [92, 700], [92, 690], [92, 612], [104, 590], [150, 560], [196, 534], [222, 500], [214, 456]],
+      [[350, 792], [250, 760], [196, 740], [160, 704], [160, 690], [160, 612], [176, 590], [214, 580], [246, 590]],
+      [[512, 790], [556, 820], [580, 860], [586, 906]],
+      [[304, 590], [280, 560], [262, 520]], [[300, 596], [330, 566], [346, 524]],
+    ];
+    // (Side workings: short branches off the trunks, ending in rooms.)
+    const branches = [];
+    for (const tk of trunks) for (let i = 1; i < tk.length - 1; i += 1) if (T() < 0.55) {
+      const [x, y] = tk[i], a = tr(0, TAU); let px = x, py = y; const b = [[x, y]];
+      for (let s = 0; s < 4; s++) { px += Math.cos(a + tr(-0.5, 0.5)) * tr(10, 18); py += Math.sin(a + tr(-0.5, 0.5)) * tr(6, 12); if (py < 612 && py > 580 || py > 600 && py < 700 || py < GR + 40) break; b.push([px, py]); }
+      if (b.length > 1) branches.push(b);
+    }
+    const cut = (c) => {
+      c.lineCap = 'round'; c.lineJoin = 'round';
+      for (const tk of trunks) { c.lineWidth = 3.4; c.beginPath(); c.moveTo(tk[0][0], tk[0][1]); for (const [x, y] of tk) c.lineTo(x, y); c.stroke(); }
+      for (const b of branches) { c.lineWidth = 2.2; c.beginPath(); c.moveTo(b[0][0], b[0][1]); for (const [x, y] of b) c.lineTo(x, y); c.stroke(); c.beginPath(); c.ellipse(b[b.length - 1][0], b[b.length - 1][1], 5.5, 3.2, 0, 0, TAU); c.fill(); }
+      c.beginPath(); c.ellipse(Q[0], Q[1], 26, 11, 0, 0, TAU); c.fill();
+      for (const [x, y, rx] of [[470, 896, 14], [370, 900, 13], [520, 860, 11], [240, 846, 12]]) { c.beginPath(); c.ellipse(x, y, rx, rx * 0.45, 0, 0, TAU); c.fill(); }
+      // (The voids near the hole, where the soil has gone: a honeycomb of hollows.)
+      for (let q = 0; q < 18; q++) { c.beginPath(); c.ellipse(300 + Math.cos(q * 2.4) * (20 + q * 3), 586 - Math.abs(Math.sin(q * 1.7)) * (6 + q * 1.4), 6 + (q % 4) * 2, 3 + (q % 3), q, 0, TAU); c.fill(); }
+    };
+    // The tunnels are the paper left bare: cut from the ground's ink and tint.
+    erase(P.tint, cut); erase(P.ink, cut);
+    // (A hairline of shadow along each tunnel's floor.)
+    k.save(); k.translate(0.7, 1); k.globalAlpha = 0.65;
+    for (const tk of trunks) { k.lineWidth = 0.35; k.beginPath(); k.moveTo(tk[0][0], tk[0][1] + 1.6); for (const [x, y] of tk) k.lineTo(x, y + 1.6); k.stroke(); }
+    k.restore();
+    // The queen, the brood, the stores.
+    k.save(); k.translate(Q[0], Q[1] + 2); k.scale(2.2, 2.2); ant(k, 0, 0, 0); k.restore();
+    for (let q = 0; q < 16; q++) { const a = q * 2.4, r = Math.sqrt(q / 16) * 11; k.lineWidth = 0.35; k.beginPath(); k.ellipse(470 + Math.cos(a) * r, 897 + Math.sin(a) * r * 0.4, 1, 1.7, a, 0, TAU); k.stroke(); }
+    for (let q = 0; q < 18; q++) { const a = q * 2.4, r = Math.sqrt(q / 18) * 10; k.beginPath(); k.ellipse(370 + Math.cos(a) * r, 901 + Math.sin(a) * r * 0.4, 1.1, 0.8, a, 0, TAU); k.fill(); }
+    // Ants: specks, streaming along the trunks, crowding near the hole.
+    tex(402);
+    const along = (tk, n) => { const segs = []; let L = 0; for (let i = 1; i < tk.length; i++) { const l = Math.hypot(tk[i][0] - tk[i - 1][0], tk[i][1] - tk[i - 1][1]); segs.push([tk[i - 1], tk[i], l]); L += l; } for (let q = 0; q < n; q++) { let d = tr(0, L); for (const [a, b, l] of segs) { if (d <= l) { const t = d / l; ant(k, a[0] + (b[0] - a[0]) * t + tr(-0.8, 0.8), a[1] + (b[1] - a[1]) * t + tr(-0.8, 0.8), Math.atan2(b[1] - a[1], b[0] - a[0]) + (T() < 0.5 ? 0 : Math.PI)); break; } d -= l; } } };
+    trunks.forEach((tk, i) => along(tk, i < 3 ? 90 : 34));
+    for (const b of branches) along(b, 6);
+    // (On the street too, a thin line of them, unseen by anyone.)
+    for (let q = 0; q < 26; q++) ant(k, tr(380, 460), GR - 0.8, T() < 0.5 ? 0 : Math.PI);
+  }
+  function ant(k, x, y, a) { k.save(); k.translate(x, y); k.rotate(a); k.beginPath(); k.ellipse(-0.9, 0, 0.8, 0.5, 0, 0, TAU); k.ellipse(0.4, 0, 0.45, 0.35, 0, 0, TAU); k.ellipse(1.2, 0, 0.4, 0.38, 0, 0, TAU); k.fill(); k.lineWidth = 0.22; for (const s of [-1, 1]) { k.beginPath(); k.moveTo(-0.4, 0); k.lineTo(-0.9, s * 0.9); k.moveTo(0.3, 0); k.lineTo(0.5, s * 1); k.moveTo(0.6, 0); k.lineTo(1.2, s * 0.9); k.stroke(); } k.restore(); }
+
+  // ---------------------------------------------------------------- the hole itself
+  function sinkhole(hole) {
+    const k = P.ink;
+    // The void: deep shadow, cross-hatched dark, a tint behind it.
+    for (const c of [P.ink, P.tint]) erase(c, (x) => { path(x, hole); x.fill(); });
+    tint(hole, P.pal.void);
+    tex(601);
+    hatch(k, hole, 0.85, 1.05, 0.5); hatch(k, hole, -0.75, 1.5, 0.42, (x, y) => 0.5 + 0.5 * ((y - GR) / 170)); hatch(k, hole, 0.05, 2.2, 0.35, (x, y) => ((y - GR) / 170) ** 2);
+    poly(k, hole, 1.3, true, 0.4);
+    // (Soil spilling from its walls.)
+    for (let q = 0; q < 140; q++) { const side = T() < 0.5, t = tr(0.05, 0.8), x = side ? HOLE.l + 8 + t * 10 + tr(0, 26) : HOLE.r - 8 - t * 10 - tr(0, 26), y = GR + 20 + t * 150; k.beginPath(); k.arc(x, y, tr(0.4, 1.2), 0, TAU); k.fill(); }
+    // The main, torn: water pouring into the dark.
+    for (const [x, dir] of [[236, 1], [366, -1]]) {
+      poly(k, [[x, 476], [x + dir * 3, 479], [x - dir * 1, 483], [x + dir * 4, 487], [x, 489]], 1, false, 0);
+      for (let s = 0; s < 6; s++) { const pts = []; for (let t = 0; t <= 1; t += 0.1) pts.push([x + dir * (4 + t * (22 + s * 4)), 482 + t * t * (100 + s * 10) + s]); waterLine(null, pts, 0.7 + (s % 2) * 0.4); }
+    }
+    // The bottom: a cone of rubble and broken slab, the water pooling round it.
+    tex(602);
+    const pool = [[214, 590], [386, 590], [376, 606], [226, 606]];
+    for (const c of [P.ink, P.tint]) erase(c, (x) => { path(x, pool); x.fill(); });
+    water(pool);
+    for (let y = 593; y < 606; y += 3.3) line(P.pal.waterInk ? k : P.acc, 222, y, 380, y, 0.45, 0);
+    for (let q = 0; q < 48; q++) {
+      const x = tr(222, 380), y = 594 - (1 - Math.abs(x - 300) / 80) * tr(10, 46), s = tr(2.5, 8), a = tr(0, TAU);
+      const pp = [0, 1, 2, 3, 4].map((i) => [x + Math.cos(a + i * 1.3) * s * tr(0.6, 1.1), y + Math.sin(a + i * 1.3) * s * tr(0.5, 0.9)]);
+      occlude(pp); tint(pp, P.pal.rubble); poly(k, pp, 0.6, true, 0.2); hatch(k, pp, 0.8, 1.1, 0.35, (px, py) => (py > y ? 0.9 : 0.15));
+    }
+    // A car gone nose-first into it.
+    car(352, 548, 1.05, 1.2, 3);
+    // The street's broken slab, hanging into the hole on both sides, rebar trailing.
+    tex(603);
+    for (const [x, dir] of [[HOLE.l, 1], [HOLE.r, -1]]) {
+      for (let s = 0; s < 3; s++) {
+        const len = 14 + s * 7, a = dir * (0.5 + s * 0.35), x0 = x + dir * s * 9, y0 = GR + 1;
+        const pts = [[x0, y0], [x0 + Math.cos(a) * len * dir, y0 + Math.abs(Math.sin(a)) * len], [x0 + Math.cos(a) * len * dir - 2, y0 + Math.abs(Math.sin(a)) * len + 10], [x0 - dir * 2, y0 + 11]];
+        occlude(pts); tint(pts, P.pal.paving); poly(k, pts, 1, true, 0.3); hatch(k, pts, a, 1.1, 0.45);
+        for (let r = 0; r < 3; r++) curve(k, [[pts[1][0], pts[1][1] + r * 3], [pts[1][0] + dir * tr(3, 8), pts[1][1] + r * 3 + tr(2, 8)], [pts[1][0] + dir * tr(2, 6), pts[1][1] + r * 3 + tr(9, 15)]], 0.4);
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------- dust
+  function dust() {
+    // A cloud with no edge: rolling out low along the street from the hole, a plume climbing behind the block.
+    tex(701);
+    const lobes = [];
+    for (let q = 0; q < 34; q++) { const t = q / 33; lobes.push([150 + t * 300 + tr(-12, 12), GR - 6 - Math.sin(t * Math.PI) * 26 - tr(0, 18), tr(14, 30) * (0.6 + Math.sin(t * Math.PI) * 0.6)]); }
+    for (let q = 0; q < 8; q++) lobes.push([178 + tr(-10, 14) - q * 3, GR - 46 - q * 15 + tr(-6, 6), 12 + q * 1.5]);
+    // (Thinning the plates under it toward each billow's middle, never cutting a hard edge.)
+    for (const c of [P.ink, P.tint, P.acc]) {
+      c.save(); c.globalCompositeOperation = 'destination-out';
+      for (const [x, y, r] of lobes) { const gr = c.createRadialGradient(x, y, 0, x, y, r * 1.25); gr.addColorStop(0, 'rgba(0,0,0,0.3)'); gr.addColorStop(0.6, 'rgba(0,0,0,0.16)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); c.fillStyle = gr; c.beginPath(); c.arc(x, y, r * 1.25, 0, TAU); c.fill(); }
+      c.restore();
+    }
+    // Stipple, densest on each billow's shaded underside and nearest the ground; nothing at its edge.
+    const k = P.ink;
+    for (let q = 0; q < 22000; q++) {
+      const [lx, ly, lr] = lobes[(T() * lobes.length) | 0], a = tr(0, TAU), d = Math.sqrt(T()) * lr * 1.15, x = lx + Math.cos(a) * d, y = ly + Math.sin(a) * d;
+      const edge = Math.max(0, 1 - d / (lr * 1.15)), shade = (0.15 + 0.6 * Math.max(0, Math.sin(a)) * (d / lr)) * edge + 0.25 * Math.max(0, (y - (GR - 60)) / 60) * edge;
+      if (T() < shade * 0.5) { k.beginPath(); k.arc(x, y, tr(0.25, 0.6), 0, TAU); k.fill(); }
+    }
+  }
+  function geyser() {
+    // The main bursting up through the street, a column of water.
+    tex(801);
+    for (let s = 0; s < 14; s++) { const pts = []; const h = tr(70, 130), lean = tr(-18, 22); for (let t = 0; t <= 1; t += 0.1) pts.push([392 + tr(-3, 3) + lean * t * t, GR - 4 - t * h]); waterLine(null, pts, tr(0.5, 1.1)); }
+    const c = P.pal.waterInk ? P.ink : P.acc;
+    for (let q = 0; q < 70; q++) { const t = T(), x = 392 + tr(-20, 34) * t, y = GR - 30 - t * 120 + tr(0, 70); c.beginPath(); c.ellipse(x, y, 0.8, 1.4, 0.3, 0, TAU); c.fill(); }
+  }
+
+  // ---------------------------------------------------------------- the whole plate
+  function compose(pal) {
+    P = plate(pal);
+    // Behind: a far slab and a deco spire, drawn fine, lightly.
+    deco({ id: 11, x: 392, w: 96, h: 420, fine: true, tone: false });
+    glass({ id: 12, x: 34, w: 104, h: 330, tone: false, fine: true });
+    // The block.
+    masonry({ id: 21, x: 4, w: 144, h: 196, floors: 6, fh: 26, fire: 92, tower: 18, arch: true, tone: true });
+    cracked({ id: 22, x: 148, w: 90, h: 262, floors: 8, fh: 27, tone: true, dark: 0.3 });
+    sheared({ id: 23, x: 374, w: 92, h: 270, floors: 8, tone: true });
+    glass({ id: 24, x: 466, w: 134, h: 560, tone: true });
+    // The street: lamps, the bus going over the edge, a car into a shopfront, people running.
+    tex(31); lamp(30); lamp(470); lamp(560);
+    const hole = ground();
+    colony(hole);
+    sinkhole(hole);
+    collapse();
+    tex(32);
+    bus(186, GR - 1, 0.21);
+    car(446, GR - 0.5, -0.05, 1.05, 6); tex(33); for (let q = 0; q < 14; q++) line(P.ink, 430 + tr(-6, 6), GR - tr(2, 16), 430 + tr(-10, 2), GR - tr(2, 16), 0.4, 0);
+    tex(34); for (const [x, s, l] of [[60, 1, -0.25], [84, 0.95, -0.3], [110, 1, -0.2], [520, 1, 0.25], [548, 0.9, 0.3], [576, 1, 0.22], [500, 0.95, 0.2]]) { figure(x, GR - 1, s, l); for (let q = 0; q < 3; q++) line(P.ink, x - Math.sign(l) * (5 + q * 3), GR - 4 - q * 3, x - Math.sign(l) * (10 + q * 3), GR - 4 - q * 3, 0.35, 0); }
+    geyser();
+    dust();
+    // Birds going up.
+    tex(41); for (let q = 0; q < 9; q++) { const x = tr(120, 360), y = tr(40, 130), s = tr(2.5, 4.5); curve(P.ink, [[x - s, y], [x - s * 0.4, y - s * 0.5], [x, y]], 0.5); curve(P.ink, [[x, y], [x + s * 0.4, y - s * 0.5], [x + s, y]], 0.5); }
+    return P;
+  }
+  // The print itself. Each plate pulled through a screen: the ink spreads a little and fills in where the
+  // drawing is dense, the mesh breaks its edges, the squeegee leaves it heavier in streaks, and the pink is laid
+  // a touch off the green. Then multiplied onto the paper, where they cross, a third colour.
+  function noiseField(Wd, Hd, cell, seed) {
+    const r = mul(seed), gw = Math.ceil(Wd / cell) + 2, gh = Math.ceil(Hd / cell) + 2, g = new Float32Array(gw * gh);
+    for (let i = 0; i < g.length; i++) g[i] = r();
+    return (x, y) => { const fx = x / cell, fy = y / cell, i = fx | 0, j = fy | 0, u = fx - i, v = fy - j, s = u * u * (3 - 2 * u), t = v * v * (3 - 2 * v), q = j * gw + i; return (g[q] * (1 - s) + g[q + 1] * s) * (1 - t) + (g[q + gw] * (1 - s) + g[q + gw + 1] * s) * t; };
+  }
+  function pull(src, col, o) {
+    const Wd = src.canvas.width, Hd = src.canvas.height, c = document.createElement('canvas'); c.width = Wd; c.height = Hd;
+    const x = c.getContext('2d'); x.filter = `blur(${o.spread}px)`; x.drawImage(src.canvas, 0, 0); x.filter = 'none';
+    const img = x.getImageData(0, 0, Wd, Hd), d = img.data, rgb = [parseInt(col.slice(1, 3), 16), parseInt(col.slice(3, 5), 16), parseInt(col.slice(5, 7), 16)];
+    const fine = noiseField(Wd, Hd, 2.2, o.seed), mid = noiseField(Wd, Hd, 14, o.seed + 1), broad = noiseField(Wd, Hd, 160, o.seed + 2), r = mul(o.seed + 3);
+    for (let y = 0; y < Hd; y++) {
+      // (The squeegee's pass: a little more ink in some bands than others.)
+      const streak = 1 + o.streak * Math.sin(y / 23 + Math.sin(y / 170) * 3);
+      for (let xx = 0; xx < Wd; xx++) {
+        const p = (y * Wd + xx) * 4; let a = d[p + 3] / 255;
+        if (a < 0.02) { d[p + 3] = 0; continue; }
+        // (Lighter tones of the one ink laid as a halftone: dots, denser as the tone deepens.)
+        if (o.tone) a *= Math.min(1, Math.max(0, (255 - (d[p] + d[p + 1] + d[p + 2]) / 3) / o.tone));
+        a *= streak * (1 - o.mottle + o.mottle * 2 * broad(xx, y)) * (0.86 + 0.28 * mid(xx, y));
+        // (The edge the ink takes: firm, but broken by the mesh.)
+        let th = o.thresh + (fine(xx, y) - 0.5) * o.rough;
+        if (o.tone) { const u = (xx * 0.966 + y * 0.259) * TAU / 5.2, v = (-xx * 0.259 + y * 0.966) * TAU / 5.2; th = Math.min(th + 0.4, 0.06 + 0.88 * (0.5 + 0.25 * (Math.cos(u) + Math.cos(v)))) + (fine(xx, y) - 0.5) * 0.12; }
+        let out = Math.min(1, Math.max(0, (a - th) / o.soft + 0.5));
+        if (o.flat) out *= 1 - o.flat * (1 - mid(xx, y)) * broad(xx, y);
+        if (r() < o.drop) out *= 0.25;
+        d[p] = rgb[0]; d[p + 1] = rgb[1]; d[p + 2] = rgb[2]; d[p + 3] = out * 255;
+      }
+    }
+    x.putImageData(img, 0, 0);
+    return c;
+  }
+  function print(canvas, pal) {
+    const p = compose(pal), out = canvas.getContext('2d'), Wd = canvas.width, Hd = canvas.height;
+    out.fillStyle = pal.paper; out.fillRect(0, 0, Wd, Hd);
+    // (The paper's tooth, under everything.)
+    const r = mul(7), tooth = noiseField(Wd, Hd, 3, 11);
+    for (let q = 0; q < 60000; q++) { const x = r() * Wd, y = r() * Hd; out.fillStyle = tooth(x, y) < 0.5 ? 'rgba(120,96,64,0.06)' : 'rgba(255,255,255,0.22)'; out.fillRect(x, y, 1 + r() * 2.5, 1 + r()); }
+    const ref = (255 - (parseInt(pal.soil.slice(1, 3), 16) + parseInt(pal.soil.slice(3, 5), 16) + parseInt(pal.soil.slice(5, 7), 16)) / 3);
+    const pink = pull(p.tint, pal.soil, { spread: 1.4, thresh: 0.42, soft: 0.1, rough: 0.35, streak: 0.05, mottle: 0.1, flat: 0.08, drop: 0.004, seed: 21, tone: ref * 0.98 });
+    const green = pull(p.ink, pal.ink, { spread: 0.75, thresh: 0.3, soft: 0.16, rough: 0.5, streak: 0.06, mottle: 0.1, flat: 0, drop: 0.012, seed: 41 });
+    out.save(); out.globalCompositeOperation = 'multiply';
+    out.globalAlpha = 0.97; out.drawImage(pink, pal.misreg[0], pal.misreg[1]);
+    out.globalAlpha = 0.95; out.drawImage(green, 0, 0);
+    out.restore();
+    // (A little of the paper's white comes back up through the ink.)
+    for (let q = 0; q < 26000; q++) { const x = r() * Wd, y = r() * Hd; out.fillStyle = 'rgba(250,246,236,0.16)'; out.fillRect(x, y, 1 + r() * 1.5, 1 + r() * 1.5); }
+  }
+  // A detail of the plate, as it would look up close.
+  function detail(canvas, src, sx, sy, sw, sh) { const x = canvas.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(src, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height); }
+
+  const A = { paper: '#f3ecdc', ink: '#23a24e', soil: '#f0b8a5', soilDeep: '#e8a994', paving: '#f0b8a5', pipe: '#f6cfc2', concrete: '#f4c6b6', brick: '#eeae99', cobble: '#eeae99', stone: '#e9a792', rubble: '#efb4a0', void: '#e4a08b', facade: '#f7d3c6', facadeOn: true, acc: '#21a04f', waterInk: true, misreg: [5, 3], platemark: false };
+  const B = { paper: '#f2ead9', ink: '#241c16', soil: '#e2d0b4', soilDeep: '#d8c3a3', paving: '#d9cbb3', pipe: '#e9dfcd', concrete: '#ddd3c2', brick: '#d8bfa0', cobble: '#d6c6ab', stone: '#d2bf9f', rubble: '#dccbb0', void: '#cdb995', facade: '#efe6d4', facadeOn: false, acc: '#3d6e93', waterInk: false, misreg: [0.6, 0.3], platemark: true };
+  // (Printed one after the other, so the page is never held up.)
+  requestAnimationFrame(() => { const a = document.getElementById('a'); print(a, A); detail(document.getElementById('d'), a, 420, 520, 640, 640); });
+})();
+</script>

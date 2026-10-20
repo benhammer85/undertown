@@ -24,6 +24,8 @@ The city answers with bait, then (on later plates) smoke and concrete; the groun
 ## Files
 
 - `index.html` — the game.
+- `apple-touch-icon.png`, `icon-192.png`, `icon-512.png`, `favicon.png`, `manifest.webmanifest` — the icon and the
+  settings a phone uses when the site is added to its home screen (the icon is drawn by `sketches/icon/icon.html`).
 - `sketches/` — earlier studies: the print-style mockup (`plates.html`) and the Spiral City prototype.
 - `tests/` — headless checks (Playwright + Chromium): `smoke.cjs` (loads, frame rate, no errors), `reach.cjs`
   (every location reachable), `ground.cjs` (stones drop, wide rooms cave in), `plates.cjs` (goal, survey, weapons by plate, endings), `colony.cjs` (the colony

@@ -1,0 +1,52 @@
+<!doctype html><html><body style="margin:0;background:#888"><canvas id="c" width="1024" height="1024"></canvas><script>
+const c = document.getElementById('c'), g = c.getContext('2d'), W = 1024;
+const PAPER = '#f3ecdc', GREEN = '#23a24e', PINK = '#f0b8a5', OVER = '#1c5e2b';
+let seed = 7; const R = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+// Two plates, as the game prints them: the pink first, the green over it a hair out of register.
+const pink = document.createElement('canvas'); pink.width = pink.height = W; const p = pink.getContext('2d');
+const ink = document.createElement('canvas'); ink.width = ink.height = W; const k = ink.getContext('2d');
+const STREET = 470;
+// ---- pink plate: the ground, the houses' faces
+p.fillStyle = PINK; p.fillRect(60, STREET, W - 120, W - STREET - 60);
+// houses: two gabled, one leaning toward the hole
+function house(ctx, x, w, h, roof, lean, fill) { ctx.save(); ctx.translate(x + w / 2, STREET); ctx.rotate(lean); ctx.beginPath(); ctx.moveTo(-w / 2, 0); ctx.lineTo(-w / 2, -h); ctx.lineTo(0, -h - roof); ctx.lineTo(w / 2, -h); ctx.lineTo(w / 2, 0); ctx.closePath(); if (fill) ctx.fill(); else ctx.stroke(); ctx.restore(); }
+p.fillStyle = '#f6cdbf'; house(p, 120, 300, 230, 120, 0, true); house(p, 560, 280, 200, 110, 0.07, true);
+// the tunnel and room left as paper: erase from the pink
+p.globalCompositeOperation = 'destination-out'; p.lineCap = 'round'; p.lineJoin = 'round'; p.lineWidth = 54;
+p.beginPath(); p.moveTo(470, STREET - 10); p.bezierCurveTo(470, 590, 340, 640, 400, 730); p.bezierCurveTo(450, 800, 560, 780, 640, 755); p.stroke();
+p.beginPath(); p.ellipse(700, 740, 140, 62, -0.2, 0, Math.PI * 2); p.fill();
+p.globalCompositeOperation = 'source-over';
+// ---- green plate: lines, hatching, the street, the ant
+k.strokeStyle = OVER; k.fillStyle = OVER; k.lineCap = 'round'; k.lineJoin = 'round';
+k.lineWidth = 16; house(k, 120, 300, 230, 120, 0, false); house(k, 560, 280, 200, 110, 0.07, false);
+// windows
+function windows(x, w, h, lean) { k.save(); k.translate(x + w / 2, STREET); k.rotate(lean); for (let r = 0; r < 2; r++) for (let q = 0; q < 3; q++) { const wx = -w / 2 + 40 + q * (w - 80) / 2 - 22, wy = -h + 40 + r * 90; k.fillRect(wx, wy, 44, 60); } k.restore(); }
+windows(120, 300, 230, 0); windows(560, 280, 200, 0.07);
+// chimney
+k.fillRect(338, 132, 34, 66);
+// roof hatching
+k.lineWidth = 6; k.save(); k.beginPath(); k.moveTo(120, STREET - 230); k.lineTo(270, STREET - 350); k.lineTo(420, STREET - 230); k.closePath(); k.clip(); for (let x = 60; x < 480; x += 22) { k.beginPath(); k.moveTo(x, STREET - 230); k.lineTo(x + 70, STREET - 360); k.stroke(); } k.restore();
+// street
+k.lineWidth = 22; k.beginPath(); k.moveTo(40, STREET); k.lineTo(W - 40, STREET); k.stroke();
+// a crack running up from the hole under the leaning house
+k.lineWidth = 9; k.beginPath(); k.moveTo(640, STREET + 5); k.lineTo(662, STREET - 40); k.lineTo(648, STREET - 80); k.lineTo(672, STREET - 120); k.stroke();
+// tunnel and room edges
+k.lineWidth = 8; k.beginPath(); k.ellipse(700, 740, 140, 62, -0.2, 0, Math.PI * 2); k.stroke();
+// stipple in the ground
+const pd = p.getImageData(0, 0, W, W).data; for (let q = 0; q < 650; q++) { const x = 80 + R() * (W - 160), y = STREET + 30 + R() * (W - STREET - 110); const a = pd[(Math.round(y) * W + Math.round(x)) * 4 + 3]; if (a < 200 || Math.hypot((x - 700) / 160, (y - 740) / 80) < 1) continue; k.beginPath(); k.arc(x, y, 4 + R() * 3, 0, Math.PI * 2); k.fill(); }
+// strata lines
+k.lineWidth = 6; for (const yy of [610, 890]) { k.beginPath(); for (let x = 70; x < W - 70; x += 20) k.lineTo(x, yy + Math.sin(x / 60) * 8); k.stroke(); }
+// eggs in the room
+k.lineWidth = 5; for (const [ex, ey] of [[640, 760], [680, 770], [720, 765], [760, 750]]) { k.fillStyle = PAPER; k.beginPath(); k.ellipse(ex, ey, 13, 19, 0.3, 0, Math.PI * 2); k.fill(); k.stroke(); }
+k.fillStyle = OVER;
+// the ant, big, in the tunnel
+function ant(x, y, a, s) { k.save(); k.translate(x, y); k.rotate(a); k.scale(s, s); k.beginPath(); k.ellipse(-26, 0, 25, 16, 0, 0, Math.PI * 2); k.ellipse(6, 0, 12, 9, 0, 0, Math.PI * 2); k.ellipse(30, 0, 13, 12, 0, 0, Math.PI * 2); k.fill(); k.lineWidth = 5; for (const sd of [-1, 1]) { k.beginPath(); k.moveTo(-10, 0); k.lineTo(-30, sd * 32); k.moveTo(4, 0); k.lineTo(8, sd * 34); k.moveTo(14, 0); k.lineTo(32, sd * 30); k.moveTo(38, -4 * sd); k.lineTo(58, sd * 20); k.stroke(); } k.restore(); }
+ant(408, 680, 1.15, 1.7);
+// ---- the frame
+k.lineWidth = 26; k.strokeStyle = GREEN; k.strokeRect(46, 46, W - 92, W - 92);
+// ---- print: paper, pink plate, green plate offset, with grain
+g.fillStyle = PAPER; g.fillRect(0, 0, W, W);
+g.globalCompositeOperation = 'multiply'; g.drawImage(pink, 0, 0); g.drawImage(ink, 5, -3); g.globalCompositeOperation = 'source-over';
+const id = g.getImageData(0, 0, W, W), d = id.data; for (let i = 0; i < d.length; i += 4) { const n = (R() - 0.5) * 18; d[i] += n; d[i + 1] += n; d[i + 2] += n; } g.putImageData(id, 0, 0);
+window.done = c.toDataURL('image/png');
+</script></body></html>

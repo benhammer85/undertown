@@ -70,3 +70,8 @@ Every word a player reads rewritten plainly: "Town One: Tallow Row", "Goal: knoc
 and young", "Mushroom farm: turns 1 food into 3", "Drain: soaks up water", "gas can't reach below here",
 "Locked: you can dig deeper in later towns", "34% dug out". Card text set upright, not italic; town numbers
 spelled out (the display face's old-style 1 reads as an i).
+
+## 2026-10-20 — on the home screen
+An icon in the print's two inks: two houses on the street, one leaning over a crack; under them a tunnel, an ant,
+a room of eggs. With a web manifest and the iPhone's tags, so "Add to Home Screen" gives the icon and opens the
+game full screen. (Drawn by `sketches/icon/icon.html`.)

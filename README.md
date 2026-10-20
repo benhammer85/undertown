@@ -23,6 +23,7 @@ card gives the goal: knock down so many of its buildings. The first town walks y
 ## Files
 
 - `index.html` — the game.
+- `settle.html` — a test of a different rule: everything the ants dig out, the ground above sinks into.
 - `apple-touch-icon.png`, `icon-192.png`, `icon-512.png`, `favicon.png`, `manifest.webmanifest` — the icon and the
   settings a phone uses when the site is added to its home screen (the icon is drawn by `sketches/icon/icon.html`).
 - `sketches/` — earlier studies: the print-style mockup (`plates.html`) and the Spiral City prototype.

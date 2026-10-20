@@ -108,3 +108,11 @@ Frame rate held at 60, memory flat (8 to 12 MB), no errors over the long session
   and puts a red ring on the plate there; tap the caption to go to it.
 - **A building's fall:** instead of bricks thrown about, pieces of its face come away at the edges and drop,
   turning, breaking into dust on the street.
+
+## 2026-10-20 — a test: the ground settles (`settle.html`)
+A separate page trying one rule: whatever the ants dig out, the ground above slowly sinks into. A hamlet of four
+timber huts on natural ground: topsoil and earth (soft), clay below (firm). In soft ground any open space with
+earth over it takes a grain from above, so a tunnel closes from the top and comes out at the surface, which drops;
+what the ants keep using holds; the clay never settles. A hut sinks and leans on what's left under each side, and
+falls when it's sunk or leaning far enough. Its own save, apart from the game's. The main game is unchanged (the
+test is the same source with one switch thrown).

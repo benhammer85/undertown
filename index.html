@@ -55,6 +55,8 @@
 
   // The world is measured in the plate's units: 600 across the window, the street at 0, the ground below it.
   const UW = 600, M = 7.5; // (units across; units to a metre)
+  // (The settling test: a hamlet on natural ground, where whatever the ants dig out, the ground above sinks into.)
+  const SETTLE = false, FIRM = 240;
   let W, H, F, IN, G, S, RU, SKY, bg, g;
   function layout() {
     W = innerWidth; H = innerHeight;
@@ -312,7 +314,7 @@
   // town; the river the town buried; its harbour before that; the mines; the clay; another colony; chalk; the
   // water table; warm rock. Each city that falls pushes it all one layer deeper (lay() takes that back off).
   const L = { river: 860, harbour: 1080, mine: 1460, clay0: 2030, clay1: 2330, rivals: 1240, chalk: 2630, table: 3080, rock: 3380, warm: 3530 };
-  const LAYERS = [[320, 'Old cellar under the town hall'], [700, 'Ruins of the old town'], [850, 'An underground river'], [1060, 'A buried harbor'], [1236, 'Another ant colony, with food'], [1440, 'Old mine tunnels'], [2030, 'Clay: slow to dig, very strong'], [2630, 'Chalk'], [3080, 'Groundwater: tunnels flood here'], [3380, 'Bedrock: slow to dig'], [3530, 'Warm rock: eggs hatch faster']];
+  const LAYERS = SETTLE ? [[FIRM - 10, 'Clay: firm ground. Nothing settles here']] : [[320, 'Old cellar under the town hall'], [700, 'Ruins of the old town'], [850, 'An underground river'], [1060, 'A buried harbor'], [1236, 'Another ant colony, with food'], [1440, 'Old mine tunnels'], [2030, 'Clay: slow to dig, very strong'], [2630, 'Chalk'], [3080, 'Groundwater: tunnels flood here'], [3380, 'Bedrock: slow to dig'], [3530, 'Warm rock: eggs hatch faster']];
   // (How far down the exterminator's work goes, from the street: concrete as far as the hose, bait as far as an
   // ant will carry it fresh, smoke as far as it sinks.)
   const REACH = { concrete: 225, bait: 375, smoke: 600 };
@@ -398,6 +400,12 @@
   function featuresFor(k) {
     const y0 = k * CH, out = [], sh = k ? era * ERA_H : 0;
     const h1 = (q) => { const s = Math.sin(k * 97.13 + q * 12.9898) * 43758.5453; return s - Math.floor(s); };
+    if (SETTLE) {
+      PIPE = null; GAS = null; SEWER = null; TUBE = { x0: 0, x1: UW, y: 1e6, h: 1 }; STATION = { x0: 0, x1: 1, y: 1e6, h: 1 };
+      if (k === 0) { out.push({ kind: 'topsoil' }); out.push({ kind: 'clay', y0: FIRM, y1: FIRM + 150 }); out.push({ kind: 'chalk', y0: FIRM + 150, y1: CH + 12 }); out.push({ kind: 'pocket', x: 150, y: 150, r: 9, food: 20, label: 'seeds' }); out.push({ kind: 'pocket', x: 470, y: 120, r: 8, food: 16, label: 'seeds' }); out.push({ kind: 'ammonite', x: 420, y: 330, r: 16 }); }
+      else { out.push({ kind: 'rock', y: y0 - 12, y1: y0 + CH + 12 }); out.push({ kind: 'heat', y: y0 - 12, y1: y0 + CH + 12 }); }
+      return out;
+    }
     if (k === 0) {
       out.push({ kind: 'paving' });
       out.push({ kind: 'cellar', x: 158, y: 13, w: 54, h: 19, food: 50, label: 'flour', name: "the bakery's cellar" });
@@ -560,6 +568,8 @@
       line(k, f.x0 + 3, f.y + f.h - 6, f.x1, f.y + f.h - 6, 0.7, 0);
     } else if (f.kind === 'pocket') {
       hollow(f.x, f.y, f.r * 1.4, f.r * 0.85);
+      // (A pocket the ground came with holds its shape.)
+      for (let yy = f.y - f.r - 3; yy <= f.y + f.r + 3; yy += CS) for (let xx = f.x - f.r * 1.6; xx <= f.x + f.r * 1.6; xx += CS) { const i = gi(xx, yy); if (i >= 0 && soil[i] === 0) preset.add(i); }
       deposits.push({ x: f.x, y: f.y, r: f.r, food: f.food, max: f.food, label: f.label, t: 0, regen: f.regen || 0, silt: f.silt });
       if (f.silt) { const pts = ring(f.x, f.y, f.r * 1.6, f.r, 14); hatch(k, pts, 0, 1.4, 0.35, (x, y) => (y > f.y ? 0.6 : 0)); }
     } else if (f.kind === 'cellar') {
@@ -680,6 +690,11 @@
     } else if (f.kind === 'heat') {
       // (Warmth, in the pink: rising wavy lines. Brood raised down here hatches fast.)
       for (let q = 0; q < 70; q++) { const x = tr(0, UW), y = tr(f.y + 10, f.y1), pts = []; for (let s2 = 0; s2 < 6; s2++) pts.push([x + Math.sin(s2 * 1.4 + q) * 2.5, y - s2 * 4]); P.tint.lineWidth = 1.4; P.tint.strokeStyle = '#8c8c8c'; P.tint.beginPath(); P.tint.moveTo(...pts[0]); for (const p2 of pts) P.tint.lineTo(...p2); P.tint.stroke(); }
+    } else if (f.kind === 'topsoil') {
+      // (Topsoil: darker, rooty, a little looser looking.)
+      const band = rect(-6, 0, UW + 12, 16); tint(band, 1.16);
+      for (let q = 0; q < 260; q++) { const x = tr(0, UW), y = tr(1, 15); line(k, x, y, x + tr(-2.5, 2.5), y + tr(2, 6), 0.35, 0); }
+      line(k, -6, 0.6, UW + 6, 0.6, 1.1, 0); line(k, -6, 16, UW + 6, 16, 0.4, 0);
     } else if (f.kind === 'stone') {
       addStone(f.x, f.y, f.r);
     } else if (f.kind === 'geode') {
@@ -879,7 +894,7 @@
     const d = t.d, pad = 40;
     P = plates(d.w + 2 * pad, d.h + 2 * pad + 40, -pad, -d.h - pad - 30);
     tex(Math.round(t.x * 13 + d.h));
-    if (d.kind === 'masonry') masonry(d); else if (d.kind === 'civic') civic(d); else glass(d);
+    if (d.kind === 'hut') hut(d); else if (d.kind === 'masonry') masonry(d); else if (d.kind === 'civic') civic(d); else glass(d);
     if (t.cracked) crackLines({ w: d.w, damage: t.damage }, t.side);
     const c = printed(P, false);
     return (t.spr = { c, ox: -pad, oy: -d.h - pad - 30, w: d.w + 2 * pad, h: d.h + 2 * pad + 40 });
@@ -889,7 +904,30 @@
     if (sink) { x.beginPath(); x.rect(s.ox - 40, s.oy - 40, s.w + 80, -s.oy + 40 + floor); x.clip(); x.translate(0, sink); }
     x.drawImage(s.c, s.ox, s.oy, s.w, s.h); x.restore();
   }
+  function hutDesign(w, big) { const wall = big ? rnd(38, 44) : rnd(30, 36), roof = w * rnd(0.42, 0.52); return { kind: 'hut', w, wall, roof, h: wall + roof, thatch: Math.random() < 0.6, chimney: Math.random() < 0.6, big }; }
+  function hut(b) {
+    const k = P.ink, wl = b.wall, rf = b.roof, w = b.w;
+    const body = rect(0, -wl, w, wl); occlude(body); tint(body, 'facade'); poly(k, body, 0.9, true, 0.4);
+    for (let x = 4; x < w - 2; x += 4.5) line(k, x, -wl + 1.5, x + tr(-0.3, 0.3), -1, 0.3, 0);
+    line(k, 0, -wl * 0.5, w, -wl * 0.5 + tr(-0.6, 0.6), 0.35, 0);
+    const dw = Math.min(10, w * 0.17), door = rect(w * 0.16, -wl * 0.66, dw, wl * 0.66); occlude(door); tint(door, 0.95); poly(k, door, 0.6, true, 0.2); hatch(k, door, 1.57, 1.1, 0.35);
+    const win = rect(w * 0.58, -wl * 0.74, Math.min(9, w * 0.17), wl * 0.32); occlude(win); poly(k, win, 0.6, true, 0); line(k, w * 0.58 + Math.min(9, w * 0.17) / 2, -wl * 0.74, w * 0.58 + Math.min(9, w * 0.17) / 2, -wl * 0.42, 0.4, 0); hatch(k, win, 0.8, 1, 0.3);
+    if (b.chimney) chimney(w * 0.7, -wl - rf * 0.35, rf * 0.5);
+    const rp = [[-4, -wl + 1.5], [w / 2, -wl - rf], [w + 4, -wl + 1.5]]; occlude(rp); tint(rp, b.thatch ? 0.6 : 'brick'); poly(k, rp, 0.9, true, 0.3);
+    if (b.thatch) { hatch(k, rp, 1.3, 1.2, 0.32, (px) => (px > w / 2 ? 0.85 : 0.35)); line(k, -4, -wl + 1.5, w + 4, -wl + 1.5, 1.1, 0); }
+    else for (let r2 = 1; r2 < 6; r2++) { const yy = -wl - rf * (r2 / 6), half = (w / 2 + 4) * (1 - r2 / 6); line(k, w / 2 - half, yy, w / 2 + half, yy, 0.35, 0); }
+  }
+  function initHamlet() {
+    towers = []; let x = 14;
+    while (x < UW - 50) {
+      const big = towers.length === 2, w = big ? rnd(104, 118) : rnd(72, 86);
+      if (x < EX + 34 && x + w > EX - 34) { x = EX + 36; continue; }
+      if (x + w > UW - 8) break;
+      towers.push(tower(x, hutDesign(w, big))); x += w + rnd(18, 30);
+    }
+  }
   function initCity() {
+    if (SETTLE) { initHamlet(); peak = towers.length; downed = 0; goal.of = towers.length; goal.n = Math.max(2, towers.length - 1); plateAt = clock; stats.lost = 0; plantTrees(); carts = [{ x: EX - 50, t: 0, life: 70 }]; drawSky(); return; }
     towers = []; let x = 6;
     while (x < UW - 40) {
       let w = rnd(84, 140);
@@ -919,6 +957,12 @@
     const hp = [[-5, 10]]; for (let x = -5; x <= UW + 5; x += 6) hp.push([x, hill(x)]); hp.push([UW + 5, 10]);
     tint(hp, 0.22); curve(k, hp.slice(1, -1), 0.5);
     hatch(k, hp, 0.1, 3.6, 0.2, (px, py) => { const d = py - hill(px); return d < 3 ? 0 : Math.max(0, 0.45 - d / 90); });
+    if (SETTLE) {
+      // (Beyond the hamlet: fields, a few trees, a church tower far off.)
+      for (let q = 0; q < 5; q++) { const x2 = 40 + q * 120 + tr(-20, 20), yb = hill(x2) + tr(8, 20), r2 = tr(5, 9); const t0 = ring(x2, yb - r2, r2, r2 * 0.85, 14); occlude(t0); tint(t0, 0.2); poly(k, t0, 0.45, true, 0.2); hatch(k, t0, 0.8, 1.3, 0.3, (px, py) => (py > yb - r2 ? 0.8 : 0.1)); line(k, x2, yb, x2, yb - r2 * 0.3, 0.5, 0); }
+      { const cx = tr(UW * 0.55, UW * 0.8), cb = hill(cx) + 14, tw = rect(cx - 5, cb - 34, 10, 34); occlude(tw); tint(tw, 0.25); poly(k, tw, 0.5, true, 0.2); const sp = [[cx - 6, cb - 34], [cx, cb - 52], [cx + 6, cb - 34]]; occlude(sp); tint(sp, 0.3); poly(k, sp, 0.5, true, 0.2); const nave = rect(cx + 5, cb - 18, 26, 18); occlude(nave); tint(nave, 0.18); poly(k, nave, 0.45, true, 0.2); }
+      skyC = { c: printed(P, false), y: -h + 10, h }; return;
+    }
     // The viaduct.
     const vy = -SKY * 0.3, vx0 = tr(-60, 60), vx1 = vx0 + tr(300, 420);
     const deck = rect(vx0, vy - 7, vx1 - vx0, 7); occlude(deck); tint(deck, 0.16); poly(k, deck, 0.6, true, 0.3); hatch(k, deck, 0, 1.4, 0.3);
@@ -977,7 +1021,7 @@
     const c = cityX; c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, cityC.width, cityC.height);
     c.setTransform(RU, 0, 0, RU, 0, -cityC.oy * RU);
     if (skyC) c.drawImage(skyC.c, 0, skyC.y, UW, skyC.h);
-    for (const t of towers) if (!t.fall && t.rise >= 1) drawSprite(c, towerSprite(t), t.x, 0, t.tilt);
+    if (!SETTLE) for (const t of towers) if (!t.fall && t.rise >= 1) drawSprite(c, towerSprite(t), t.x, 0, t.tilt);
     for (const r of rubble) c.drawImage(r.c, r.x + r.ox, r.oy, r.w, r.h);
   }
   // (How much of a tower's footing the ants have dug away, and on which side.)
@@ -993,7 +1037,7 @@
     const floor = holeFloorUnder(t.x, t.x + t.w);
     t.fall = { t: 0, side, sink: 0, v: 0, floor };
     alarm += 24;
-    caption('A building fell', 2.6, { x: t.x + t.w / 2, y: -20 });
+    caption(SETTLE ? 'A hut fell' : 'A building fell', 2.6, { x: t.x + t.w / 2, y: -20 });
     for (let q = 0; q < 6; q++) dust.push({ x: t.x + rnd(-6, t.w + 6), y: rnd(-4, 0), r: rnd(5, 10), vx: rnd(-18, 18), vy: rnd(-2, -0.5), t: 0, life: rnd(2.5, 4), s: Math.random() * 9 });
   }
   function stepTowers(dt) {
@@ -1010,6 +1054,7 @@
         if (!f.shook && f.t > 0.6) { f.shook = true; for (const o of towers) if (o !== t && !o.fall && o.rise >= 1 && (Math.abs(o.x - (t.x + t.w)) < 14 || Math.abs(o.x + o.w - t.x) < 14)) { o.damage++; const dir = o.x > t.x ? -1 : 1; if (o.damage >= 3 && Math.random() < 0.5) setTimeout(() => collapse(o, dir), 900); else { o.want = dir * 0.025; crack(o, dir); } } }
         continue;
       }
+      if (SETTLE) { t.tilt += (t.want - t.tilt) * Math.min(1, dt * 1.5); t.sinkY = (t.sinkY || 0) + ((t.sinkTo || 0) - (t.sinkY || 0)) * Math.min(1, dt * 1.5); continue; }
       if (Math.abs(t.want - t.tilt) > 0.001) { t.tilt += (t.want - t.tilt) * Math.min(1, dt * 1.5); cityDirty = true; }
     }
   }
@@ -1052,6 +1097,7 @@
   // (Where the van or the mixer pulls up: just past the hole, or short of it where the street ends.)
   const parkOf = (p) => { const sd = p.x + 56 > UW - 6 ? -1 : 1; return [p.x + 46 * sd, sd]; };
   function stepPest(dt) {
+    if (SETTLE) return;
     alarm = Math.max(0, alarm - dt * 0.7);
     if (leaks.length) alarm += dt * 0.6;
     alarm += ants.filter((a) => a.surf).length * dt * 0.02;
@@ -1142,7 +1188,42 @@
   let holes = [], wrecks = [], slabs = [], tubeBreaks = [], tubeBroken = false;
   const LOOSE = 60; // (rows of made ground under the street, 180 units, that can give way)
   const open4 = (v) => v === 0 || v === 4;
+  // The settling rule: in soft ground (above the clay) any open space with earth over it takes a grain from above,
+  // so the opening works its way up and comes out at the top, where the ground sinks by that much. What the ants
+  // keep using (their traffic, fresh) holds; so does what the ground came with. Clay and what's under it hold.
+  const surfAt = (x) => { let r = 0; while (r < 40) { const i = gi(x, r * CS + 1); if (i < 0 || (soil[i] !== 0 && soil[i] !== 4)) break; r++; } return r * CS; };
+  let trickle = [];
+  // (Earth settling, drawn: grains dropping where a gap has just moved up.)
+  function drawTrickle(t) { trickle = trickle.filter((q) => clock - q.at < 1.2); g.fillStyle = OVER; for (const q of trickle) { const k = (clock - q.at) / 1.2; g.globalAlpha = 0.8 * (1 - k); for (let n = 0; n < 3; n++) g.fillRect(q.x - 1.2 + n * 1.1, q.y - 2 + k * 4 + n * 0.7, 0.8, 0.8); } g.globalAlpha = 1; }
+  function settleGround() {
+    const lim = Math.min(GH - 1, Math.floor(FIRM / CS)); let n = 0;
+    for (let r = 1; r < lim && n < 500; r++) for (let x = 0; x < GW; x++) {
+      const b = r * GW + x; if (soil[b] !== 0) continue;
+      const i = b - GW; if (soil[i] !== 1) continue;
+      if ((trod && trod[b] > 0.3) || preset.has(b) || Math.random() > 0.5) continue;
+      soil[b] = 1; soil[i] = 0; plan[i] = 0; n++;
+      for (const a of ants) if (!a.surf && gi(a.x, a.y) === b) { a.y -= CS; a.ty = a.y; }
+      for (const q of brood) if (gi(q.x, q.y) === b) q.dead = true;
+      markDug(cxOf(b), cyOf(b), 4); trickle.push({ x: cxOf(b), y: cyOf(b), at: clock });
+    }
+    if (trickle.length > 400) trickle.splice(0, trickle.length - 400);
+    if (n) dirty = true;
+  }
+  // (How a hut stands: on the ground left under each side of it. Sunk too far, or leaning too far, it goes.)
+  function hutSupport() {
+    for (const t of towers) {
+      if (t.fall || t.rise < 1) continue;
+      let l = 0, r = 0, nl = 0, nr = 0;
+      for (let x = t.x + 3; x < t.x + t.w - 3; x += CS) { const d = Math.min(18, surfAt(x)); if (x < t.x + t.w / 2) { l += d; nl++; } else { r += d; nr++; } }
+      l /= nl || 1; r /= nr || 1;
+      t.sinkTo = (l + r) / 2; t.want = Math.atan2(r - l, t.w / 2) * 0.9;
+      const k = Math.max(t.sinkTo / 8, Math.abs(t.want) / 0.1); t.hf = Math.min(1, k) * 0.15;
+      if (k > 0.5 && !t.cracked) crack(t, t.want >= 0 ? 1 : -1);
+      if (k >= 1) collapse(t, t.want >= 0 ? 1 : -1);
+    }
+  }
   function subside() {
+    if (SETTLE) return settleGround();
     const rows = Math.min(GH - 2, LOOSE), changed = new Set();
     // (Only under a building does the made ground give: the open street is paved and packed hard, so a tunnel under
     // it holds. Under a building, the weight on it brings a hollow up.)
@@ -1385,6 +1466,7 @@
     plateCard();
   }
   function stepBuild(dt) {
+    if (SETTLE) return;
     buildAt -= dt;
     if (buildAt > 0 || fallen) return;
     buildAt = Math.max(20, 44 - era * 6);
@@ -1519,7 +1601,7 @@
   // (Where ants go most, the floor wears: a track of fine dots down the middle of the busy tunnels.)
   let trod = null;
   function stepAnt(a, dt) {
-    if (!a.surf) { if (!trod || trod.length !== cap) trod = new Float32Array(cap); const i = gi(a.x, a.y); if (i >= 0) trod[i] = Math.min(1, trod[i] + dt * 0.5); }
+    if (!a.surf) { if (!trod || trod.length !== cap) { const nt = new Float32Array(cap); if (trod) nt.set(trod.subarray(0, Math.min(trod.length, cap))); trod = nt; } const i = gi(a.x, a.y); if (i >= 0) trod[i] = Math.min(1, trod[i] + dt * (SETTLE ? 4 : 0.5)); }
     if (!a.surf) { const i = gi(a.x, a.y); if (i >= 0 && smoke[i] > 0.25 && Math.random() < dt * smoke[i] * 1.4) { kill(a); return; } }
     if (a.wait > 0) { a.wait -= dt; return; }
     if (!moveAnt(a, dt)) return;
@@ -1802,7 +1884,7 @@
   }
   // Cards, printed and laid over the plate: what this plate asks, and how it ended.
   let card = null, hideCards = false;
-  const NOTES = [
+  const NOTES = SETTLE ? ['Whatever your ants dig out, the ground above slowly sinks into. Dig under a hut and it will sink, lean and fall. Tunnels the ants keep using stay open. Down in the clay, nothing settles.'] : [
     'Dig tunnels under a building. Once enough of the ground under it is gone, it falls. Watch out for poison bait.',
     'New: the city now uses poison gas. Gas can’t reach below 80 m. To keep your queen safe, tap her, choose Move the queen, then tap a deep room.',
     'New: the city now fills tunnels with concrete. Tap a tunnel and choose Post guards. Gas and concrete can’t get past them.',
@@ -1813,6 +1895,7 @@
   const deepest = () => { let m = 0; for (const i of colonyCells()) m = Math.max(m, cyOf(i)); return Math.round(m / M); };
   const mins = (s2) => `${Math.floor(s2 / 60)}:${String(Math.floor(s2 % 60)).padStart(2, '0')}`;
   function fallenCard() {
+    if (SETTLE) { card = { title: 'The hamlet has fallen', lines: [`Time: ${mins(clock - plateAt)}. Huts down: ${downed}. Ants left: ${ants.length}. Ants lost: ${stats.lost}.`, 'That’s the test. Did it feel right?'], buttons: [{ label: 'Save picture', fn: savePrint }, { label: 'Play again', fn: () => { card = { title: 'Starting…', lines: [''], buttons: [] }; clearSave().then(() => newGame(true)); } }] }; return; }
     card = { title: `You brought down ${NAMES[era % NAMES.length]}`, lines: [`Time: ${mins(clock - plateAt)}. Buildings down: ${downed}. Deepest tunnel: ${deepest()} m. Ants left: ${ants.length}. Ants lost: ${stats.lost}.`],
       buttons: [{ label: 'Save picture', fn: savePrint }, { label: 'Next town', fn: () => { card = null; bury(); setTimeout(saveGame, 500); } }] };
   }
@@ -1889,11 +1972,11 @@
   }
   function drawTutorial(t) {
     if (!tut || card) return;
-    const tw = tut.tower, say = tut.step === 1 ? 'Step 1 of 3: Drag from the ants’ way in, down and under the marked building.' : tut.step === 2 ? 'Step 2 of 3: The ants are digging. Keep going until it says 100% dug out.' : `Step 3 of 3: It fell! Knock down ${Math.max(0, goal.n - downed)} more to finish the town.`;
+    const tw = tut.tower, say = tut.step === 1 ? 'Step 1 of 3: Drag from the ants’ way in, down and under the marked building.' : tut.step === 2 ? (SETTLE ? 'Step 2 of 3: When the ants finish a tunnel, the ground above sinks into it. Keep digging under the hut until it reaches 100% sunk.' : 'Step 2 of 3: The ants are digging. Keep going until it says 100% dug out.') : `Step 3 of 3: It fell! Knock down ${Math.max(0, goal.n - downed)} more to finish the town.`;
     // (In the plate: an arrow over the building, and the way in marked.)
     g.setTransform(RU * Z, 0, 0, RU * Z, (IN.x - camX * SZ()) * DPR, (G - camY * SZ()) * DPR);
     const label = (txt, x, y) => { g.font = `600 ${(20 / Math.sqrt(Z)).toFixed(1)}px ${C('--body') || 'Georgia'}`; g.textAlign = 'center'; g.textBaseline = 'middle'; const w = g.measureText(txt).width + 12, h = 20 / Math.sqrt(Z) + 8; g.fillStyle = PAPER; g.fillRect(x - w / 2, y - h / 2, w, h); g.strokeStyle = '#a3341f'; g.lineWidth = 1; g.strokeRect(x - w / 2, y - h / 2, w, h); g.fillStyle = '#a3341f'; g.fillText(txt, x, y + 0.5); };
-    if (tut.step < 3 && !tw.fall) { const ax = tw.x + tw.w / 2, ay = -tw.d.h - 22 - Math.abs(Math.sin(t * 3)) * 8; g.fillStyle = '#a3341f'; g.beginPath(); g.moveTo(ax - 14, ay - 18); g.lineTo(ax + 14, ay - 18); g.lineTo(ax, ay); g.closePath(); g.fill(); label('Dig under this one', ax, ay - 34); }
+    if (tut.step < 3 && !tw.fall) { const ax = tw.x + tw.w / 2, ay = -tw.d.h - 22 - Math.abs(Math.sin(t * 3)) * 8; g.fillStyle = '#a3341f'; g.beginPath(); g.moveTo(ax - 14, ay - 18); g.lineTo(ax + 14, ay - 18); g.lineTo(ax, ay); g.closePath(); g.fill(); label(SETTLE ? 'Dig under this hut' : 'Dig under this one', ax, ay - 34); }
     if (tut.step === 1) { g.strokeStyle = '#a3341f'; g.lineWidth = 2.4; g.setLineDash([5, 4]); g.beginPath(); g.arc(EX, 8, 14 + Math.sin(t * 4) * 2, 0, TAU); g.stroke(); g.setLineDash([]); label('Ants’ way in', clamp(EX, 60, UW - 60), 40); g.setLineDash([5, 4]); g.globalAlpha = 0.6; g.beginPath(); g.moveTo(EX, 12); g.quadraticCurveTo(EX, 26, tw.x + tw.w / 2, 18); g.stroke(); g.setLineDash([]); g.globalAlpha = 1; }
     g.setTransform(DPR, 0, 0, DPR, 0, 0); g.save(); g.font = `15px ${C('--body') || 'Georgia'}`;
     const w = Math.min(IN.w - 24, 330), pad = 14, words = say.split(' '), lines = []; let line = '';
@@ -1921,7 +2004,7 @@
   // and everything living in it put back.
   const SAVE_V = 1;
   let idb = null, hasSave = false;
-  const idbOpen = () => new Promise((res) => { try { const r = indexedDB.open('undertown', 1); r.onupgradeneeded = () => r.result.createObjectStore('save'); r.onsuccess = () => res(r.result); r.onerror = () => res(null); } catch { res(null); } });
+  const idbOpen = () => new Promise((res) => { try { const r = indexedDB.open(SETTLE ? 'undertown-settle' : 'undertown', 1); r.onupgradeneeded = () => r.result.createObjectStore('save'); r.onsuccess = () => res(r.result); r.onerror = () => res(null); } catch { res(null); } });
   async function idbDo(mode, fn) { try { idb = idb || (await idbOpen()); if (!idb) return null; return await new Promise((res) => { const q = fn(idb.transaction('save', mode).objectStore('save')); q.onsuccess = () => res(q.result ?? null); q.onerror = () => res(null); }); } catch { return null; } }
   const loadSave = () => idbDo('readonly', (o) => o.get('game'));
   const clearSave = () => { hasSave = false; return idbDo('readwrite', (o) => o.delete('game')); };
@@ -1975,11 +2058,11 @@
     drawSky(); cityDirty = true; dirty = true; hasSave = true;
   }
   // (The title, the pause, how to play: cards like the plate's own.)
-  const HOWTO = ['Your ants live under a small town. Knock down its buildings by digging away the ground under them.',
+  const HOWTO = SETTLE ? ['This is a test of one rule: whatever your ants dig out, the ground above sinks into.', 'Drag to draw a tunnel; the ants dig it. A tunnel they stop using closes from the top, and whatever stands above it sinks. Dig under a hut and keep at it, and it sinks, leans and falls.', 'Clay, deeper down, holds firm: keep the colony there.'] : ['Your ants live under a small town. Knock down its buildings by digging away the ground under them.',
     'Drag to draw a tunnel and the ants dig it. Hold still to make a room. Tap anything (the queen, a room, a tunnel) to see what you can do.',
     'The city fights back: bait, then gas, then concrete. Keep the queen deep, out of reach. Each town you bring down is buried, and a new one is built on top.'];
   function titleCard() {
-    card = { big: true, title: 'Undertown', lines: ['An ant colony under a small town.'], stack: true, buttons: [
+    card = { big: true, title: 'Undertown', lines: [SETTLE ? 'A test: the ground settles.' : 'An ant colony under a small town.'], stack: true, buttons: [
       ...(hasSave ? [{ label: 'Continue', fn: continueGame }] : []),
       { label: 'New game', fn: () => (hasSave ? confirmNew(titleCard) : newGame()) },
       { label: 'How to play', fn: () => howTo(titleCard) }] };
@@ -1993,6 +2076,7 @@
   function newGame(reload) {
     if (reload && !freshWorld) { try { location.hash = 'new'; } catch {} location.reload(); return; }
     freshWorld = false; plateCard(); startTutorial();
+    if (SETTLE) { Z = 1.5; camX = clamp(EX - UW / Z / 2, 0, UW - UW / Z); camY = -40; clampCam(); }
   }
   function continueGame() { try { location.hash = 'continue'; } catch {} location.reload(); }
   let freshWorld = true;
@@ -2339,7 +2423,7 @@
     if (train.x > -998) { const bed = TUBE.y + TUBE.h - 8; for (const a of [...ants]) if (!a.surf && a.y > bed - 7 && a.y < bed && a.x > train.x - 292 && a.x < train.x + 140 && Math.random() < dt * 0.02) { kill(a); if (clock - trainSaid > 25) { trainSaid = clock; caption('A train hit ants on the tracks', 2.2, { x: a.x, y: a.y }); } } }
     { const stopAt = (STATION.x0 + STATION.x1) / 2 + 120; train2.at -= dt; if (train2.at <= 0 && train2.x < -998) train2.x = STATION.x0 - 120;
       if (train2.x > -998) { if (train2.stop > 0) train2.stop -= dt; else { const before = train2.x; train2.x += dt * (!train2.stopped && Math.abs(train2.x - stopAt) < 90 ? 60 : 160); if (!train2.stopped && before < stopAt && train2.x >= stopAt) { train2.stop = 3.5; train2.stopped = true; } } if (train2.x > STATION.x1 + 460) { train2.x = -999; train2.at = rnd(7, 12); train2.stopped = false; } } }
-    for (const lane of [0, 1]) if (Math.random() < dt / 3.2 && cars.filter((c) => c.lane === lane).length < 4) {
+    for (const lane of [0, 1]) if (!SETTLE && Math.random() < dt / 3.2 && cars.filter((c) => c.lane === lane).length < 4) {
       const r = Math.random(), kind = r < 0.58 ? 'car' : r < 0.74 ? 'cvan' : r < 0.86 ? 'bus' : 'lorry';
       const V = { car: [70, 130], cvan: [55, 95], bus: [38, 62], lorry: [38, 66] }[kind], len = { car: 32, cvan: 42, bus: 84, lorry: 72 }[kind];
       const x = lane ? UW + 60 : -60;
@@ -2367,7 +2451,7 @@
     for (const d of debris) { d.vy += dt * 170; d.x += d.vx * dt; d.y += d.vy * dt; d.a += d.va * dt; if (d.y >= 2 && !d.landed) { d.landed = true; dust.push({ x: d.x, y: 0, r: rnd(3, 6), vx: rnd(-8, 8), vy: -0.6, t: 0, life: rnd(1.4, 2.4), s: Math.random() * 9 }); } }
     debris = debris.filter((d) => d.y < 4);
     stepTowers(dt); stepPest(dt); stepBuild(dt);
-    if (now - slowAt > 700) { slowAt = now; settle(); scout(clock); checkCity(); raiseSecond(); stepMines(); seeLayers(); findFace(); updateStatus(); stepTutorial(); stepRoofs(0.7); looseStones(); if (trod) for (let i = 0; i < GW * GH; i++) if (trod[i] > 0) trod[i] = trod[i] < 0.01 ? 0 : trod[i] * 0.985; }
+    if (now - slowAt > 700) { slowAt = now; settle(); scout(clock); checkCity(); raiseSecond(); stepMines(); seeLayers(); findFace(); updateStatus(); stepTutorial(); stepRoofs(0.7); looseStones(); if (trod) for (let i = 0; i < GW * GH; i++) if (trod[i] > 0) trod[i] = trod[i] < 0.01 ? 0 : trod[i] * (SETTLE ? 0.94 : 0.985); }
     if (now - subAt > 450) { subAt = now; subside(); }
     if (cityDirty) { cityDirty = false; drawCity(); }
     dead = dead.filter((d) => clock - d.at < 14);
@@ -2375,6 +2459,7 @@
     requestAnimationFrame(frame);
   }
   function settle() {
+    if (SETTLE) return hutSupport();
     for (const t of towers) {
       if (t.fall || t.rise < 1) continue;
       const { f, side } = hollowUnder(t);
@@ -2394,6 +2479,12 @@
       for (const tw of towers) { if (tw.fall) { drawSprite(g, towerSprite(tw), tw.x, 0, tw.tilt, tw.fall.sink, tw.fall.floor); } else if (tw.rise < 1 && tw.rise > 0) site(tw, t); }
     }
     for (let k = Math.max(0, Math.floor(vy0 / CH)); k <= Math.floor(vy1 / CH); k++) g.drawImage(chunk(k).c, 0, k * CH, UW, CH);
+    if (SETTLE) drawTrickle(t);
+    if (SETTLE && vy0 < 10) for (const tw of towers) { const t = tw;
+      if (t.fall || t.rise < 1) continue;
+      g.save(); g.beginPath(); g.moveTo(t.x - 40, -600); for (let x = t.x - 40; x <= t.x + t.w + 40; x += CS) g.lineTo(x, surfAt(x) + 0.6); g.lineTo(t.x + t.w + 40, -600); g.closePath(); g.clip();
+      const sp = towerSprite(t); g.translate(t.x + t.w / 2, (t.sinkY || 0) * 2); g.rotate(t.tilt * 1.5); // (drawn a little more than it is, to be seen) g.drawImage(sp.c, sp.ox - t.w / 2, sp.oy, sp.w, sp.h); g.restore();
+    }
     // The trains.
     if (vy1 > TUBE.y && vy0 < TUBE.y + TUBE.h) { for (const a of ants) if (!a.surf && a.y > TUBE.y && a.y < TUBE.y + TUBE.h) drawAnt(a); if (train.x > -998) { g.save(); g.beginPath(); g.rect(TUBE.x0, TUBE.y + 8, TUBE.x1 - TUBE.x0, TUBE.h - 16); g.clip(); for (let c = 0; c < 3; c++) blit(SPR.tube, train.x - c * 144, TUBE.y + 14); g.restore(); } }
     if (vy1 > STATION.y && vy0 < STATION.y + STATION.h) {
@@ -2421,7 +2512,7 @@
         if (tw.fall || tw.rise < 1) continue;
         const k = Math.min(1, (tw.hf || 0) / 0.15), fd = foundation(), x0 = tw.x + 2, w = tw.w - 4;
         g.strokeStyle = PENCIL; g.globalAlpha = 0.35 + k * 0.4; g.lineWidth = 0.6; g.setLineDash([2, 3]); g.strokeRect(x0, 1, w, fd - 1); g.setLineDash([]);
-        if (k > 0.01) { const txt = `${Math.round(k * 100)}% dug out`, tw2 = g.measureText(txt).width + 8, th = 21 / Math.sqrt(Z) + 4, ly = fd * 0.5; g.globalAlpha = 0.95; g.fillStyle = PAPER; g.fillRect(x0 + w / 2 - tw2 / 2, ly - th / 2, tw2, th); g.strokeStyle = OVER; g.lineWidth = 0.6; g.strokeRect(x0 + w / 2 - tw2 / 2, ly - th / 2, tw2, th); g.fillStyle = 0.66 < k ? '#a3341f' : OVER; g.fillText(txt, x0 + w / 2, ly + 0.5); g.strokeStyle = OVER; g.lineWidth = 2; g.beginPath(); g.moveTo(x0, fd); g.lineTo(x0 + w * k, fd); g.stroke(); }
+        if (k > 0.01) { const txt = `${Math.round(k * 100)}% ${SETTLE ? 'sunk' : 'dug out'}`, tw2 = g.measureText(txt).width + 8, th = 21 / Math.sqrt(Z) + 4, ly = fd * 0.5; g.globalAlpha = 0.95; g.fillStyle = PAPER; g.fillRect(x0 + w / 2 - tw2 / 2, ly - th / 2, tw2, th); g.strokeStyle = OVER; g.lineWidth = 0.6; g.strokeRect(x0 + w / 2 - tw2 / 2, ly - th / 2, tw2, th); g.fillStyle = 0.66 < k ? '#a3341f' : OVER; g.fillText(txt, x0 + w / 2, ly + 0.5); g.strokeStyle = OVER; g.lineWidth = 2; g.beginPath(); g.moveTo(x0, fd); g.lineTo(x0 + w * k, fd); g.stroke(); }
       }
       g.globalAlpha = 1;
     }
@@ -2430,7 +2521,7 @@
     if (vy0 < 40) { g.strokeStyle = OVER; g.lineCap = 'round'; for (const tr2 of trees) { if (tr2.buried) continue; g.globalAlpha = tr2.alive ? 0.85 : 0.35; for (const rt of tr2.roots) { g.lineWidth = 0.7; g.beginPath(); g.moveTo(rt[0][0], rt[0][1]); for (const [x, y] of rt) g.lineTo(x, y); g.stroke(); } } g.globalAlpha = 1; }
     // The exterminator's reach, pencilled in as a surveyor would: a dashed line across, a note at its end.
     g.font = `italic ${(17 / Z).toFixed(1)}px ${DISPLAY}`; g.textAlign = 'right'; g.textBaseline = 'bottom';
-    for (const [y, txt] of [[REACH.concrete, 'concrete can’t reach below here'], [REACH.bait, 'poison bait doesn’t work below here'], [REACH.smoke, 'gas can’t reach below here']]) {
+    if (!SETTLE) for (const [y, txt] of [[REACH.concrete, 'concrete can’t reach below here'], [REACH.bait, 'poison bait doesn’t work below here'], [REACH.smoke, 'gas can’t reach below here']]) {
       if (y < vy0 || y > vy1) continue;
       g.strokeStyle = PENCIL; g.fillStyle = PENCIL; g.globalAlpha = 0.7; g.lineWidth = 0.6; g.setLineDash([2, 4]); g.beginPath(); g.moveTo(0, y); g.lineTo(UW, y); g.stroke(); g.setLineDash([]); { const tw2 = g.measureText(txt).width, th = 17 / Z; g.globalAlpha = 0.85; g.fillStyle = PAPER; g.fillRect(UW - 10 - tw2, y - 2.5 - th, tw2 + 8, th + 2); g.globalAlpha = 0.8; g.fillStyle = PENCIL; } g.fillText(txt, UW - 6, y - 1.5);
     }
@@ -2572,6 +2663,7 @@
   }
   chunk(0);
   EX = 548;
+  if (SETTLE) { EX = 300; found(EX, 270, 30); trod = new Float32Array(cap); for (let i = 0; i < GW * GH; i++) if (soil[i] === 0) trod[i] = 1; } else
   found(EX, 330, 30);
   initCity(); drawBase(); drawCity(); if (fresh) newGame(); else titleCard();
   for (const ch of chunks) if (ch && ch.dirty) { const d = ch.dirty; ch.dirty = null; repaint(ch, d[0], d[1], d[2], d[3]); }

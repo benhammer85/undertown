@@ -103,3 +103,8 @@ Played by a bot for minutes at a time, on five screen sizes. Fixed:
 Frame rate held at 60, memory flat (8 to 12 MB), no errors over the long sessions.
 - The key under the plate could run into the frame on a phone: the sheet was measured before its typeface loaded
   (which wraps the key a line longer). It's now laid out once the type is in.
+- **Where things happen:** a caption about a place (a gas leak, a burst pipe, a cave-in, a sinkhole, a building
+  falling, a mole, the other colony finding you…) is set in red, carries an arrow when the place is out of view,
+  and puts a red ring on the plate there; tap the caption to go to it.
+- **A building's fall:** instead of bricks thrown about, pieces of its face come away at the edges and drop,
+  turning, breaking into dust on the street.

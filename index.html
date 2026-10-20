@@ -993,7 +993,7 @@
     const floor = holeFloorUnder(t.x, t.x + t.w);
     t.fall = { t: 0, side, sink: 0, v: 0, floor };
     alarm += 24;
-    caption('A building fell', 2.6);
+    caption('A building fell', 2.6, { x: t.x + t.w / 2, y: -20 });
     for (let q = 0; q < 6; q++) dust.push({ x: t.x + rnd(-6, t.w + 6), y: rnd(-4, 0), r: rnd(5, 10), vx: rnd(-18, 18), vy: rnd(-2, -0.5), t: 0, life: rnd(2.5, 4), s: Math.random() * 9 });
   }
   function stepTowers(dt) {
@@ -1004,7 +1004,7 @@
         t.tilt = f.side * Math.min(f.floor > 0 ? 0.24 : 0.07, f.t * (f.floor > 0 ? 0.09 : 0.035));
         // (Floors giving: dust thrown out, pieces breaking off.)
         if (Math.random() < dt * 2) dust.push({ x: t.x + rnd(-6, t.w + 6), y: rnd(-3, 0), r: rnd(4, 9), vx: rnd(-20, 20), vy: rnd(-2, -0.5), t: 0, life: rnd(2.5, 4), s: Math.random() * 9 });
-        if (Math.random() < dt * 12) debris.push({ x: t.x + rnd(0, t.w), y: -t.d.h + f.sink + rnd(0, t.d.h * 0.6), vx: rnd(-30, 30), vy: rnd(-20, 10), a: rnd(0, TAU), va: rnd(-4, 4), s: rnd(2, 6) });
+        if (Math.random() < dt * 5) { const edge = Math.random() < 0.5 ? t.x + rnd(0, 6) : t.x + t.w - rnd(0, 6), sz = rnd(2.5, 6), pts = [0, 1, 2, 3, 4].map((k) => [Math.cos(k * 1.26 + sz) * sz * rnd(0.6, 1), Math.sin(k * 1.26 + sz) * sz * rnd(0.4, 0.8)]); debris.push({ x: edge, y: -t.d.h * rnd(0.3, 0.9) + f.sink, vx: rnd(-4, 4) + (edge < t.x + t.w / 2 ? -3 : 3), vy: rnd(0, 6), a: rnd(0, TAU), va: rnd(-1.2, 1.2), s: sz, pts }); }
         if (f.sink > t.d.h + 30 + f.floor) land(t);
         // (Its neighbours shaken.)
         if (!f.shook && f.t > 0.6) { f.shook = true; for (const o of towers) if (o !== t && !o.fall && o.rise >= 1 && (Math.abs(o.x - (t.x + t.w)) < 14 || Math.abs(o.x + o.w - t.x) < 14)) { o.damage++; const dir = o.x > t.x ? -1 : 1; if (o.damage >= 3 && Math.random() < 0.5) setTimeout(() => collapse(o, dir), 900); else { o.want = dir * 0.025; crack(o, dir); } } }
@@ -1039,7 +1039,15 @@
   // ---------------------------------------------------------------- the city fights back
   let alarm = 0, pest = null, pestCool = 0, captions = [];
   const thresholds = () => [30, 55, 80].map((v) => v * Math.max(0.55, 1 - era * 0.12));
-  function caption(text, secs = 2.6) { captions.push({ text, at: clock, secs }); if (captions.length > 2) captions.shift(); }
+  // (A caption about somewhere says where: a red ring marks the place on the plate for a while, and if it's out of
+  // view the caption carries an arrow; a tap on the caption takes you there.)
+  let marks = [];
+  function caption(text, secs = 2.6, loc = null) { captions.push({ text, at: clock, secs: loc ? Math.max(secs, 3.6) : secs, loc }); if (captions.length > 2) captions.shift(); if (loc) marks.push({ x: loc.x, y: loc.y, at: clock }); }
+  function drawMarks(t, vy0, vy1) {
+    marks = marks.filter((m) => clock - m.at < 7);
+    for (const m of marks) { if (m.y < vy0 - 20 || m.y > vy1 + 20) continue; const k = (clock - m.at) / 7, r = 10 + Math.sin(t * 5) * 2; g.globalAlpha = 1 - k * k; g.strokeStyle = '#a3341f'; g.lineWidth = 2; g.beginPath(); g.arc(m.x, m.y, r, 0, TAU); g.stroke(); g.lineWidth = 1; g.beginPath(); g.arc(m.x, m.y, r + 6, 0, TAU); g.stroke(); }
+    g.globalAlpha = 1;
+  }
   function busiest() { let best = entrances[0], bn = -1; for (const e of entrances) { let n = 0; for (const [x, m] of mounds) if (Math.abs(x - e.x) < 40) n += m; if (n > bn) { bn = n; best = e; } } return best; }
   // (Where the van or the mixer pulls up: just past the hole, or short of it where the street ends.)
   const parkOf = (p) => { const sd = p.x + 56 > UW - 6 ? -1 : 1; return [p.x + 46 * sd, sd]; };
@@ -1051,10 +1059,10 @@
     pestCool -= dt;
     // (A hole in the street is the city's first concern: cordoned, then grouted full.)
     const open = holes.find((h) => !h.filled && clock - h.at > 20);
-    if (!pest && open) { pest = { kind: 'grout', x: open.cx, hole: open, t: 0, van: UW + 90, done: false }; caption('Workers are filling in the hole', 2.8); }
+    if (!pest && open) { pest = { kind: 'grout', x: open.cx, hole: open, t: 0, van: UW + 90, done: false }; caption('Workers are filling in the hole', 2.8, { x: open.cx, y: 0 }); }
     if (!pest && pestCool <= 0 && entrances.length && QUEEN.alive) {
       const [b, s, c] = thresholds(), kind = alarm >= c && era >= 2 ? 'concrete' : alarm >= s && era >= 1 ? 'smoke' : alarm >= b ? 'bait' : null;
-      if (kind) { const e = busiest(); pest = { kind, x: e.x, t: 0, van: UW + 90, done: false }; caption(kind === 'bait' ? 'The city put down poison bait' : kind === 'smoke' ? 'The city is pumping gas into your tunnels' : 'The city is filling your tunnels with concrete', 2.6); }
+      if (kind) { const e = busiest(); pest = { kind, x: e.x, t: 0, van: UW + 90, done: false }; caption(kind === 'bait' ? 'The city put down poison bait' : kind === 'smoke' ? 'The city is pumping gas into your tunnels' : 'The city is filling your tunnels with concrete', 2.6, { x: e.x, y: 2 }); }
     }
     if (!pest) return;
     const p = pest; p.t += dt;
@@ -1188,7 +1196,7 @@
       for (let x2 = PIPE.x0; x2 <= PIPE.x1; x2 += CS) {
         const i = gi(x2, PIPE.y + PIPE.h + 3);
         run = i >= 0 && open4(soil[i]) ? run + 1 : 0;
-        if (run >= 8 && !leaks.some((l) => Math.abs(l.x - x2) < 40)) { leaks.push({ x: x2 - 10, damp: 0 }); alarm += 10; caption('A water pipe burst', 2.4); run = 0; }
+        if (run >= 8 && !leaks.some((l) => Math.abs(l.x - x2) < 40)) { leaks.push({ x: x2 - 10, damp: 0 }); alarm += 10; caption('A water pipe burst', 2.4, { x: x2, y: PIPE.y + PIPE.h / 2 }); run = 0; }
       }
     }
     if (TUBE) {
@@ -1201,7 +1209,7 @@
     }
   }
   function openHole(gx0, gx1) {
-    for (const t of trees) if (t.alive && !t.buried && t.x > gx0 * CS - 22 && t.x < (gx1 + 1) * CS + 22) { t.alive = false; caption('A tree fell in. Its aphids (food) are gone', 2.6); }
+    for (const t of trees) if (t.alive && !t.buried && t.x > gx0 * CS - 22 && t.x < (gx1 + 1) * CS + 22) { t.alive = false; caption('A tree fell in. Its aphids (food) are gone', 2.6, { x: t.x, y: 0 }); }
     const cx = ((gx0 + gx1) / 2) * CS, seen = new Uint8Array(GW * GH), q = [];
     for (let g2 = gx0; g2 < gx1; g2++) { seen[g2] = 1; q.push(g2); }
     while (q.length) {
@@ -1214,7 +1222,7 @@
     holes.push(h);
     markDug(cx, 120, 130); dirty = true;
     alarm += 26;
-    caption('The street caved in', 2.8);
+    caption('The street caved in', 2.8, { x: cx, y: 0 });
     // (Its edges: the slab broken, hanging in, the bars trailing.)
     for (const [x, dir] of [[h.x0, 1], [h.x1, -1]]) for (let q2 = 0; q2 < 2; q2++) slabs.push({ x: x + dir * q2 * 6, y: 4 + q2 * 3, w: rnd(12, 20), h: 4, a: dir > 0 ? rnd(0.5, 1.1) : Math.PI - rnd(0.5, 1.1), hole: h });
     for (let q2 = 0; q2 < 12; q2++) dust.push({ x: rnd(h.x0, h.x1), y: rnd(-6, 2), r: rnd(5, 11), vx: rnd(-14, 14), vy: rnd(-4, -1), t: 0, life: rnd(3, 5), s: Math.random() * 9 });
@@ -1224,7 +1232,7 @@
     for (let y = TUBE.y - 1; y < TUBE.y + TUBE.h; y += CS) for (let x = x0; x <= x1; x += CS) { const i = gi(x, y); if (i >= 0 && soil[i] === 2) soil[i] = 4; }
     markDug((x0 + x1) / 2, TUBE.y + TUBE.h / 2, (x1 - x0) / 2 + 50); dirty = true;
     for (let q = 0; q < 6; q++) slabs.push({ x: rnd(x0, x1 - 10), y: TUBE.y + TUBE.h - 10 - q * 3, w: rnd(12, 22), h: 4, a: rnd(-0.4, 0.4), hole: null });
-    alarm += 30; caption('The subway roof collapsed', 3);
+    alarm += 30; caption('The subway roof collapsed', 3, { x: (x0 + x1) / 2, y: TUBE.y });
   }
   // (How deep the open hole goes under a point, and under a stretch.)
   function holeFloorAt(x) { let r = 0; while (r < GH) { const i = gi(x, r * CS + 1); if (i < 0 || soil[i] !== 4) break; r++; } return r * CS; }
@@ -1549,13 +1557,13 @@
     if (Math.random() < 0.35) { if (!cellStep(a, fNest)) wander(a); } else wander(a);
   }
   // Pipe and concrete give, but slowly: a cell at a time, and what's inside comes out.
-  let gasSaid = 0;
+  let gasSaid = -99;
   function gnaw(a, j) {
     const hard = soil[j], x = cxOf(j), y = cyOf(j);
     soil[j] = 0; plan[j] = 0; markDug(x, y, CS); dirty = true;
     a.carry = y > 160 ? null : 'grain'; a.wait = hard === 3 ? 4 : 2.5;
-    if (PIPE && y >= PIPE.y - 2 && y <= PIPE.y + PIPE.h + 2 && !leaks.some((l) => Math.abs(l.x - x) < 30)) { leaks.push({ x, damp: 0 }); alarm += 8; caption('Your ants broke a water pipe', 2.4); }
-    if (GAS && y >= GAS.y - 2 && y <= GAS.y + GAS.h + 2) { smoke[j] = 0.9; if (clock - gasSaid > 8) { gasSaid = clock; caption('Gas leak! Ants nearby may die', 2.2); } }
+    if (PIPE && y >= PIPE.y - 2 && y <= PIPE.y + PIPE.h + 2 && !leaks.some((l) => Math.abs(l.x - x) < 30)) { leaks.push({ x, damp: 0 }); alarm += 8; caption('Your ants broke a water pipe', 2.4, { x, y: PIPE.y + PIPE.h / 2 }); }
+    if (GAS && y >= GAS.y - 2 && y <= GAS.y + GAS.h + 2) { smoke[j] = 0.9; if (clock - gasSaid > 8) { gasSaid = clock; caption('Gas leak! Ants nearby may die', 2.2, { x, y }); } }
   }
   function surfAnt(a) {
     if (a.want === 'mound') {
@@ -1634,6 +1642,7 @@
   top.addEventListener('pointerdown', (e) => {
     // (A card on the plate takes the touch: its buttons, or nothing.)
     if (card) { const h = (card.hits || []).find((q) => e.clientX >= q.x && e.clientX <= q.x + q.w && e.clientY >= q.y && e.clientY <= q.y + q.h); if (h) h.fn(); return; }
+    { const c = captions.find((q) => q.hit && e.clientX >= q.hit.x && e.clientX <= q.hit.x + q.hit.w && e.clientY >= q.hit.y && e.clientY <= q.hit.y + q.hit.h); if (c) { camY = c.loc.y - (IN.y + IN.h / 2 - G) / SZ(); camX = clamp(c.loc.x - UW / Z / 2, 0, UW - UW / Z); camV = 0; clampCam(); marks.push({ x: c.loc.x, y: c.loc.y, at: clock }); return; } }
     if (menu) { const h = (menu.hits || []).find((q) => e.clientX >= q.x && e.clientX <= q.x + q.w && e.clientY >= q.y && e.clientY <= q.y + q.h); menu = null; if (h) h.fn(); return; }
     // (The town's name, at the head of the frame: a tap pauses.)
     if (e.clientY < IN.y && e.clientX < IN.x + IN.w * 0.6) { pauseCard(); return; }
@@ -1716,7 +1725,7 @@
   }
   function toggleLeak(x) {
     const l = leaks.find((q) => Math.abs(q.x - x) < 20);
-    if (l) leaks.splice(leaks.indexOf(l), 1); else { leaks.push({ x, damp: 0 }); alarm += 6; caption('A water pipe burst', 2); }
+    if (l) leaks.splice(leaks.indexOf(l), 1); else { leaks.push({ x, damp: 0 }); alarm += 6; caption('A water pipe burst', 2, { x, y: PIPE.y + PIPE.h / 2 }); }
   }
 
   // The mixer at work: the drum turning (its blades go round), a chute let down off the back, and the concrete
@@ -2136,7 +2145,7 @@
   function stepRivals(dt) {
     if (!RIV || RIV.gone || !fRiv || !fStore) return;
     const ri = gi(RIV.x, RIV.y), linked = ri >= 0 && fStore[ri] < 1e8 && QUEEN.alive;
-    if (linked && !RIV.met) { RIV.met = true; caption('The other colony has found your tunnels', 2.8); }
+    if (linked && !RIV.met) { RIV.met = true; caption('The other colony has found your tunnels', 2.8, { x: RIV.x, y: RIV.y }); }
     for (const r of [...RIV.ants]) {
       if (r.wait > 0) { r.wait -= dt; continue; }
       if (moveAnt(r, dt)) {
@@ -2173,7 +2182,7 @@
         if (QUEEN.alive && Math.hypot(x - QUEEN.x, y - QUEEN.y) < 14) continue;
         const i = gi(x, y); if (i >= 0 && soil[i] === 0 && still[i] !== 2) { soil[i] = 1; plan[i] = 1; water[i] = 0; ate = true; }
       }
-      if (ate) { markDug(m.x, m.y, 18); dirty = true; if (!m.said) { m.said = true; caption('A mole filled in some tunnels. Your ants will dig them out', 3); } }
+      if (ate) { markDug(m.x, m.y, 18); dirty = true; if (!m.said) { m.said = true; caption('A mole filled in some tunnels. Your ants will dig them out', 3, { x: m.x, y: m.y }); } }
       for (const a of [...ants]) if (!a.surf && Math.abs(a.x - m.x) < 16 && Math.abs(a.y - m.y) < 11) kill(a);
       if (RIV) for (const r of [...RIV.ants]) if (Math.abs(r.x - m.x) < 10 && Math.abs(r.y - m.y) < 7) kill2(r);
       for (const p2 of [...plugs]) if (Math.hypot(p2.x - m.x, p2.y - m.y) < 11) { plugs.splice(plugs.indexOf(p2), 1); rebuildGuards(); }
@@ -2191,7 +2200,7 @@
       const x0 = rnd(m.x0, m.x1 - 26), cells = [];
       for (let y = m.y - 3; y < m.y + m.h; y += CS) for (let x = x0; x < x0 + 26; x += CS) { const i = gi(x, y); if (i >= 0 && soil[i] === 0) cells.push(i); }
       fills.push({ cells: cells.sort((a, b) => (cyOf(a) - cyOf(b)) * 100 + (Math.abs(cxOf(a) - x0 - 13) - Math.abs(cxOf(b) - x0 - 13))), rate: 70 });
-      caption('Part of the old mine collapsed', 2.4);
+      caption('Part of the old mine collapsed', 2.4, { x: x0 + 13, y: m.y + 7 });
     }
   }
   // ---------------------------------------------------------------- what holds the ground up
@@ -2206,7 +2215,7 @@
       let sp = 1; for (let q = CS; q < 150; q += CS) { const i = gi(c.x - q, c.y); if (i < 0 || soil[i] !== 0) break; sp++; } for (let q = CS; q < 150; q += CS) { const i = gi(c.x + q, c.y); if (i < 0 || soil[i] !== 0) break; sp++; }
       const over = sp - SAFE(c.y);
       c.span = sp; c.stress = over > 0 ? (c.stress || 0) + dt * over * 0.007 : Math.max(0, (c.stress || 0) - dt * 0.08);
-      if (c.stress > 0.45 && !c.warned) { c.warned = true; caption('A room is too big and is starting to crack', 2.8); }
+      if (c.stress > 0.45 && !c.warned) { c.warned = true; caption('A room is too big and is starting to crack', 2.8, { x: c.x, y: c.y }); }
       if (c.stress >= 1) caveIn(c);
     }
   }
@@ -2266,7 +2275,7 @@
     if (PIPE && y >= PIPE.y - 2 && y <= PIPE.y + PIPE.h + 2 && !leaks.some((l) => Math.abs(l.x - st.x) < 30)) { leaks.push({ x: st.x, damp: 0 }); alarm += 8; what = 'A rock fell and burst a water pipe'; }
     if (GAS && y >= GAS.y - 2 && y <= GAS.y + GAS.h + 2) { for (let dx = -9; dx <= 9; dx += CS) { const i = gi(st.x + dx, GAS.y - 4); if (i >= 0 && soil[i] === 0) smoke[i] = 1; } what = 'A rock fell and cracked a gas pipe'; }
     setStone(st, 2);
-    if (what) caption(what, 2.6);
+    if (what) caption(what, 2.6, { x: st.x, y: st.y });
   }
   function drawStones(t, vy0, vy1) {
     for (const st of stones) {
@@ -2293,7 +2302,7 @@
     flushAt -= dt; if (flushAt > 0) return; flushAt = rnd(120, 200);
     const d = deposits.find((q) => q.silt); if (!d || !fNest) return; const i = gi(d.x, d.y); if (i < 0 || !(fNest[i] < 1e8)) return;
     for (let dy = -6; dy <= 6; dy += CS) for (let dx = -11; dx <= 11; dx += CS) { const j = gi(d.x + dx, d.y + dy); if (j >= 0 && soil[j] === 0) water[j] = 1.3; }
-    dirty = true; caption('The sewer flooded', 2);
+    dirty = true; caption('The sewer flooded', 2, { x: d.x, y: d.y });
   }
   // (Each layer named, the first time the view comes down to it.)
   const seenL = new Set();
@@ -2327,7 +2336,7 @@
     stepRooms(dt); stepQueen(dt); stepFills(dt); stepStones(dt); stepRivals(dt); stepMole(dt); stepSewer(dt);
     train.at -= dt; if (train.at <= 0 && train.x < -998 && !tubeBroken) train.x = TUBE.x0 - 300;
     if (train.x > -998) { const stopAt = tubeBreaks.length ? Math.min(...tubeBreaks.map((b) => b.x0)) - 6 : 1e9; train.x = Math.min(train.x + dt * 150, stopAt - 142); if (train.x > TUBE.x1 + 50 + 2 * 144) { train.x = -999; train.at = rnd(8, 14); } }
-    if (train.x > -998) { const bed = TUBE.y + TUBE.h - 8; for (const a of [...ants]) if (!a.surf && a.y > bed - 7 && a.y < bed && a.x > train.x - 292 && a.x < train.x + 140 && Math.random() < dt * 0.02) { kill(a); if (clock - trainSaid > 25) { trainSaid = clock; caption('A train hit ants on the tracks', 2.2); } } }
+    if (train.x > -998) { const bed = TUBE.y + TUBE.h - 8; for (const a of [...ants]) if (!a.surf && a.y > bed - 7 && a.y < bed && a.x > train.x - 292 && a.x < train.x + 140 && Math.random() < dt * 0.02) { kill(a); if (clock - trainSaid > 25) { trainSaid = clock; caption('A train hit ants on the tracks', 2.2, { x: a.x, y: a.y }); } } }
     { const stopAt = (STATION.x0 + STATION.x1) / 2 + 120; train2.at -= dt; if (train2.at <= 0 && train2.x < -998) train2.x = STATION.x0 - 120;
       if (train2.x > -998) { if (train2.stop > 0) train2.stop -= dt; else { const before = train2.x; train2.x += dt * (!train2.stopped && Math.abs(train2.x - stopAt) < 90 ? 60 : 160); if (!train2.stopped && before < stopAt && train2.x >= stopAt) { train2.stop = 3.5; train2.stopped = true; } } if (train2.x > STATION.x1 + 460) { train2.x = -999; train2.at = rnd(7, 12); train2.stopped = false; } } }
     for (const lane of [0, 1]) if (Math.random() < dt / 3.2 && cars.filter((c) => c.lane === lane).length < 4) {
@@ -2355,7 +2364,7 @@
     for (const c of carts) { const h = holes.find((q) => !q.filled && c.x > q.x0 && c.x < q.x1); if (h) { c.life = 0; wrecks.push({ s: SPR.cart, x: c.x, y: 0, vy: 0, a: 0, va: 2, hole: h, rest: false }); } }
     for (const d of dust) { d.t += dt; d.x += d.vx * dt; d.y += d.vy * dt; d.vy *= 0.985; d.vx *= 0.99; d.r += dt * 3; }
     dust = dust.filter((d) => d.t < d.life);
-    for (const d of debris) { d.vy += dt * 120; d.x += d.vx * dt; d.y += d.vy * dt; d.a += d.va * dt; }
+    for (const d of debris) { d.vy += dt * 170; d.x += d.vx * dt; d.y += d.vy * dt; d.a += d.va * dt; if (d.y >= 2 && !d.landed) { d.landed = true; dust.push({ x: d.x, y: 0, r: rnd(3, 6), vx: rnd(-8, 8), vy: -0.6, t: 0, life: rnd(1.4, 2.4), s: Math.random() * 9 }); } }
     debris = debris.filter((d) => d.y < 4);
     stepTowers(dt); stepPest(dt); stepBuild(dt);
     if (now - slowAt > 700) { slowAt = now; settle(); scout(clock); checkCity(); raiseSecond(); stepMines(); seeLayers(); findFace(); updateStatus(); stepTutorial(); stepRoofs(0.7); looseStones(); if (trod) for (let i = 0; i < GW * GH; i++) if (trod[i] > 0) trod[i] = trod[i] < 0.01 ? 0 : trod[i] * 0.985; }
@@ -2440,7 +2449,7 @@
       else if (c.role === 'garden') { const n = Math.min(26, Math.round((c.raw || 0) + (c.ripe || 0)) + 3); g.strokeStyle = OVER; g.lineWidth = 0.35; for (let k = 0; k < n; k++) { const a = k * 2.4 + 0.3, r = Math.sqrt((k + 1) / 26) * c.r; g.fillStyle = k < (c.ripe || 0) ? '#efe2c0' : '#fbf6ea'; g.beginPath(); g.arc(c.x + Math.cos(a) * r * 1.3, c.y + 2 + Math.sin(a) * r * 0.35, 1.7, 0, TAU); g.fill(); g.stroke(); } }
       else if (c.role === 'sump') { g.strokeStyle = OVER; g.lineWidth = 0.5; g.globalAlpha = 0.7; for (let k = 0; k < 3; k++) { g.beginPath(); g.moveTo(c.x - c.r * (1 - k * 0.2), c.y + c.r * 0.3 - k * 2); g.lineTo(c.x + c.r * (1 - k * 0.2), c.y + c.r * 0.3 - k * 2); g.stroke(); } g.globalAlpha = 1; }
     }
-    drawBrood(t, vy0, vy1); drawWet(t); drawRoofs(t, vy0, vy1); drawStones(t, vy0, vy1);
+    drawBrood(t, vy0, vy1); drawWet(t); drawRoofs(t, vy0, vy1); drawStones(t, vy0, vy1); drawMarks(t, vy0, vy1);
     for (const d of deposits) { if (d.y < vy0 - 30 || d.y > vy1 + 30) continue; const n = Math.ceil(Math.min(d.food, 30) / 1.3); for (let k = 0; k < n; k++) { const a = k * 2.4, r = Math.sqrt(k / 24) * d.r; g.fillStyle = DEPC[d.label] || '#d9b24c'; g.beginPath(); g.ellipse(d.x + Math.cos(a) * r * 1.3, d.y + 2 + Math.sin(a) * r * 0.4, 1.3, 1, a, 0, TAU); g.fill(); } }
     for (const d of dead) { g.globalAlpha = clamp(1 - (t - d.at - 10) / 4, 0, 1); drawAnt(d, d.big, true); }
     g.globalAlpha = 1;
@@ -2479,7 +2488,7 @@
       g.globalAlpha = 1;
       g.globalAlpha = 1;
       g.strokeStyle = OVER; g.lineWidth = 0.8;
-      for (const d of debris) { g.save(); g.translate(d.x, d.y); g.rotate(d.a); g.fillStyle = PINK; g.fillRect(-d.s / 2, -d.s / 3, d.s, d.s * 0.66); g.strokeRect(-d.s / 2, -d.s / 3, d.s, d.s * 0.66); g.restore(); }
+      for (const d of debris) { if (d.landed) continue; g.save(); g.translate(d.x, d.y); g.rotate(d.a); g.beginPath(); if (d.pts) { g.moveTo(...d.pts[0]); for (const q of d.pts) g.lineTo(...q); g.closePath(); } else g.rect(-d.s / 2, -d.s / 3, d.s, d.s * 0.66); g.fillStyle = '#f2c4b2'; g.fill(); g.strokeStyle = OVER; g.lineWidth = 0.6; g.stroke(); g.lineWidth = 0.3; g.beginPath(); g.moveTo(-d.s * 0.4, 0); g.lineTo(d.s * 0.3, d.s * 0.2); g.stroke(); g.restore(); }
     }
     if (hand && hand.below) {
       g.lineCap = 'round'; const held = (performance.now() - hand.still) / 1000;
@@ -2503,10 +2512,12 @@
       g.save(); g.globalAlpha = a; g.font = `italic 500 19px ${DISPLAY}`; g.textAlign = 'center'; g.textBaseline = 'middle';
       // (A long line set smaller, to fit the plate's width.)
       { const tw = g.measureText(c.text).width; if (tw > IN.w - 40) g.font = `italic 500 ${Math.max(12, Math.floor(19 * (IN.w - 40) / tw))}px ${DISPLAY}`; }
-      const w = g.measureText(c.text).width + 30;
-      g.fillStyle = 'rgba(243,236,220,0.9)'; g.fillRect(IN.x + IN.w / 2 - w / 2, y - 14, w, 28);
+      let txt = c.text;
+      if (c.loc) { const vy0 = camY - (G - IN.y) / SZ(), vy1 = camY + (IN.y + IN.h - G) / SZ(); if (c.loc.y < vy0) txt = '↑ ' + txt; else if (c.loc.y > vy1) txt = '↓ ' + txt; }
+      const w = g.measureText(txt).width + 30;
+      g.fillStyle = 'rgba(243,236,220,0.9)'; g.fillRect(IN.x + IN.w / 2 - w / 2, y - 14, w, 28); c.hit = c.loc ? { x: IN.x + IN.w / 2 - w / 2, y: y - 14, w, h: 28 } : null;
       g.strokeStyle = OVER; g.lineWidth = 0.8; g.beginPath(); g.moveTo(IN.x + IN.w / 2 - w / 2 + 8, y + 11); g.lineTo(IN.x + IN.w / 2 + w / 2 - 8, y + 11); g.stroke();
-      g.fillStyle = OVER; g.fillText(c.text, IN.x + IN.w / 2, y);
+      g.fillStyle = c.loc ? '#a3341f' : OVER; g.fillText(txt, IN.x + IN.w / 2, y);
       g.restore(); y += 34;
     }
   }

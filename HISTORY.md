@@ -39,3 +39,12 @@ metres are left to dig; drawn routes are darker; the other colony's ants are lar
   to look") that takes you there.
 - A route not yet dug can be rubbed out by tapping its pencil line (with the way found to it).
 - Long captions set smaller to fit the plate; the page now says how wide a phone is (for its own site).
+
+## 2026-10-20 — the ground pushes back (after Doug Dug)
+- **Rooms can cave in.** Each ground holds a roof so wide: common earth ~18 cells, chalk ~26, clay and rock any
+  span. A wider room strains: zigzag cracks run up from its roof, grains start to fall, then its upper half comes
+  in on whatever's there (ants, brood). Small rooms are safe; big ones are a gamble unless dug in clay or rock.
+- **Loose stones.** Set in the ground: over the subway, over the sunken boat's cargo, over the other colony's
+  main room, in the chalk and below. Dig out what's under one and it shivers, then drops: crushing what's below,
+  bursting the main, cracking the gas line, or breaking through the subway's roof. Stones can't be chewed.
+- New test, `tests/ground.cjs`.

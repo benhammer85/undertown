@@ -407,21 +407,25 @@
       out.push({ kind: 'well', x: 280, y: 770, h: 72 });
       out.push({ kind: 'river', x1: 522, y: L.river, h: 44 });
       out.push({ kind: 'bottle', x: 120, y: 950, a: 0.6 });
+      out.push({ kind: 'stone', x: 128, y: 190, r: 9 });
     } else if (k === 1) {
       out.push({ kind: 'harbour', y: L.harbour + sh });
       out.push({ kind: 'tram', x: 430, y: 1330 + sh });
       out.push({ kind: 'bottle', x: 520, y: 1420 + sh, a: 0.6 }); out.push({ kind: 'bottle', x: 540, y: 1250 + sh, a: -0.4 });
       out.push({ kind: 'rivals', y: L.rivals + sh });
+      out.push({ kind: 'stone', x: 215, y: 1150 + sh, r: 11 }); out.push({ kind: 'stone', x: 205, y: 1262 + sh, r: 9 });
       out.push({ kind: 'mine', y: L.mine + sh });
       out.push({ kind: 'cave', x: 420, y: 1880 + sh, rx: 70, ry: 30, pool: true });
     } else if (k === 2) {
       out.push({ kind: 'clay', y0: L.clay0 + sh, y1: L.clay1 + sh });
       out.push({ kind: 'chalk', y0: L.chalk + sh, y1: y0 + CH + 12 });
       out.push({ kind: 'ammonite', x: 470, y: 2160 + sh, r: 20 });
+      out.push({ kind: 'stone', x: 150, y: 2700 + sh, r: 10 }); out.push({ kind: 'stone', x: 420, y: 2860 + sh, r: 9 });
     } else if (k === 3) {
       out.push({ kind: 'chalk', y0: y0 - 12, y1: L.table + sh });
       out.push({ kind: 'table', y: L.table + sh, y1: L.rock + sh });
       out.push({ kind: 'bones', x: 300, y: 3240 + sh, s: 1.1 });
+      out.push({ kind: 'stone', x: 460, y: 3300 + sh, r: 12 });
       out.push({ kind: 'rock', y: L.rock + sh, y1: y0 + CH + 12, edge: true });
       out.push({ kind: 'pocket', x: 140, y: 3460 + sh, r: 11, food: 30, label: 'seeds' });
       out.push({ kind: 'heat', y: L.warm + sh, y1: y0 + CH + 12 });
@@ -664,6 +668,8 @@
     } else if (f.kind === 'heat') {
       // (Warmth, in the pink: rising wavy lines. Brood raised down here hatches fast.)
       for (let q = 0; q < 70; q++) { const x = tr(0, UW), y = tr(f.y + 10, f.y1), pts = []; for (let s2 = 0; s2 < 6; s2++) pts.push([x + Math.sin(s2 * 1.4 + q) * 2.5, y - s2 * 4]); P.tint.lineWidth = 1.4; P.tint.strokeStyle = '#8c8c8c'; P.tint.beginPath(); P.tint.moveTo(...pts[0]); for (const p2 of pts) P.tint.lineTo(...p2); P.tint.stroke(); }
+    } else if (f.kind === 'stone') {
+      addStone(f.x, f.y, f.r);
     } else if (f.kind === 'geode') {
       hollow(f.x, f.y, f.r * 1.2, f.r * 0.8);
       for (let q = 0; q < 14; q++) { const a = (q / 14) * TAU, ex = f.x + Math.cos(a) * f.r * 1.2, ey = f.y + Math.sin(a) * f.r * 0.8, ix = f.x + Math.cos(a + 0.1) * f.r * 0.75, iy = f.y + Math.sin(a + 0.1) * f.r * 0.45; const cr = [[ex, ey], [ix, iy], [f.x + Math.cos(a + 0.22) * f.r * 1.2, f.y + Math.sin(a + 0.22) * f.r * 0.8]]; solidPoly(cr); tint(cr, 0.3); poly(k, cr, 0.5, true, 0); }
@@ -746,7 +752,7 @@
   function stepCost(i) {
     const v = soil[i]; if (water[i] > 0.5 || v === 4) return 0;
     if (v === 0) return 1; if (v === 5) return 8; if (v === 1) return nearRiver(i) ? 0 : 3;
-    if ((v === 2 || v === 3) && !inTube(cyOf(i)) && !nearRiver(i)) return 14;
+    if ((v === 2 || v === 3) && !inTube(cyOf(i)) && !nearRiver(i) && !stoneAt.has(i)) return 14;
     return 0;
   }
   let wD = null, wP = null;
@@ -777,7 +783,7 @@
   function markPlan(x, y, r, hard = false) {
     for (let yy = y - r; yy <= y + r; yy += CS) for (let xx = x - r; xx <= x + r; xx += CS) {
       if ((xx - x) ** 2 + (yy - y) ** 2 > r * r) continue;
-      const i = gi(xx, yy); if (i >= 0 && ((soil[i] === 1 && !(hard && nearRiver(i))) || (hard && (soil[i] === 2 || soil[i] === 3) && !inTube(yy) && !nearRiver(i)))) plan[i] = 1;
+      const i = gi(xx, yy); if (i >= 0 && ((soil[i] === 1 && !(hard && nearRiver(i))) || (hard && (soil[i] === 2 || soil[i] === 3) && !inTube(yy) && !nearRiver(i) && !stoneAt.has(i)))) plan[i] = 1;
     }
     dirty = true;
   }
@@ -1303,7 +1309,7 @@
     for (const a of ants) if (a.surf) { const e = nearestEntrance(a.x); if (e) a.x = a.tx = e.x; a.y = a.ty = 2; a.surf = false; }
     const dn = (o) => { if (o) o.y += ERA_H; };
     [PIPE, GAS, TUBE, SEWER, STATION, QUEEN].forEach(dn); deposits.forEach(dn); chambers.forEach(dn); ants.forEach((a) => { a.y += ERA_H; a.ty += ERA_H; }); dead.forEach(dn);
-    MINES.forEach(dn); dn(PRIN); brood.forEach(dn); DECOR.forEach((d) => { d.dy += ERA_H; }); if (RIV) { dn(RIV); RIV.ants.forEach((a) => { a.y += ERA_H; a.ty += ERA_H; }); }
+    MINES.forEach(dn); dn(PRIN); stones.forEach(dn); { const moved = [...stoneAt].map((i) => i + sh); stoneAt.clear(); moved.forEach((i) => stoneAt.add(i)); } brood.forEach(dn); DECOR.forEach((d) => { d.dy += ERA_H; }); if (RIV) { dn(RIV); RIV.ants.forEach((a) => { a.y += ERA_H; a.ty += ERA_H; }); }
     if (MOLE) { MOLE.y += ERA_H; MOLE.y0 += ERA_H; } QUEEN.go = null; QUEEN.tx = null;
     plugs.forEach((p2) => { p2.y += ERA_H; p2.cells = p2.cells.map((i) => i + sh); }); rebuildGuards();
     trees.forEach((t) => { t.alive = false; t.buried = true; });
@@ -1941,10 +1947,97 @@
       caption('Old timbers give way in the workings', 2.4);
     }
   }
+  // ---------------------------------------------------------------- what holds the ground up
+  // A room holds its roof as far as the ground lets it: clay or rock any span, chalk a good one, common earth less.
+  // Too wide and it strains: the roof cracks (drawn), grains start to fall, and then it comes in on whatever's
+  // under it. Shallower than the works, the street's own subsidence takes care of it.
+  const SAFE = (y) => (clay(y) || rocky(y) ? 99 : lay(y) > L.chalk ? 26 : 18);
+  function stepRoofs(dt) {
+    for (const c of chambers) {
+      const ci = gi(c.x, c.y);
+      if (c.y < 186 || ci < 0 || soil[ci] !== 0) { c.stress = 0; continue; }
+      let sp = 1; for (let q = CS; q < 150; q += CS) { const i = gi(c.x - q, c.y); if (i < 0 || soil[i] !== 0) break; sp++; } for (let q = CS; q < 150; q += CS) { const i = gi(c.x + q, c.y); if (i < 0 || soil[i] !== 0) break; sp++; }
+      const over = sp - SAFE(c.y);
+      c.span = sp; c.stress = over > 0 ? (c.stress || 0) + dt * over * 0.007 : Math.max(0, (c.stress || 0) - dt * 0.08);
+      if (c.stress > 0.45 && !c.warned) { c.warned = true; caption('A roof is cracking: that room is too wide for this ground', 2.8); }
+      if (c.stress >= 1) caveIn(c);
+    }
+  }
+  function caveIn(c) {
+    const cells = []; for (let y = c.y - c.r; y <= c.y + 1; y += CS) for (let x = c.x - c.r * 1.7; x <= c.x + c.r * 1.7; x += CS) { const i = gi(x, y); if (i >= 0 && soil[i] === 0) cells.push(i); }
+    fills.push({ cells: cells.sort((a, b) => cyOf(a) - cyOf(b)), rate: 140, replan: false });
+    c.stress = 0; c.warned = false; c.r = Math.max(8, Math.round(c.r * 0.6)); alarm += 3;
+    caption(c.role === 'queen' ? "The roof of the queen's room comes in" : 'A room caves in', 2.6);
+  }
+  // (The strain drawn: cracks running up from the roof, longer as it worsens; past halfway, grains falling.)
+  function drawRoofs(t, vy0, vy1) {
+    g.strokeStyle = OVER; g.fillStyle = OVER;
+    for (const c of chambers) {
+      const k = c.stress || 0; if (k < 0.15 || c.y < vy0 - 40 || c.y > vy1 + 40) continue;
+      const L2 = 5 + k * 24, roofAt = (x) => { let y = c.y; while (y > c.y - 60) { const i = gi(x, y - CS); if (i < 0 || soil[i] !== 0) break; y -= CS; } return y - 1; };
+      g.globalAlpha = Math.min(1, 0.35 + k); g.lineWidth = 0.55 + k * 0.3; g.lineJoin = 'miter';
+      // (Each crack a zigzag up from the roof, forking once it's long enough.)
+      const crack = (x, y, a, len, seed, depth) => { let px = x, py = y; g.beginPath(); g.moveTo(px, py); const n = 5; for (let s2 = 1; s2 <= n; s2++) { const zig = (s2 % 2 ? 1 : -1) * (0.5 + 0.4 * Math.sin(seed + s2 * 3.7)); px += Math.cos(a + zig) * len / n; py += Math.sin(a + zig) * len / n; g.lineTo(px, py); if (depth < 1 && s2 === 3 && len > 12) { g.stroke(); crack(px, py, a + (seed % 2 ? 0.8 : -0.8), len * 0.45, seed + 1.3, depth + 1); g.beginPath(); g.moveTo(px, py); } } g.stroke(); };
+      for (let q = 0; q < 5; q++) { const x = c.x + (q - 2) * c.r * 0.42 + Math.sin(c.x + q) * 2; crack(x, roofAt(x), -Math.PI / 2 + (q - 2) * 0.3, L2 * (0.7 + 0.3 * Math.abs(Math.sin(q * 2.1 + c.y))), c.x * 0.37 + q * 5.1, 0); }
+      const top = roofAt(c.x);
+      if (k > 0.5) for (let q = 0; q < 6; q++) { const ph = (t * (0.9 + q * 0.13) + q * 0.37) % 1, x = c.x + (q - 2.5) * c.r * 0.4, y = top + ph * c.r * 1.1; g.globalAlpha = 0.7 * (1 - ph); g.fillRect(x, y, 0.7, 0.7); }
+    }
+    g.globalAlpha = 1;
+  }
+
+  // Loose stones, held where the ground holds them. Dig out what's under one and it drops: onto whatever is
+  // below it, the other colony, a pipe, the subway's roof, or your own.
+  let stones = []; const stoneAt = new Set();
+  const stoneCells = (st) => { const out = []; for (let dy = -st.r * 0.8; dy <= st.r * 0.8; dy += CS) for (let dx = -st.r; dx <= st.r; dx += CS) if ((dx / st.r) ** 2 + (dy / (st.r * 0.8)) ** 2 <= 1) { const i = gi(st.x + dx, st.y + dy); if (i >= 0) out.push(i); } return out; };
+  function setStone(st, v, quiet = false) { for (const i of stoneCells(st)) { if (v === 2) { soil[i] = 2; plan[i] = 0; stoneAt.add(i); } else if (stoneAt.has(i)) { soil[i] = v; stoneAt.delete(i); } } if (!quiet) markDug(st.x, st.y, st.r + 4); dirty = true; }
+  function addStone(x, y, r) {
+    const pts = Array.from({ length: 12 }, (_, k) => { const a = (k / 12) * TAU; return [Math.cos(a) * r * (0.88 + 0.16 * Math.sin(k * 2.3 + x)), Math.sin(a) * r * 0.8 * (0.86 + 0.16 * Math.cos(k * 1.7 + y))]; });
+    const st = { x, y, r, pts, vy: 0, falling: false, wob: 0, said: false }; setStone(st, 2, true); stones.push(st); // (quiet: its ground is being printed now)
+  }
+  function underStone(st) { let open = 0, n = 0, hit = -1; const y = st.y + st.r * 0.8 + CS; for (let dx = -st.r * 0.7; dx <= st.r * 0.7; dx += CS) { const i = gi(st.x + dx, y); n++; if (i < 0) continue; const v = soil[i]; if (v === 0 || v === 4 || v === 5) open++; else if (hit < 0 || v === 2) hit = i; } return { f: open / n, hit }; }
+  function looseStones() { for (const st of stones) if (!st.falling) { const u = underStone(st); st.wob = u.f; if (u.f >= 0.5) { st.falling = true; st.vy = 0; st.crushed = 0; setStone(st, 0); } } }
+  function stepStones(dt) {
+    for (const st of stones) {
+      if (!st.falling) continue;
+      st.vy = Math.min(170, st.vy + 300 * dt); let move = st.vy * dt;
+      while (move > 0) {
+        const u = underStone(st); if (u.f < 0.5) { landStone(st, u.hit); break; }
+        const d = Math.min(CS, move); st.y += d; move -= d;
+        for (const a of [...ants]) if (!a.surf && Math.hypot(a.x - st.x, (a.y - st.y) / 0.8) < st.r) { kill(a); st.crushed++; }
+        if (RIV) for (const r of [...RIV.ants]) if (Math.hypot(r.x - st.x, (r.y - st.y) / 0.8) < st.r) { kill2(r); st.theirs = (st.theirs || 0) + 1; }
+        for (const b of brood) if (Math.hypot(b.x - st.x, b.y - st.y) < st.r) b.dead = true;
+        for (const p2 of [...plugs]) if (Math.hypot(p2.x - st.x, p2.y - st.y) < st.r) { plugs.splice(plugs.indexOf(p2), 1); rebuildGuards(); }
+        if (QUEEN.alive && Math.hypot(QUEEN.x - st.x, QUEEN.y - st.y) < st.r * 0.8) loseQueen();
+        if (st.y > GH * CS - 20) { st.falling = false; break; }
+      }
+    }
+  }
+  function landStone(st, hit) {
+    st.falling = false; st.vy = 0; const y = hit >= 0 ? cyOf(hit) : st.y;
+    let what = st.theirs ? `A stone drops on the other colony: ${st.theirs} of theirs` : st.crushed ? `A stone drops, and takes ${st.crushed} of yours` : '';
+    if (inTube(y) && hit >= 0 && soil[hit] === 2) { roofDown(st.x - st.r - 16, st.x + st.r + 16); st.falling = true; return; }
+    if (PIPE && y >= PIPE.y - 2 && y <= PIPE.y + PIPE.h + 2 && !leaks.some((l) => Math.abs(l.x - st.x) < 30)) { leaks.push({ x: st.x, damp: 0 }); alarm += 8; what = 'A stone drops on the main, and it bursts'; }
+    if (GAS && y >= GAS.y - 2 && y <= GAS.y + GAS.h + 2) { for (let dx = -9; dx <= 9; dx += CS) { const i = gi(st.x + dx, GAS.y - 4); if (i >= 0 && soil[i] === 0) smoke[i] = 1; } what = 'A stone cracks the gas line'; }
+    setStone(st, 2);
+    if (what) caption(what, 2.6);
+  }
+  function drawStones(t, vy0, vy1) {
+    for (const st of stones) {
+      if (st.y < vy0 - 20 || st.y > vy1 + 20) continue;
+      const j = !st.falling && st.wob >= 0.25 ? Math.sin(t * 40 + st.x) * 0.35 * st.wob * 2 : 0;
+      g.save(); g.translate(st.x + j, st.y);
+      g.beginPath(); g.moveTo(...st.pts[0]); for (const q of st.pts) g.lineTo(...q); g.closePath();
+      g.fillStyle = '#e3a48c'; g.fill(); g.strokeStyle = OVER; g.lineWidth = 0.8; g.stroke(); g.clip();
+      g.lineWidth = 0.4; g.beginPath(); for (let q = -st.r; q < st.r * 2; q += 1.6) { g.moveTo(q, st.r); g.lineTo(q - st.r * 0.9, st.r * 0.05); } g.stroke();
+      g.restore();
+      if (!st.falling && st.wob >= 0.25) { g.fillStyle = OVER; for (let q = 0; q < 3; q++) { const ph = (t * 1.3 + q / 3) % 1; g.globalAlpha = 0.7 * (1 - ph); g.fillRect(st.x - st.r * 0.5 + q * st.r * 0.5, st.y + st.r * 0.8 + ph * 8, 0.7, 0.7); } g.globalAlpha = 1; }
+    }
+  }
+
   // (Earth coming in: a few cells at a time from the top down, so a fall is seen to happen.)
   let fills = [];
   function stepFills(dt) {
-    for (const f of fills) { const n = Math.min(f.cells.length, Math.ceil(dt * f.rate)); for (let k = 0; k < n; k++) { const i = f.cells.shift(); if (soil[i] !== 0) continue; soil[i] = 1; plan[i] = 1; water[i] = 0; markDug(cxOf(i), cyOf(i), 4); dirty = true; for (const a of [...ants]) if (!a.surf && gi(a.x, a.y) === i) kill(a); } }
+    for (const f of fills) { const n = Math.min(f.cells.length, Math.ceil(dt * f.rate)); for (let k = 0; k < n; k++) { const i = f.cells.shift(); if (soil[i] !== 0) continue; soil[i] = 1; plan[i] = f.replan === false ? 0 : 1; for (const b of brood) if (gi(b.x, b.y) === i) b.dead = true; water[i] = 0; markDug(cxOf(i), cyOf(i), 4); dirty = true; for (const a of [...ants]) if (!a.surf && gi(a.x, a.y) === i) kill(a); } }
     fills = fills.filter((f) => f.cells.length);
   }
   // The sewer, now and then, flushes: the silt under it, good scraps, is under water for a while.
@@ -1982,7 +2075,7 @@
     carts = carts.filter((c) => c.life > 0);
     crumbs = crumbs.filter((c) => !c.bait || clock - c.at < 45 || c.claimed);
     for (const d of deposits) if (d.regen && d.food < d.max && (!d.tree || d.tree.alive)) { d.t += dt; if (d.t > d.regen) { d.t = 0; d.food += 1; dirty = true; } }
-    stepRooms(dt); stepQueen(dt); stepFills(dt); stepRivals(dt); stepMole(dt); stepSewer(dt);
+    stepRooms(dt); stepQueen(dt); stepFills(dt); stepStones(dt); stepRivals(dt); stepMole(dt); stepSewer(dt);
     train.at -= dt; if (train.at <= 0 && train.x < -998 && !tubeBroken) train.x = TUBE.x0 - 300;
     if (train.x > -998) { const stopAt = tubeBreaks.length ? Math.min(...tubeBreaks.map((b) => b.x0)) - 6 : 1e9; train.x = Math.min(train.x + dt * 150, stopAt - 142); if (train.x > TUBE.x1 + 50 + 2 * 144) { train.x = -999; train.at = rnd(8, 14); } }
     if (train.x > -998) { const bed = TUBE.y + TUBE.h - 8; for (const a of [...ants]) if (!a.surf && a.y > bed - 7 && a.y < bed && a.x > train.x - 292 && a.x < train.x + 140 && Math.random() < dt * 0.02) { kill(a); if (clock - trainSaid > 25) { trainSaid = clock; caption('A train runs over the ones on the track', 2.2); } } }
@@ -2016,7 +2109,7 @@
     for (const d of debris) { d.vy += dt * 120; d.x += d.vx * dt; d.y += d.vy * dt; d.a += d.va * dt; }
     debris = debris.filter((d) => d.y < 4);
     stepTowers(dt); stepPest(dt); stepBuild(dt);
-    if (now - slowAt > 700) { slowAt = now; settle(); scout(clock); checkCity(); raiseSecond(); stepMines(); seeLayers(); findFace(); if (trod) for (let i = 0; i < GW * GH; i++) if (trod[i] > 0) trod[i] = trod[i] < 0.01 ? 0 : trod[i] * 0.985; }
+    if (now - slowAt > 700) { slowAt = now; settle(); scout(clock); checkCity(); raiseSecond(); stepMines(); seeLayers(); findFace(); stepRoofs(0.7); looseStones(); if (trod) for (let i = 0; i < GW * GH; i++) if (trod[i] > 0) trod[i] = trod[i] < 0.01 ? 0 : trod[i] * 0.985; }
     if (now - subAt > 450) { subAt = now; subside(); }
     if (cityDirty) { cityDirty = false; drawCity(); }
     dead = dead.filter((d) => clock - d.at < 14);
@@ -2085,7 +2178,7 @@
       else if (c.role === 'garden') { const n = Math.min(26, Math.round((c.raw || 0) + (c.ripe || 0)) + 3); g.strokeStyle = OVER; g.lineWidth = 0.35; for (let k = 0; k < n; k++) { const a = k * 2.4 + 0.3, r = Math.sqrt((k + 1) / 26) * c.r; g.fillStyle = k < (c.ripe || 0) ? '#efe2c0' : '#fbf6ea'; g.beginPath(); g.arc(c.x + Math.cos(a) * r * 1.3, c.y + 2 + Math.sin(a) * r * 0.35, 1.7, 0, TAU); g.fill(); g.stroke(); } }
       else if (c.role === 'sump') { g.strokeStyle = OVER; g.lineWidth = 0.5; g.globalAlpha = 0.7; for (let k = 0; k < 3; k++) { g.beginPath(); g.moveTo(c.x - c.r * (1 - k * 0.2), c.y + c.r * 0.3 - k * 2); g.lineTo(c.x + c.r * (1 - k * 0.2), c.y + c.r * 0.3 - k * 2); g.stroke(); } g.globalAlpha = 1; }
     }
-    drawBrood(t, vy0, vy1); drawWet(t);
+    drawBrood(t, vy0, vy1); drawWet(t); drawRoofs(t, vy0, vy1); drawStones(t, vy0, vy1);
     for (const d of deposits) { if (d.y < vy0 - 30 || d.y > vy1 + 30) continue; const n = Math.ceil(Math.min(d.food, 30) / 1.3); for (let k = 0; k < n; k++) { const a = k * 2.4, r = Math.sqrt(k / 24) * d.r; g.fillStyle = DEPC[d.label] || '#d9b24c'; g.beginPath(); g.ellipse(d.x + Math.cos(a) * r * 1.3, d.y + 2 + Math.sin(a) * r * 0.4, 1.3, 1, a, 0, TAU); g.fill(); } }
     for (const d of dead) { g.globalAlpha = clamp(1 - (t - d.at - 10) / 4, 0, 1); drawAnt(d, d.big, true); }
     g.globalAlpha = 1;

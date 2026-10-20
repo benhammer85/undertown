@@ -61,7 +61,8 @@
     for (const c of [base, top]) { c.width = Math.round(W * DPR); c.height = Math.round(H * DPR); }
     bg = base.getContext('2d'); g = top.getContext('2d');
     const keyH = document.getElementById('key').offsetHeight, t0 = 14 + (parseFloat(getComputedStyle(document.documentElement).paddingTop) || 0);
-    F = { x: 8, y: t0, w: W - 16, h: H - keyH - 26 - t0, t: 20, tr: 24, b: 14 };
+    const fh = H - keyH - 26 - t0, fw = Math.min(W - 16, Math.round(fh * 0.66));
+    F = { x: Math.round((W - fw) / 2), y: t0, w: fw, h: fh, t: 22, tr: 24, b: 14 };
     IN = { x: F.x + 14, y: F.y + F.t, w: F.w - 14 - F.tr, h: F.h - F.t - F.b };
     S = IN.w / UW; RU = S * DPR;
     G = Math.round(IN.y + IN.h * 0.42);
@@ -762,7 +763,10 @@
   // then earth, then pipe or brick or concrete to be chewed (dear), never through water.
   function stepCost(i) {
     const v = soil[i]; if (water[i] > 0.5 || v === 4) return 0;
-    if (v === 0) return 1; if (v === 5) return 8; if (v === 1) return nearRiver(i) ? 0 : 3;
+    if (v === 0) return 1;
+    // (Not along the underside of the road, which would open the street; not hard under the water pipe, which it
+    // would undermine and burst. A way can still cross either; it won't run along them.)
+    { const y = cyOf(i); if (y < 9) return 40; if (PIPE && v === 1 && y > PIPE.y + PIPE.h && y < PIPE.y + PIPE.h + 9) return 10; } if (v === 5) return 8; if (v === 1) return nearRiver(i) ? 0 : 3;
     if ((v === 2 || v === 3) && !inTube(cyOf(i)) && !nearRiver(i) && !stoneAt.has(i)) return 14;
     return 0;
   }
@@ -1132,8 +1136,12 @@
   const open4 = (v) => v === 0 || v === 4;
   function subside() {
     const rows = Math.min(GH - 2, LOOSE), changed = new Set();
+    // (Only under a building does the made ground give: the open street is paved and packed hard, so a tunnel under
+    // it holds. Under a building, the weight on it brings a hollow up.)
+    const underB = new Uint8Array(GW); for (const t of towers) if (!t.fall && t.rise >= 1) for (let x = Math.max(0, Math.floor((t.x - 4) / CS)); x <= Math.min(GW - 1, Math.floor((t.x + t.w + 4) / CS)); x++) underB[x] = 1;
     let falls = 0;
     for (let r = rows - 1; r >= 0 && falls < 60; r--) for (let x = 0; x < GW && falls < 60; x++) {
+      if (!underB[x]) continue;
       const i = r * GW + x; if (soil[i] !== 1 || changed.has(i)) continue;
       const b = i + GW, vb = soil[b]; if (!open4(vb) || changed.has(b)) continue;
       let sp = 1; for (let q = 1; q < 10 && x - q >= 0 && open4(soil[b - q]); q++) sp++; for (let q = 1; q < 10 && x + q < GW && open4(soil[b + q]); q++) sp++;
@@ -1142,6 +1150,7 @@
       // (The roof falls to the hollow's floor: the hollow moves up by a crumb.)
       let j = b; while (j + GW < GW * GH && soil[j + GW] === vb) j += GW;
       soil[i] = vb; soil[j] = 1; changed.add(i); changed.add(j); plan[i] = 0;
+      if (vb === 0) plan[j] = 1; // (the earth that fell in, on the tunnel's floor: the ants clear it again)
       markDug(cxOf(i), cyOf(i), 3); markDug(cxOf(j), cyOf(j), 3);
       for (const a of ants) if (!a.surf && gi(a.x, a.y) === j) kill(a);
       falls++;
@@ -1198,7 +1207,7 @@
     while (q.length) {
       const i = q.pop(); soil[i] = 4; plan[i] = 0;
       const x = i % GW;
-      for (const j of [i - 1, i + 1, i + GW, i - GW]) if (j >= 0 && j < GW * GH && !seen[j] && Math.abs((j % GW) - x) <= 1 && soil[j] === 0 && Math.abs(cxOf(j) - cx) < 90 && cyOf(j) < 120) { seen[j] = 1; q.push(j); }
+      for (const j of [i - 1, i + 1, i + GW, i - GW]) if (j >= 0 && j < GW * GH && !seen[j] && Math.abs((j % GW) - x) <= 1 && soil[j] === 0 && Math.abs(cxOf(j) - cx) < 90 && cyOf(j) < 45) { seen[j] = 1; q.push(j); }
     }
     for (const a of [...ants]) { const i = gi(a.x, a.y); if (!a.surf && i >= 0 && soil[i] === 4) kill(a); }
     const h = { x0: gx0 * CS, x1: gx1 * CS, cx, at: clock, filled: false };
@@ -1690,7 +1699,8 @@
     if (tap && hand.below) openMenu(hand.x0, hand.y0);
     else if (hand.below && !hand.chambered && hand.len >= 20) {
       // (The drawn line, less the points that can't be dug; the gaps bridged by the found way.)
-      const k0 = plans.length, pts = hand.pts.map(([x, y]) => [x, Math.max(1, y)]).filter(([x, y]) => { const i = gi(x, y); return i >= 0 && y < surveyed() && stepCost(i) > 0; });
+      // (Kept a metre under the road, except where the line ends above it: a new way out.)
+      const k0 = plans.length, pts = hand.pts.map(([x, y], k, all) => [x, k === all.length - 1 && y < 0 ? 1 : Math.max(9, y)]).filter(([x, y]) => { const i = gi(x, y); return i >= 0 && y < surveyed() && stepCost(i) > 0; });
       if (pts.length && linkToNest(pts[0][0], pts[0][1])) {
         const ok = (ax, ay, bx, by) => { const n = Math.ceil(Math.hypot(bx - ax, by - ay) / 1.5); for (let j = 0; j <= n; j++) { const i = gi(ax + ((bx - ax) * j) / n, ay + ((by - ay) * j) / n); if (i < 0 || !stepCost(i)) return false; } return true; };
         for (let k = 1; k < pts.length; k++) {
@@ -1921,6 +1931,20 @@
     try { const r = await idbDo('readwrite', (o) => o.put(snapshot(), 'game')); if (r !== null) hasSave = true; } finally { saving = false; }
   }
   setInterval(saveGame, 12000);
+  // (Turned on its side, or the window resized: the plate's printed for one size, so save, and open it again at the
+  // new one. Small changes in height, a toolbar coming and going, are let be.)
+  let sizeAt = [innerWidth, innerHeight], resizeTimer = 0;
+  addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(async () => {
+      const [w0, h0] = sizeAt; if (Math.abs(innerWidth - w0) < 2 && Math.abs(innerHeight - h0) < 120) return;
+      sizeAt = [innerWidth, innerHeight];
+      const playing = !freshWorld && QUEEN.alive && !fallen;
+      if (playing) { card = null; await saveGame(); }
+      try { location.hash = playing && hasSave ? 'continue' : ''; } catch {}
+      location.reload();
+    }, 450);
+  });
   addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveGame(); });
   addEventListener('pagehide', saveGame);
   function restore(sv) {
@@ -2399,7 +2423,7 @@
     g.font = `italic ${(17 / Z).toFixed(1)}px ${DISPLAY}`; g.textAlign = 'right'; g.textBaseline = 'bottom';
     for (const [y, txt] of [[REACH.concrete, 'concrete can’t reach below here'], [REACH.bait, 'poison bait doesn’t work below here'], [REACH.smoke, 'gas can’t reach below here']]) {
       if (y < vy0 || y > vy1) continue;
-      g.strokeStyle = PENCIL; g.fillStyle = PENCIL; g.globalAlpha = 0.7; g.lineWidth = 0.6; g.setLineDash([2, 4]); g.beginPath(); g.moveTo(0, y); g.lineTo(UW, y); g.stroke(); g.setLineDash([]); g.fillText(txt, UW - 6, y - 1.5);
+      g.strokeStyle = PENCIL; g.fillStyle = PENCIL; g.globalAlpha = 0.7; g.lineWidth = 0.6; g.setLineDash([2, 4]); g.beginPath(); g.moveTo(0, y); g.lineTo(UW, y); g.stroke(); g.setLineDash([]); { const tw2 = g.measureText(txt).width, th = 17 / Z; g.globalAlpha = 0.85; g.fillStyle = PAPER; g.fillRect(UW - 10 - tw2, y - 2.5 - th, tw2 + 8, th + 2); g.globalAlpha = 0.8; g.fillStyle = PENCIL; } g.fillText(txt, UW - 6, y - 1.5);
     }
     g.globalAlpha = 1;
     // Tunnels drawn but not yet dug: a pencilled dash.
@@ -2506,7 +2530,7 @@
   function drawHead(t) {
     g.setTransform(DPR, 0, 0, DPR, 0, 0);
     const y = F.y + F.t / 2 + 0.5, [b, s, c] = thresholds();
-    g.save(); g.fillStyle = PAPER; g.font = `italic 500 13px ${DISPLAY}`; g.textAlign = 'left'; g.textBaseline = 'middle';
+    g.save(); g.fillStyle = PAPER; g.font = `italic 600 16px ${DISPLAY}`; g.textAlign = 'left'; g.textBaseline = 'middle';
     g.fillText(`Town ${TOWN(era)} · ${NAMES[era % NAMES.length]}`, F.x + 14, y);
     { const w0 = g.measureText(`Town ${TOWN(era)} · ${NAMES[era % NAMES.length]}`).width; for (let k = 0; k < goal.n; k++) { const x = F.x + 22 + w0 + k * 9; g.beginPath(); g.rect(x, y - 3.5, 6, 7); if (k < downed) g.fill(); else { g.strokeStyle = PAPER; g.lineWidth = 1; g.stroke(); } } }
     const x0 = F.x + F.w - 24 - 10 * 8;

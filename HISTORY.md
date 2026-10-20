@@ -88,3 +88,16 @@ game full screen. (Drawn by `sketches/icon/icon.html`.)
   storage. A **title** opens the game: Continue, New game, How to play. **Tap the town's name** to pause.
   A continued game prints its ground again exactly as it first was (each fallen town's layer too), then puts back
   the dug ground and everything in it. New test, `tests/save.cjs`.
+
+## 2026-10-20 — an audit, and what it found
+Played by a bot for minutes at a time, on five screen sizes. Fixed:
+- **A new colony was gutted in its first ten seconds.** The way-finder ran tunnels along the underside of the road
+  (the cheapest earth), which opened the street; a hole then swallowed the whole entrance shaft, 16 m of it.
+  Ways now keep a metre under the road and don't run along under the water pipe; a hole takes only the shaft's
+  top; and the made ground gives way only under buildings (the open street is packed hard).
+- **Digging stalled for good when earth fell into a tunnel** under a building: what falls in is now dug out again.
+- **Landscape and wide screens** stretched the plate to a sliver of street: the plate keeps its portrait shape,
+  centred.
+- **Turning the phone mid-game** left the plate drawn for the old size: it now saves and reopens at the new one.
+- The head of the frame set larger; the depth notes on a paper backing, clear of the print.
+Frame rate held at 60, memory flat (8 to 12 MB), no errors over the long sessions.

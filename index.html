@@ -1784,11 +1784,21 @@
     card = { title: 'The colony is lost', lines: [`On plate ${ROMAN[era] || era + 1}, after ${mins(clock - plateAt)}: ${downed} of ${goal.n} buildings down, tunnels ${deepest()} m deep, ${stats.lost} ants lost.`, 'Dig deeper next time, and keep the queen below what the city can reach.'],
       buttons: [{ label: 'A new queen', fn: () => { card = null; newQueen(); } }] };
   }
+  // (The print saved: inside claude.ai through its downloads, which asks the viewer first; on its own site, as a
+  // plain download.)
+  const saver = window.claude && window.claude.use ? window.claude.use('downloads').catch(() => null) : Promise.resolve(null);
   function savePrint() {
     hideCards = true; draw(clock); hideCards = false;
     const c = document.createElement('canvas'); c.width = base.width; c.height = base.height; const x = c.getContext('2d'); x.drawImage(base, 0, 0); x.drawImage(top, 0, 0);
-    const a = document.createElement('a'); a.download = `undertown-plate-${era + 1}-${NAMES[era % NAMES.length].toLowerCase().replace(/\W+/g, '-')}.png`; a.href = c.toDataURL('image/png'); document.body.appendChild(a); a.click(); a.remove();
-    caption('The print is saved', 1.8);
+    const name = `undertown-plate-${era + 1}-${NAMES[era % NAMES.length].toLowerCase().replace(/\W+/g, '-')}.png`;
+    c.toBlob(async (blob) => {
+      if (!blob) { caption('The print could not be made', 2); return; }
+      const dl = await saver;
+      if (dl) { try { await dl.save({ filename: name, data: blob }); caption('The print is saved', 1.8); } catch (e) { caption(e && e.code === 'declined' ? 'Not saved' : 'Saving isn’t available here', 2); } return; }
+      if (window.claude) { caption('Saving isn’t available here', 2); return; }
+      const a = document.createElement('a'); a.download = name; a.href = URL.createObjectURL(blob); document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      caption('The print is saved', 1.8);
+    }, 'image/png');
   }
   function drawCards() {
     if (!card || hideCards) return;

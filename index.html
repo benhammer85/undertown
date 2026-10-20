@@ -1043,6 +1043,7 @@
   function stepTowers(dt) {
     for (const t of [...towers]) {
       if (t.rise < 1) { t.rise = Math.min(1, t.rise + dt / 34); if (t.rise >= 1) cityDirty = true; continue; }
+      if (t.fall && SETTLE) { topple(t, dt); continue; }
       if (t.fall) {
         const f = t.fall; f.t += dt; f.v += dt * (22 + f.t * 40); f.sink += f.v * dt;
         t.tilt = f.side * Math.min(f.floor > 0 ? 0.24 : 0.07, f.t * (f.floor > 0 ? 0.09 : 0.035));
@@ -1057,6 +1058,40 @@
       if (SETTLE) { t.tilt += (t.want - t.tilt) * Math.min(1, dt * 1.5); t.sinkY = (t.sinkY || 0) + ((t.sinkTo || 0) - (t.sinkY || 0)) * Math.min(1, dt * 1.5); continue; }
       if (Math.abs(t.want - t.tilt) > 0.001) { t.tilt += (t.want - t.tilt) * Math.min(1, dt * 1.5); cityDirty = true; }
     }
+  }
+  // (A hut with ground gone from under one side tips over that way: it turns on the corner still standing, lands on
+  // its side, and whatever it lands on is shaken; a hut already cracked goes over with it.)
+  function topple(t, dt) {
+    const f = t.fall, side = f.side;
+    if (f.u === undefined) {
+      const a = (t.tilt || 0) * 1.5, sy = (t.sinkY || 0) * 2, dx = side * t.w / 2;
+      f.u = Math.max(0, side * a); f.av = 0.2; f.px = t.x + t.w / 2 + dx * Math.cos(a); f.py = sy + dx * Math.sin(a); f.drop = 0; f.rest = 0; f.stop = 1.5;
+      // (A hut standing in the way stops it: it comes to lean on that one.)
+      const reach = (u) => Math.max(t.d.wall * Math.sin(u), t.d.h * Math.sin(u) - (t.w / 2) * Math.cos(u), t.d.wall * Math.sin(u) - t.w * Math.cos(u));
+      let near = null, D = Infinity;
+      for (const o of towers) { if (o === t || o.fall || o.rise < 1) continue; const d = side > 0 ? o.x - f.px : f.px - (o.x + o.w); if (d > -2 && d < D) { D = d; near = o; } }
+      if (near && reach(1.5) > D - 1) { let u = f.u; while (u < 1.5 && reach(u) < D - 1) u += 0.01; f.stop = Math.max(f.u + 0.05, u); f.hit = near; }
+    }
+    f.t += dt;
+    if (!f.down) {
+      f.av += dt * (1.4 + 9 * Math.sin(f.u)); f.u += f.av * dt;
+      if (f.u >= f.stop) {
+        f.u = f.stop;
+        if (f.av > 1.2) {
+          // (The hit: dust along where it came down, and the ground under it shaken.)
+          const x0 = f.px, x1 = f.px + side * t.d.h;
+          for (let q = 0; q < 7; q++) { const x = x0 + (x1 - x0) * Math.random(); dust.push({ x, y: f.py - 2, r: rnd(5, 11), vx: side * rnd(4, 22), vy: rnd(-3, -0.8), t: 0, life: rnd(2.5, 4), s: Math.random() * 9 }); }
+          for (const o of towers) {
+            if (o === t || o.fall || o.rise < 1 || (o !== f.hit && (o.x > Math.max(x0, x1) || o.x + o.w < Math.min(x0, x1)))) continue;
+            o.damage = (o.damage || 0) + 1;
+            if (o.cracked) setTimeout(() => collapse(o, side), 450); else { o.push = side * 0.05; crack(o, side); }
+          }
+          f.av = -f.av * (f.hit ? 0.12 : 0.22);
+        } else { f.av = 0; f.down = true; }
+      }
+    } else if ((f.rest += dt) > 1.4) { if (f.hit) { f.restX = side > 0 ? t.x : f.hit.x + f.hit.w; f.restW = side > 0 ? f.hit.x - t.x : t.x + t.w - f.restX; } else { f.restX = side > 0 ? f.px : f.px - t.d.h; f.restW = t.d.h; } land(t); return; }
+    // (The standing corner goes down into what's open beside it.)
+    const want = Math.min(10, surfAt(f.px + side * 4)); f.drop += (want - f.drop) * Math.min(1, dt * 2);
   }
   function rubbleHeap(X, Wd) {
     P = plates(Wd + 80, 90, X - 40, -70);
@@ -1075,9 +1110,9 @@
     // (Its rubble fills whatever opened under it.)
     if (t.fall.floor > 0) fillHole(t.x - 10, t.x + t.w + 10);
     // (What's left: a heap, low, where it stood; and the food it held, out in the street.)
-    const c = rubbleHeap(t.x, t.w);
-    rubble.push({ x: t.x, ox: -40, oy: -70, w: t.w + 80, h: 90, c, x0: t.x, x1: t.x + t.w });
-    for (let k = 0; k < 8 + Math.round(t.d.h / 40); k++) crumbs.push({ x: clamp(t.x + rnd(-20, t.w + 20), 4, UW - 4), claimed: null, bait: false, at: clock });
+    const rx = clamp(t.fall.restX ?? t.x, 0, UW - 10), rw = Math.min(t.fall.restW ?? t.w, UW - rx), c = rubbleHeap(rx, rw);
+    rubble.push({ x: rx, ox: -40, oy: -70, w: rw + 80, h: 90, c, x0: rx, x1: rx + rw });
+    for (let k = 0; k < 8 + Math.round(t.d.h / 40); k++) crumbs.push({ x: clamp(rx + rnd(-20, rw + 20), 4, UW - 4), claimed: null, bait: false, at: clock });
     cityDirty = true;
   }
 
@@ -1216,7 +1251,7 @@
       let l = 0, r = 0, nl = 0, nr = 0;
       for (let x = t.x + 3; x < t.x + t.w - 3; x += CS) { const d = Math.min(18, surfAt(x)); if (x < t.x + t.w / 2) { l += d; nl++; } else { r += d; nr++; } }
       l /= nl || 1; r /= nr || 1;
-      t.sinkTo = (l + r) / 2; t.want = Math.atan2(r - l, t.w / 2) * 0.9;
+      t.sinkTo = (l + r) / 2; t.want = Math.atan2(r - l, t.w / 2) * 0.9 + (t.push || 0);
       const k = Math.max(t.sinkTo / 8, Math.abs(t.want) / 0.1); t.hf = Math.min(1, k) * 0.15;
       if (k > 0.5 && !t.cracked) crack(t, t.want >= 0 ? 1 : -1);
       if (k >= 1) collapse(t, t.want >= 0 ? 1 : -1);
@@ -2476,14 +2511,16 @@
     const vy0 = camY - (G - IN.y) / SZ(), vy1 = camY + (IN.y + IN.h - G) / SZ();
     if (vy0 < 10) {
       g.drawImage(cityC, 0, cityC.oy, UW, cityC.height / RU);
-      for (const tw of towers) { if (tw.fall) { drawSprite(g, towerSprite(tw), tw.x, 0, tw.tilt, tw.fall.sink, tw.fall.floor); } else if (tw.rise < 1 && tw.rise > 0) site(tw, t); }
+      for (const tw of towers) { if (tw.fall && SETTLE) continue; if (tw.fall) { drawSprite(g, towerSprite(tw), tw.x, 0, tw.tilt, tw.fall.sink, tw.fall.floor); } else if (tw.rise < 1 && tw.rise > 0) site(tw, t); }
     }
     for (let k = Math.max(0, Math.floor(vy0 / CH)); k <= Math.floor(vy1 / CH); k++) g.drawImage(chunk(k).c, 0, k * CH, UW, CH);
     if (SETTLE) drawTrickle(t);
     if (SETTLE && vy0 < 10) for (const tw of towers) { const t = tw;
-      if (t.fall || t.rise < 1) continue;
-      g.save(); g.beginPath(); g.moveTo(t.x - 40, -600); for (let x = t.x - 40; x <= t.x + t.w + 40; x += CS) g.lineTo(x, surfAt(x) + 0.6); g.lineTo(t.x + t.w + 40, -600); g.closePath(); g.clip();
-      const sp = towerSprite(t); g.translate(t.x + t.w / 2, (t.sinkY || 0) * 2); g.rotate(t.tilt * 1.5); g.drawImage(sp.c, sp.ox - t.w / 2, sp.oy, sp.w, sp.h); g.restore(); // (sink and lean drawn a little more than they are, to be seen)
+      if (t.rise < 1) continue;
+      const m = t.fall ? t.d.h + 40 : 40;
+      g.save(); g.beginPath(); g.moveTo(t.x - m, -600); for (let x = t.x - m; x <= t.x + t.w + m; x += CS) g.lineTo(x, surfAt(x) + 0.6); g.lineTo(t.x + t.w + m, -600); g.closePath(); g.clip();
+      const sp = towerSprite(t);
+      if (t.fall) { const f = t.fall; if (f.u === undefined) { g.restore(); continue; } g.translate(f.px, f.py + f.drop); g.rotate(f.side * f.u); g.drawImage(sp.c, sp.ox - (f.side > 0 ? t.w : 0), sp.oy, sp.w, sp.h); g.restore(); continue; } g.translate(t.x + t.w / 2, (t.sinkY || 0) * 2); g.rotate(t.tilt * 1.5); g.drawImage(sp.c, sp.ox - t.w / 2, sp.oy, sp.w, sp.h); g.restore(); // (sink and lean drawn a little more than they are, to be seen)
     }
     // The trains.
     if (vy1 > TUBE.y && vy0 < TUBE.y + TUBE.h) { for (const a of ants) if (!a.surf && a.y > TUBE.y && a.y < TUBE.y + TUBE.h) drawAnt(a); if (train.x > -998) { g.save(); g.beginPath(); g.rect(TUBE.x0, TUBE.y + 8, TUBE.x1 - TUBE.x0, TUBE.h - 16); g.clip(); for (let c = 0; c < 3; c++) blit(SPR.tube, train.x - c * 144, TUBE.y + 14); g.restore(); } }

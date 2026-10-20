@@ -101,3 +101,5 @@ Played by a bot for minutes at a time, on five screen sizes. Fixed:
 - **Turning the phone mid-game** left the plate drawn for the old size: it now saves and reopens at the new one.
 - The head of the frame set larger; the depth notes on a paper backing, clear of the print.
 Frame rate held at 60, memory flat (8 to 12 MB), no errors over the long sessions.
+- The key under the plate could run into the frame on a phone: the sheet was measured before its typeface loaded
+  (which wraps the key a line longer). It's now laid out once the type is in.

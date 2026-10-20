@@ -2546,6 +2546,10 @@
   bg.fillStyle = OVER; bg.font = `italic 500 20px ${DISPLAY}`; bg.textAlign = 'center'; bg.fillText('Pulling the print…', W / 2, H / 2);
   setTimeout(start, 40);
   async function start() {
+  // (The key under the plate is measured for the plate's height: wait for its typeface, which can wrap it to
+  // another line, then lay the sheet out again.)
+  try { await Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, 1500))]); } catch {}
+  layout(); sizeAt = [innerWidth, innerHeight];
   makePaper();
   makeSprites();
   cityC = document.createElement('canvas'); cityC.width = Math.ceil(UW * RU); cityC.oy = -(SKY + 90); cityC.height = Math.ceil((SKY + 100) * RU); cityX = cityC.getContext('2d');

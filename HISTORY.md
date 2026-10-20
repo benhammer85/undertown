@@ -21,3 +21,14 @@ Where it stands:
 
 Fixed on the way here: the burying of a fallen town crashed (a name reused); the subway's floor gully was sealed
 by one row; idle ants loitered on the track and were run over.
+
+## 2026-10-20 — the long dig works
+A route drawn deep (to the other colony, ~330 m) sat as faint pencil and never arrived. Causes, all fixed:
+- deep diggers were carrying spoil to the street (a check read the wrong cell after the bite chain);
+- a digger finding the face already dug gave up its job instead of waiting for the way on;
+- routes started from the subway track, so diggers commuted along it and trains took them;
+- a single bait crumb killed two and a half ants: now one;
+- tunnels passing a cave pool drained it into the dig face (standing water now stays put);
+- what a mole or a cave-in fills is now marked to be dug out again.
+Now: the other colony is reached in about three minutes from a fresh start. The plate's head shows how many
+metres are left to dig; drawn routes are darker; the other colony's ants are larger and plainly pink.

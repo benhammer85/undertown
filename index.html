@@ -300,7 +300,7 @@
   // town; the river the town buried; its harbour before that; the mines; the clay; another colony; chalk; the
   // water table; warm rock. Each city that falls pushes it all one layer deeper (lay() takes that back off).
   const L = { river: 860, harbour: 1080, mine: 1460, clay0: 2030, clay1: 2330, rivals: 2440, chalk: 2630, table: 3080, rock: 3380, warm: 3530 };
-  const LAYERS = [[320, 'The undercroft of the old hall'], [700, 'The old town'], [850, 'The lost river'], [1060, 'The old harbour'], [1440, 'The mine workings'], [2030, 'The clay'], [2420, 'Another colony'], [2630, 'Chalk and flint'], [3080, 'The water table'], [3380, 'Bedrock'], [3530, 'Warm rock']];
+  const LAYERS = [[320, 'The undercroft of the old hall'], [700, 'The old town'], [850, 'The lost river'], [1060, 'The old harbour'], [1440, 'The mine workings'], [2030, 'The clay'], [2420, 'Another colony: dig through to it, and its stores are yours to fight for'], [2630, 'Chalk and flint'], [3080, 'The water table'], [3380, 'Bedrock'], [3530, 'Warm rock']];
   // (How far down the exterminator's work goes, from the street: concrete as far as the hose, bait as far as an
   // ant will carry it fresh, smoke as far as it sinks.)
   const REACH = { concrete: 225, bait: 375, smoke: 600 };
@@ -736,14 +736,14 @@
   }
   // (Only a route you draw goes through pipe and concrete; the scouts keep to earth.)
   const inTube = (y) => TUBE && y > TUBE.y - 2 && y < TUBE.y + TUBE.h + 2;
-  // (Brick that holds back the lost river isn't to be chewed by accident.)
-  const nearRiver = (i) => { const x = i % GW; for (let k = -3; k <= 3; k++) { const a = i + k * GW; if (a >= 0 && a < GW * GH && still[a] === 2) return true; if (x + k >= 0 && x + k < GW && still[i + k] === 2) return true; } return false; };
+  // (Nothing's dug or chewed beside standing water, the lost river's or a cave pool's: it would all drain in.)
+  const nearRiver = (i) => { const x = i % GW; for (let k = -3; k <= 3; k++) { const a = i + k * GW; if (a >= 0 && a < GW * GH && still[a] && water[a] > 0.3) return true; if (x + k >= 0 && x + k < GW && still[i + k] && water[i + k] > 0.3) return true; } return false; };
   // Finding the way. A route is dug as drawn where it can be; where it can't (water, the subway's open air, an
   // open hole), and from the colony out to where it starts, the way's found: the cheapest line through tunnel,
   // then earth, then pipe or brick or concrete to be chewed (dear), never through water.
   function stepCost(i) {
     const v = soil[i]; if (water[i] > 0.5 || v === 4) return 0;
-    if (v === 0) return 1; if (v === 5) return 8; if (v === 1) return 3;
+    if (v === 0) return 1; if (v === 5) return 8; if (v === 1) return nearRiver(i) ? 0 : 3;
     if ((v === 2 || v === 3) && !inTube(cyOf(i)) && !nearRiver(i)) return 14;
     return 0;
   }
@@ -767,7 +767,7 @@
     const way = []; for (let i = dst; i >= 0; i = wP[i]) way.push(i);
     return way.reverse();
   }
-  const colonyCells = () => { if (dirty || alloc !== cap) fields(); const out = []; for (let i = 0; i < GW * GH; i++) if (fNest[i] < 1e8 && pass(i)) out.push(i); return out; };
+  const colonyCells = () => { if (dirty || alloc !== cap) fields(); const out = []; for (let i = 0; i < GW * GH; i++) if (fNest[i] < 1e8 && pass(i) && soil[i] !== 5) out.push(i); return out; }; // (not the track: no commuting along it)
   function planWay(way, show = true) {
     for (const i of way) markPlan(cxOf(i), cyOf(i), BITE + 0.4, true);
     if (show && way.length > 1) { const pts = []; for (let k = 0; k < way.length; k += 3) pts.push([cxOf(way[k]), cyOf(way[k])]); pts.push([cxOf(way[way.length - 1]), cyOf(way[way.length - 1])]); plans.push({ kind: 'path', pts }); }
@@ -775,7 +775,7 @@
   function markPlan(x, y, r, hard = false) {
     for (let yy = y - r; yy <= y + r; yy += CS) for (let xx = x - r; xx <= x + r; xx += CS) {
       if ((xx - x) ** 2 + (yy - y) ** 2 > r * r) continue;
-      const i = gi(xx, yy); if (i >= 0 && (soil[i] === 1 || (hard && (soil[i] === 2 || soil[i] === 3) && !inTube(yy) && !nearRiver(i)))) plan[i] = 1;
+      const i = gi(xx, yy); if (i >= 0 && ((soil[i] === 1 && !(hard && nearRiver(i))) || (hard && (soil[i] === 2 || soil[i] === 3) && !inTube(yy) && !nearRiver(i)))) plan[i] = 1;
     }
     dirty = true;
   }
@@ -1419,6 +1419,7 @@
       const i = y * GW + x;
       if (still[i] === 2) water[i] = 1;
       else if (y > tableRow && soil[i] === 0 && Math.random() < 0.012) water[i] = Math.min(1.2, water[i] + 0.3);
+      if (still[i] === 1) continue; // (a cave's pool, the well: standing water stays where it stands)
       let w = water[i]; if (w <= 0.001) continue;
       const b = i + GW;
       if (soil[b] === 0 && water[b] < 1) { const m = Math.min(w, 1 - water[b]); water[b] += m; w -= m; moved = true; }
@@ -1478,7 +1479,7 @@
       return;
     }
     if (a.carry === 'crumb' || a.carry === 'bait') {
-      if (!cellStep(a, fStore)) { const i = gi(a.x, a.y); if (i >= 0 && fStore[i] === 0) { if (a.carry === 'bait') { if (a.y > REACH.bait) { if (!baitSaid) { baitSaid = true; caption('The bait goes stale on the long way down', 2.6); } } else poison += 2.5; } else stock++; a.carry = null; a.wait = 0.4; a.job = 'idle'; } else wander(a); }
+      if (!cellStep(a, fStore)) { const i = gi(a.x, a.y); if (i >= 0 && fStore[i] === 0) { if (a.carry === 'bait') { if (a.y > REACH.bait) { if (!baitSaid) { baitSaid = true; caption('The bait goes stale on the long way down', 2.6); } } else poison += 1; } else stock++; a.carry = null; a.wait = 0.4; a.job = 'idle'; } else wander(a); }
       return;
     }
     if (a.job === 'mine') {
@@ -1490,13 +1491,13 @@
       if (!cellStep(a, fDig)) {
         const i = gi(a.x, a.y);
         if (i >= 0 && fDig[i] === 0) {
-          const x = i % GW, n = [i - 1, i + 1, i - GW, i + GW].filter((j) => j >= 0 && j < GW * GH && Math.abs((j % GW) - x) <= 1 && plan[j] && soil[j] >= 1 && soil[j] <= 3);
+          const x = i % GW, n = N8(i).filter((j) => j >= 0 && j < GW * GH && Math.abs((j % GW) - x) <= 1 && plan[j] && soil[j] >= 1 && soil[j] <= 3);
           if (n.length) {
             let j = n[(Math.random() * n.length) | 0];
-            if (soil[j] !== 1) { gnaw(a, j); return; } const bites = rocky(cyOf(j)) || clay(cyOf(j)) ? 1 : cyOf(j) > 160 ? 3 : 2;
+            if (soil[j] !== 1) { gnaw(a, j); return; } const bites = rocky(cyOf(j)) || clay(cyOf(j)) ? 2 : cyOf(j) > 160 ? 5 : 2;
             for (let b = 0; b < bites && j >= 0; b++) { stamp(cxOf(j), cyOf(j), BITE); const jx = j % GW, m = N8(j).filter((q) => q >= 0 && q < GW * GH && Math.abs((q % GW) - jx) <= 1 && plan[q] && soil[q] === 1); j = m.length ? m[(Math.random() * m.length) | 0] : -1; }
-            if (cyOf(j) > 160) { a.wait = bites > 1 ? 0.5 : 1.4; } else { a.carry = 'grain'; a.wait = bites > 1 ? 0.7 : 1.6; }
-          } else { a.job = 'idle'; dirty = true; }
+            if (a.y > 160) { a.wait = bites > 2 ? 0.35 : 1; } else { a.carry = 'grain'; a.wait = bites > 1 ? 0.7 : 1.6; }
+          } else { a.wait = 0.15; dirty = true; } // (the face has moved on: wait for the way to it)
         } else wander(a);
       }
       return;
@@ -1555,7 +1556,7 @@
     const s = big === true ? 2.4 : big || 1;
     g.save(); g.translate(a.x, a.y); g.rotate(a.a); g.scale(s, upside ? -s : s);
     g.fillStyle = a.rival ? PINK : OVER; g.beginPath(); g.ellipse(-1.3, 0, 1.25, 0.8, 0, 0, TAU); g.ellipse(0.4, 0, 0.6, 0.45, 0, 0, TAU); g.ellipse(1.5, 0, 0.6, 0.55, 0, 0, TAU); g.fill();
-    if (a.rival) { g.strokeStyle = OVER; g.lineWidth = 0.3; g.stroke(); }
+    if (a.rival) { g.strokeStyle = OVER; g.lineWidth = 0.12; g.stroke(); }
     if (big || upside) { g.strokeStyle = OVER; g.lineWidth = 0.3; const ph = upside ? 0.8 : Math.sin(a.step) * 0.5; for (const sd of [-1, 1]) { g.beginPath(); g.moveTo(-0.6, 0); g.lineTo(-1.2 + ph * sd, sd * 1.6); g.moveTo(0.4, 0); g.lineTo(0.6, sd * 1.7); g.moveTo(0.8, 0); g.lineTo(1.6 - ph * sd, sd * 1.5); g.stroke(); } }
     if (a.carry) { g.fillStyle = a.carry === 'grain' ? '#c98c78' : a.carry === 'bait' ? '#7a8fb8' : DEPC[a.load] || '#d9b24c'; g.beginPath(); if (a.load === 'aphids' && a.carry === 'crumb') g.ellipse(2.7, 0, 1.3, 0.9, 0, 0, TAU); else g.arc(2.8, 0, 1.25, 0, TAU); g.fill(); g.strokeStyle = OVER; g.lineWidth = 0.22; g.stroke(); }
     g.restore();
@@ -1734,7 +1735,7 @@
   // which takes food and gives back three times as much, if it's below the works; a sump, which drinks water.
   const ROLES = ['larder', 'nursery', 'garden', 'sump'], ROLE_NAME = { larder: 'A larder', nursery: 'A nursery', garden: 'A fungus garden', sump: 'A sump, to drink the water' };
   const DEPC = { honey: '#d99a3a', seeds: '#c98c78', aphids: GREEN, flour: '#fbf6ea', cheese: '#e2bd5c', cargo: '#c9a24a', scraps: '#c98c78', 'their stores': '#d9b24c' };
-  let baitSaid = false;
+  let baitSaid = false, toDig = 0;
   function tapRoom(x, y) {
     // (A fingertip's slack round each room: a room is small on the plate.)
     const c = chambers.find((q) => ((x - q.x) / (q.r * 1.4 + 10)) ** 2 + ((y - q.y) / (q.r * 0.6 + 9)) ** 2 < 1 && soil[gi(q.x, q.y)] === 0);
@@ -1844,7 +1845,7 @@
         const i = gi(r.x, r.y); if (i < 0) continue;
         if (r.carry) { if (!cellStep(r, fRiv)) { if (fRiv[i] === 0) { r.carry = null; RIV.loot++; r.wait = 0.5; if (RIV.loot % 3 === 0 && RIV.ants.length < 60) RIV.ants.push({ ...newAnt(RIV.x, RIV.y), rival: true }); } else wander(r); } }
         else if (linked && r.raid) { if (!cellStep(r, fStore)) { if (fStore[i] === 0 && stock >= 1) { stock -= 1; r.carry = 'crumb'; r.wait = 0.4; } else { r.raid = false; wander(r); } } }
-        else { if (linked && Math.random() < 0.03) r.raid = true; if (fRiv[i] > 20 && Math.random() < 0.5) cellStep(r, fRiv); else wander(r); }
+        else { if (linked && Math.random() < 0.03) r.raid = true; if (fRiv[i] > 45 && Math.random() < 0.5) cellStep(r, fRiv); else wander(r); }
       }
       // (Where they meet, a fight either side may lose; guards win most.)
       if (guardAt.has(gi(r.x, r.y)) && Math.random() < dt * 2) { if (Math.random() < 0.75) { kill2(r); continue; } loseGuard(r.x, r.y); }
@@ -1871,9 +1872,9 @@
       for (let dy = -11; dy <= 11; dy += CS) for (let dx = -16; dx <= 16; dx += CS) {
         if ((dx / 16) ** 2 + (dy / 11) ** 2 > 1) continue; const x = m.x + dx, y = m.y + dy;
         if (QUEEN.alive && Math.hypot(x - QUEEN.x, y - QUEEN.y) < 14) continue;
-        const i = gi(x, y); if (i >= 0 && soil[i] === 0 && still[i] !== 2) { soil[i] = 1; plan[i] = 0; water[i] = 0; ate = true; }
+        const i = gi(x, y); if (i >= 0 && soil[i] === 0 && still[i] !== 2) { soil[i] = 1; plan[i] = 1; water[i] = 0; ate = true; }
       }
-      if (ate) { markDug(m.x, m.y, 18); dirty = true; if (!m.said) { m.said = true; caption('A mole comes through, filling the tunnels behind it', 2.8); } }
+      if (ate) { markDug(m.x, m.y, 18); dirty = true; if (!m.said) { m.said = true; caption('A mole comes through, filling the tunnels behind it; the ants will dig them out', 3); } }
       for (const a of [...ants]) if (!a.surf && Math.abs(a.x - m.x) < 16 && Math.abs(a.y - m.y) < 11) kill(a);
       if (RIV) for (const r of [...RIV.ants]) if (Math.abs(r.x - m.x) < 10 && Math.abs(r.y - m.y) < 7) kill2(r);
       for (const p2 of [...plugs]) if (Math.hypot(p2.x - m.x, p2.y - m.y) < 11) { plugs.splice(plugs.indexOf(p2), 1); rebuildGuards(); }
@@ -1897,7 +1898,7 @@
   // (Earth coming in: a few cells at a time from the top down, so a fall is seen to happen.)
   let fills = [];
   function stepFills(dt) {
-    for (const f of fills) { const n = Math.min(f.cells.length, Math.ceil(dt * f.rate)); for (let k = 0; k < n; k++) { const i = f.cells.shift(); if (soil[i] !== 0) continue; soil[i] = 1; plan[i] = 0; water[i] = 0; markDug(cxOf(i), cyOf(i), 4); dirty = true; for (const a of [...ants]) if (!a.surf && gi(a.x, a.y) === i) kill(a); } }
+    for (const f of fills) { const n = Math.min(f.cells.length, Math.ceil(dt * f.rate)); for (let k = 0; k < n; k++) { const i = f.cells.shift(); if (soil[i] !== 0) continue; soil[i] = 1; plan[i] = 1; water[i] = 0; markDug(cxOf(i), cyOf(i), 4); dirty = true; for (const a of [...ants]) if (!a.surf && gi(a.x, a.y) === i) kill(a); } }
     fills = fills.filter((f) => f.cells.length);
   }
   // The sewer, now and then, flushes: the silt under it, good scraps, is under water for a while.
@@ -1938,7 +1939,7 @@
     stepRooms(dt); stepQueen(dt); stepFills(dt); stepRivals(dt); stepMole(dt); stepSewer(dt);
     train.at -= dt; if (train.at <= 0 && train.x < -998 && !tubeBroken) train.x = TUBE.x0 - 300;
     if (train.x > -998) { const stopAt = tubeBreaks.length ? Math.min(...tubeBreaks.map((b) => b.x0)) - 6 : 1e9; train.x = Math.min(train.x + dt * 150, stopAt - 142); if (train.x > TUBE.x1 + 50 + 2 * 144) { train.x = -999; train.at = rnd(8, 14); } }
-    if (train.x > -998) { const bed = TUBE.y + TUBE.h - 8; for (const a of [...ants]) if (!a.surf && a.y > bed - 7 && a.y < bed && a.x > train.x - 292 && a.x < train.x + 140 && Math.random() < dt * 0.06) { kill(a); if (clock - trainSaid > 25) { trainSaid = clock; caption('A train runs over the ones on the track', 2.2); } } }
+    if (train.x > -998) { const bed = TUBE.y + TUBE.h - 8; for (const a of [...ants]) if (!a.surf && a.y > bed - 7 && a.y < bed && a.x > train.x - 292 && a.x < train.x + 140 && Math.random() < dt * 0.02) { kill(a); if (clock - trainSaid > 25) { trainSaid = clock; caption('A train runs over the ones on the track', 2.2); } } }
     { const stopAt = (STATION.x0 + STATION.x1) / 2 + 120; train2.at -= dt; if (train2.at <= 0 && train2.x < -998) train2.x = STATION.x0 - 120;
       if (train2.x > -998) { if (train2.stop > 0) train2.stop -= dt; else { const before = train2.x; train2.x += dt * (!train2.stopped && Math.abs(train2.x - stopAt) < 90 ? 60 : 160); if (!train2.stopped && before < stopAt && train2.x >= stopAt) { train2.stop = 3.5; train2.stopped = true; } } if (train2.x > STATION.x1 + 460) { train2.x = -999; train2.at = rnd(7, 12); train2.stopped = false; } } }
     for (const lane of [0, 1]) if (Math.random() < dt / 3.2 && cars.filter((c) => c.lane === lane).length < 4) {
@@ -1969,7 +1970,7 @@
     for (const d of debris) { d.vy += dt * 120; d.x += d.vx * dt; d.y += d.vy * dt; d.a += d.va * dt; }
     debris = debris.filter((d) => d.y < 4);
     stepTowers(dt); stepPest(dt); stepBuild(dt);
-    if (now - slowAt > 700) { slowAt = now; settle(); scout(clock); checkCity(); raiseSecond(); stepMines(); seeLayers(); if (trod) for (let i = 0; i < GW * GH; i++) if (trod[i] > 0) trod[i] = trod[i] < 0.01 ? 0 : trod[i] * 0.985; }
+    if (now - slowAt > 700) { slowAt = now; settle(); scout(clock); checkCity(); raiseSecond(); stepMines(); seeLayers(); { let n = 0; for (let i = 0; i < GW * GH; i++) n += plan[i]; toDig = n; } if (trod) for (let i = 0; i < GW * GH; i++) if (trod[i] > 0) trod[i] = trod[i] < 0.01 ? 0 : trod[i] * 0.985; }
     if (now - subAt > 450) { subAt = now; subside(); }
     if (cityDirty) { cityDirty = false; drawCity(); }
     dead = dead.filter((d) => clock - d.at < 14);
@@ -2026,7 +2027,7 @@
     g.globalAlpha = 1;
     // Tunnels drawn but not yet dug: a pencilled dash.
     plans = plans.filter((p) => (p.kind === 'room' ? planLeftIn(p) : p.pts.some(([x, y]) => { for (let yy = -6; yy <= 6; yy += 3) for (let xx = -6; xx <= 6; xx += 3) { const i = gi(x + xx, y + yy); if (i >= 0 && plan[i]) return true; } return false; })));
-    g.strokeStyle = PENCIL; g.globalAlpha = 0.5; g.lineWidth = 0.9; g.setLineDash([3, 5]); g.lineCap = 'round';
+    g.strokeStyle = PENCIL; g.globalAlpha = 0.75; g.lineWidth = 1.2 / Math.sqrt(Z); g.setLineDash([3, 4]); g.lineCap = 'round';
     for (const p of plans) { g.beginPath(); if (p.kind === 'room') g.ellipse(p.x, p.y, p.r * 1.4 + 3, p.r * 0.6 + 3, 0, 0, TAU); else { g.moveTo(p.pts[0][0], p.pts[0][1]); for (const [x, y] of p.pts) g.lineTo(x, y); } g.stroke(); }
     g.setLineDash([]); g.globalAlpha = 1;
     // What's kept in each room, and food the ground keeps.
@@ -2044,7 +2045,7 @@
     if (QUEEN.alive) drawAnt({ x: QUEEN.x, y: QUEEN.y, a: QUEEN.go ? QUEEN.a || 0 : Math.sin(t * 0.4) * 0.3 + Math.PI, step: t * (QUEEN.go ? 6 : 1) }, true);
     if (PRIN.alive) drawAnt({ x: PRIN.x, y: PRIN.y, a: Math.sin(t * 0.5 + 2) * 0.3, step: t }, 1.9);
     for (const p2 of plugs) for (let q = 0; q < p2.n; q++) drawAnt({ x: p2.x + (q - (p2.n - 1) / 2) * 3.2, y: p2.y, a: -Math.PI / 2 + (q - 1) * 0.35, step: t * 0.4 + q }, 1.5);
-    if (RIV) for (const r of RIV.ants) if (r.y > vy0 - 6 && r.y < vy1 + 6) drawAnt(r, 1.15);
+    if (RIV) for (const r of RIV.ants) if (r.y > vy0 - 6 && r.y < vy1 + 6) drawAnt(r, 1.6);
     if (MOLE && MOLE.y > vy0 - 20 && MOLE.y < vy1 + 20) { g.save(); g.translate(MOLE.x, MOLE.y); g.rotate(Math.cos(MOLE.t * 0.7) * 0.15 * MOLE.dir); g.scale(MOLE.dir < 0 ? -1.7 : 1.7, 1.7); g.drawImage(SPR.mole.c, SPR.mole.ox, SPR.mole.oy, SPR.mole.w, SPR.mole.h); g.restore(); }
     for (const a of ants) if (!a.surf && a.y > vy0 - 6 && a.y < vy1 + 6 && !(a.y > TUBE.y && a.y < TUBE.y + TUBE.h)) drawAnt(a);
     // On the street.
@@ -2127,6 +2128,8 @@
     const y = F.y + F.t / 2 + 0.5, [b, s, c] = thresholds();
     g.save(); g.fillStyle = PAPER; g.font = `italic 500 13px ${DISPLAY}`; g.textAlign = 'left'; g.textBaseline = 'middle';
     g.fillText(`Plate ${ROMAN[era] || era + 1} · ${NAMES[era % NAMES.length]}`, F.x + 14, y);
+    // (While there's digging drawn and not done: about how far, in metres along the way, at the frame's head.)
+    if (toDig > 12) { const w0 = g.measureText(`Plate ${ROMAN[era] || era + 1} · ${NAMES[era % NAMES.length]}`).width; g.font = `italic 11px ${DISPLAY}`; g.globalAlpha = 0.85; g.fillText(`· ${Math.max(1, Math.round(toDig * CS / 3 / M))} m to dig`, F.x + 20 + w0, y + 0.5); g.globalAlpha = 1; }
     const x0 = F.x + F.w - 24 - 10 * 8;
     const shake = alarm > b ? Math.sin(t * 20) * 0.25 : 0;
     g.save(); g.translate(x0 - 12, y); g.rotate(shake); g.beginPath(); g.moveTo(-4, 3); g.quadraticCurveTo(-4, -5, 0, -5); g.quadraticCurveTo(4, -5, 4, 3); g.closePath(); g.fill(); g.beginPath(); g.arc(0, 4.2, 1.2, 0, TAU); g.fill(); g.restore();

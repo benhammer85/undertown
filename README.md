@@ -9,6 +9,10 @@ fights back with bait, smoke and concrete. Each town that falls is buried, and a
 
 ## How it plays
 
+Each plate is a town. Its card says how many buildings to bring down; the pips by its name count them.
+The city answers with bait, then (on later plates) smoke and concrete; the ground is surveyed deeper each plate.
+
+
 - **Draw** a line underground: the ants dig it. Where it can't go straight (water, the subway), they find a way.
   Tap a pencilled route to rub it out; when the digging is out of view, a note at the bottom takes you there.
 - **Hold** to make a room. **Tap** a room to change it: larder, nursery, fungus garden, sump.
@@ -22,7 +26,7 @@ fights back with bait, smoke and concrete. Each town that falls is buried, and a
 - `index.html` — the game.
 - `sketches/` — earlier studies: the print-style mockup (`plates.html`) and the Spiral City prototype.
 - `tests/` — headless checks (Playwright + Chromium): `smoke.cjs` (loads, frame rate, no errors), `reach.cjs`
-  (every location reachable), `ground.cjs` (stones drop, wide rooms cave in), `colony.cjs` (the colony
+  (every location reachable), `ground.cjs` (stones drop, wide rooms cave in), `plates.cjs` (goal, survey, weapons by plate, endings), `colony.cjs` (the colony
   grows; taps work). Run with `npm test`.
 - `HISTORY.md` — what changed, when.
 

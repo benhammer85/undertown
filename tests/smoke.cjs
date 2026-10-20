@@ -2,6 +2,8 @@
 const { open, sleep } = require('./_page.cjs');
 (async () => {
   const { browser, page, errors } = await open();
+  // (Begin: the button on the plate's opening card.)
+  await page.mouse.click(195, 430); await sleep(300);
   const fps = await page.evaluate(() => new Promise((res) => { let n = 0; const t = performance.now(); const f = () => { n++; if (performance.now() - t < 2000) requestAnimationFrame(f); else res(n / 2); }; requestAnimationFrame(f); }));
   await page.mouse.move(200, 500);
   for (let k = 0; k < 60; k++) { await page.mouse.wheel(0, 60); await sleep(30); }

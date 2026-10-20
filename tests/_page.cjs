@@ -17,6 +17,8 @@ async function open({ debug = false } = {}) {
   const errors = []; page.on('pageerror', (e) => errors.push(e.message)); page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
   await page.goto('file://' + file); await page.waitForTimeout(3500);
   const ev = (q) => page.evaluate((q) => window.__ev(q), q);
+  // (The plate's opening card waits for a tap; a test begins straight away.)
+  if (debug) await ev('card = null; 0');
   return { browser, page, errors, ev };
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

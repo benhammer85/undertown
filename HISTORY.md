@@ -48,3 +48,18 @@ metres are left to dig; drawn routes are darker; the other colony's ants are lar
   main room, in the chalk and below. Dig out what's under one and it shivers, then drops: crushing what's below,
   bursting the main, cracking the gas line, or breaking through the subway's roof. Stones can't be chewed.
 - New test, `tests/ground.cjs`.
+
+## 2026-10-20 — what's happening, and what for
+- **Fixed:** two buildings fell on their own at the start: the cellars and the tree-root pockets under them were
+  counted as hollowing. Hollows the ground comes with no longer count.
+- **A goal for each plate**, on an opening card ("Bring down 3 of its 5 buildings") and as pips by the plate's
+  name in the head of the frame.
+- **Footings shown**: each standing building's footing pencilled under the street, with "N% hollowed" (red past
+  two-thirds) and a bar.
+- **The game comes in plate by plate**: plate I, bait only, the ground surveyed to the lost river; II, smoke,
+  surveyed to the harbour; III, concrete and guards, to the mine workings; IV on, everything (the other colony,
+  moles, stones), and the ground to the bottom. Each plate's card says what's new.
+- **Endings**: a fallen town's card (time, buildings down, depth, ants, losses), with "Save the print" (a PNG of
+  the plate) and "Next plate"; a lost colony's card with "A new queen". The world holds still under a card.
+- **A status line** over the key: ants, young (the brood: eggs, larvae, pupae), food, metres left to dig.
+- New test, `tests/plates.cjs`.

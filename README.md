@@ -10,6 +10,7 @@ fights back with bait, smoke and concrete. Each town that falls is buried, and a
 ## How it plays
 
 - **Draw** a line underground: the ants dig it. Where it can't go straight (water, the subway), they find a way.
+  Tap a pencilled route to rub it out; when the digging is out of view, a note at the bottom takes you there.
 - **Hold** to make a room. **Tap** a room to change it: larder, nursery, fungus garden, sump.
 - **Tap the queen**, then a room, to move her. Below the smoke line (80 m) nothing can reach her.
 - **Tap a tunnel** to post guards. **Tap the water main** to burst it. **Two fingers** to scroll and zoom.

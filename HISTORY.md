@@ -32,3 +32,10 @@ A route drawn deep (to the other colony, ~330 m) sat as faint pencil and never a
 - what a mole or a cave-in fills is now marked to be dug out again.
 Now: the other colony is reached in about three minutes from a fresh start. The plate's head shows how many
 metres are left to dig; drawn routes are darker; the other colony's ants are larger and plainly pink.
+
+## 2026-10-20 — the other colony, within reach
+- Moved up from ~330 m to ~170 m, below the old harbour: reached in under a minute.
+- Where the digging is: a pencilled ring at the dig face; out of view, a note ("↓ digging, 120 m below · tap
+  to look") that takes you there.
+- A route not yet dug can be rubbed out by tapping its pencil line (with the way found to it).
+- Long captions set smaller to fit the plate; the page now says how wide a phone is (for its own site).

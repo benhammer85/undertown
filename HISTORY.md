@@ -72,6 +72,7 @@ and young", "Mushroom farm: turns 1 food into 3", "Drain: soaks up water", "gas 
 spelled out (the display face's old-style 1 reads as an i).
 
 ## 2026-10-20 — on the home screen
-An icon in the print's two inks: two houses on the street, one leaning over a crack; under them a tunnel, an ant,
-a room of eggs. With a web manifest and the iPhone's tags, so "Add to Home Screen" gives the icon and opens the
+An icon in the print's two inks: one ant walking its tunnel through the pink earth, in a green frame. With a web manifest and the iPhone's tags, so "Add to Home Screen" gives the icon and opens the
 game full screen. (Drawn by `sketches/icon/icon.html`.)
+
+(The icons first went up missing: `.gitignore` excluded every PNG, to keep test screenshots out. Now only those.)

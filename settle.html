@@ -1972,7 +1972,7 @@
   }
   function drawTutorial(t) {
     if (!tut || card) return;
-    const tw = tut.tower, say = tut.step === 1 ? 'Step 1 of 3: Drag from the ants’ way in, down and under the marked building.' : tut.step === 2 ? (SETTLE ? 'Step 2 of 3: When the ants finish a tunnel, the ground above sinks into it. Keep digging under the hut until it reaches 100% sunk.' : 'Step 2 of 3: The ants are digging. Keep going until it says 100% dug out.') : `Step 3 of 3: It fell! Knock down ${Math.max(0, goal.n - downed)} more to finish the town.`;
+    const tw = tut.tower, say = tut.step === 1 ? (SETTLE ? 'Step 1 of 3: Drag from the ants’ way in, down and under the marked hut.' : 'Step 1 of 3: Drag from the ants’ way in, down and under the marked building.') : tut.step === 2 ? (SETTLE ? 'Step 2 of 3: When the ants finish a tunnel, the ground above sinks into it. Keep digging under the hut until it reaches 100% sunk.' : 'Step 2 of 3: The ants are digging. Keep going until it says 100% dug out.') : `Step 3 of 3: It fell! Knock down ${Math.max(0, goal.n - downed)} more to finish the town.`;
     // (In the plate: an arrow over the building, and the way in marked.)
     g.setTransform(RU * Z, 0, 0, RU * Z, (IN.x - camX * SZ()) * DPR, (G - camY * SZ()) * DPR);
     const label = (txt, x, y) => { g.font = `600 ${(20 / Math.sqrt(Z)).toFixed(1)}px ${C('--body') || 'Georgia'}`; g.textAlign = 'center'; g.textBaseline = 'middle'; const w = g.measureText(txt).width + 12, h = 20 / Math.sqrt(Z) + 8; g.fillStyle = PAPER; g.fillRect(x - w / 2, y - h / 2, w, h); g.strokeStyle = '#a3341f'; g.lineWidth = 1; g.strokeRect(x - w / 2, y - h / 2, w, h); g.fillStyle = '#a3341f'; g.fillText(txt, x, y + 0.5); };
@@ -2076,7 +2076,7 @@
   function newGame(reload) {
     if (reload && !freshWorld) { try { location.hash = 'new'; } catch {} location.reload(); return; }
     freshWorld = false; plateCard(); startTutorial();
-    if (SETTLE) { Z = 1.5; camX = clamp(EX - UW / Z / 2, 0, UW - UW / Z); camY = -40; clampCam(); }
+    if (SETTLE) { Z = 1.5; camX = clamp(EX - UW / Z / 2, 0, UW - UW / Z); camY = 40; clampCam(); }
   }
   function continueGame() { try { location.hash = 'continue'; } catch {} location.reload(); }
   let freshWorld = true;
@@ -2483,7 +2483,7 @@
     if (SETTLE && vy0 < 10) for (const tw of towers) { const t = tw;
       if (t.fall || t.rise < 1) continue;
       g.save(); g.beginPath(); g.moveTo(t.x - 40, -600); for (let x = t.x - 40; x <= t.x + t.w + 40; x += CS) g.lineTo(x, surfAt(x) + 0.6); g.lineTo(t.x + t.w + 40, -600); g.closePath(); g.clip();
-      const sp = towerSprite(t); g.translate(t.x + t.w / 2, (t.sinkY || 0) * 2); g.rotate(t.tilt * 1.5); // (drawn a little more than it is, to be seen) g.drawImage(sp.c, sp.ox - t.w / 2, sp.oy, sp.w, sp.h); g.restore();
+      const sp = towerSprite(t); g.translate(t.x + t.w / 2, (t.sinkY || 0) * 2); g.rotate(t.tilt * 1.5); g.drawImage(sp.c, sp.ox - t.w / 2, sp.oy, sp.w, sp.h); g.restore(); // (sink and lean drawn a little more than they are, to be seen)
     }
     // The trains.
     if (vy1 > TUBE.y && vy0 < TUBE.y + TUBE.h) { for (const a of ants) if (!a.surf && a.y > TUBE.y && a.y < TUBE.y + TUBE.h) drawAnt(a); if (train.x > -998) { g.save(); g.beginPath(); g.rect(TUBE.x0, TUBE.y + 8, TUBE.x1 - TUBE.x0, TUBE.h - 16); g.clip(); for (let c = 0; c < 3; c++) blit(SPR.tube, train.x - c * 144, TUBE.y + 14); g.restore(); } }

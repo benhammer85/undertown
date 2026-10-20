@@ -1055,7 +1055,7 @@
         if (!f.shook && f.t > 0.6) { f.shook = true; for (const o of towers) if (o !== t && !o.fall && o.rise >= 1 && (Math.abs(o.x - (t.x + t.w)) < 14 || Math.abs(o.x + o.w - t.x) < 14)) { o.damage++; const dir = o.x > t.x ? -1 : 1; if (o.damage >= 3 && Math.random() < 0.5) setTimeout(() => collapse(o, dir), 900); else { o.want = dir * 0.025; crack(o, dir); } } }
         continue;
       }
-      if (SETTLE) { t.tilt += (t.want - t.tilt) * Math.min(1, dt * 1.5); t.sinkY = (t.sinkY || 0) + ((t.sinkTo || 0) - (t.sinkY || 0)) * Math.min(1, dt * 1.5); continue; }
+      if (SETTLE) { t.tilt += (t.want - t.tilt) * Math.min(1, dt * 0.8); t.sinkY = (t.sinkY || 0) + ((t.sinkTo || 0) - (t.sinkY || 0)) * Math.min(1, dt * 0.8); if (t.shiv > 0) t.shiv -= dt; continue; }
       if (Math.abs(t.want - t.tilt) > 0.001) { t.tilt += (t.want - t.tilt) * Math.min(1, dt * 1.5); cityDirty = true; }
     }
   }
@@ -1078,15 +1078,15 @@
     f.t += dt;
     const want = Math.min(10, surfAt(f.px + side * 4)); f.drop += (want - f.drop) * Math.min(1, dt * 1.5);
     if (!f.giving) {
-      f.av += dt * (0.12 + 1.6 * Math.sin(f.u)); f.u = Math.min(f.stop, f.u + f.av * dt);
-      if (f.u >= f.stop) {
+      f.av += dt * (0.06 + 1.1 * Math.sin(f.u)); f.u = Math.min(f.stop, f.u + f.av * dt);
+      if (f.u >= f.stop && (f.hold = (f.hold || 0) + dt) > 0.45) {
         f.giving = true;
         if (f.hit && !f.hit.fall) { const o = f.hit; o.damage = (o.damage || 0) + 1; if (o.cracked) setTimeout(() => collapse(o, side), 900); else { o.push = side * 0.05; crack(o, side); } }
       }
       return;
     }
     // (The frame giving: slow, then all at once; a low cloud rolling out along the street.)
-    const was = f.c; f.c = Math.min(1, f.c + dt * (0.16 + 0.85 * f.c));
+    const was = f.c; f.c = Math.min(1, f.c + dt * (0.45 + 2.6 * f.c));
     if (!f.hit) f.u = Math.min(f.stop + 0.1, f.u + dt * 0.05 * (1 + f.c));
     if (was < 0.35 && f.c >= 0.35) for (let q = 0; q < 10; q++) { const x = t.x + rnd(-4, t.w + 4), dir = x < t.x + t.w / 2 ? -1 : 1; dust.push({ x, y: f.py - 1, r: rnd(6, 12), vx: dir * rnd(3, 14) + side * 5, vy: rnd(-2.5, -0.6), t: 0, life: rnd(4, 6.5), s: Math.random() * 9 }); }
     if (f.c >= 1 && (f.rest += dt) > 0.7) {
@@ -1101,7 +1101,7 @@
   // above slide over the way it leant, the roof last and nearly whole.)
   function drawFalling(t, sp) {
     const f = t.fall, side = f.side, bx = sp.ox - (side > 0 ? t.w : 0);
-    g.translate(f.px, f.py + f.drop); g.rotate(side * f.u);
+    g.translate(f.px, f.py + f.drop); g.rotate(side * f.u + (f.hold && !f.giving ? Math.sin(clock * 47) * 0.007 : 0));
     if (!f.c) { g.drawImage(sp.c, bx, sp.oy, sp.w, sp.h); return; }
     // (Only the hut itself, base to chimney top, is banded; the sprite's margin below the base is left out.)
     const top = -t.d.h - 12, N = 12, bh = -top / N, ppu = sp.c.height / sp.h, py = (Y) => (Y - sp.oy) * ppu;
@@ -1273,9 +1273,34 @@
       l /= nl || 1; r /= nr || 1;
       t.sinkTo = (l + r) / 2; t.want = Math.atan2(r - l, t.w / 2) * 0.9 + (t.push || 0);
       const k = Math.max(t.sinkTo / 8, Math.abs(t.want) / 0.1); t.hf = Math.min(1, k) * 0.15;
-      if (k > 0.5 && !t.cracked) crack(t, t.want >= 0 ? 1 : -1);
-      if (k >= 1) collapse(t, t.want >= 0 ? 1 : -1);
+      // (Before it goes it gives warning: cracks that spread by stages, a shudder, bits off the low eave, soil
+      // spilling from under the low corner.)
+      const sd = t.want >= 0 ? 1 : -1, stage = k >= 0.8 ? 3 : k >= 0.55 ? 2 : k >= 0.3 ? 1 : 0;
+      if (stage > (t.stage || 0)) { t.stage = stage; t.damage = stage; t.cracked = Math.max(t.cracked || 0, stage); t.side = sd; t.spr = null; t.shiv = 0.5; warnBits(t, sd, 2 + stage * 2); }
+      else if (k > 0.6 && Math.random() < 0.3 * k) { t.shiv = 0.35; warnBits(t, sd, 1 + (Math.random() < 0.5)); }
+      if (k >= 1) collapse(t, sd);
     }
+  }
+  let bits = [];
+  function warnBits(t, side, n) {
+    const sy = (t.sinkY || 0) * 2, edge = side > 0 ? t.x + t.w : t.x;
+    for (let q = 0; q < n; q++) {
+      if (Math.random() < 0.6) bits.push({ x: edge + side * rnd(-2, 4), y: sy - t.d.wall - rnd(0, 5), vx: side * rnd(2, 9), vy: rnd(-5, 0), rest: 0, roof: true, a: rnd(0, TAU) });
+      else { const x = edge - side * rnd(0, 12); bits.push({ x, y: surfAt(x) - 1, vx: side * rnd(2, 6), vy: rnd(-9, -3), rest: 0, roof: false, a: 0 }); }
+    }
+  }
+  function stepBits(dt) {
+    for (const b of bits) {
+      if (b.rest) { b.rest += dt; continue; }
+      b.vy += 150 * dt; b.x += b.vx * dt; b.y += b.vy * dt; b.a += b.vx * dt * 0.4;
+      const fl = surfAt(b.x); if (b.y >= fl) { b.y = fl; b.rest = 0.001; }
+    }
+    bits = bits.filter((b) => b.rest < 1.6);
+  }
+  function drawBits() {
+    g.fillStyle = OVER;
+    for (const b of bits) { g.globalAlpha = 0.85 * clamp(1 - (b.rest - 0.8) / 0.8, 0, 1); if (b.roof) { g.save(); g.translate(b.x, b.y - 0.5); g.rotate(b.a); g.fillRect(-1.6, -0.7, 3.2, 1.4); g.restore(); } else g.fillRect(b.x - 0.7, b.y - 1.4, 1.4, 1.4); }
+    g.globalAlpha = 1;
   }
   function subside() {
     if (SETTLE) return settleGround();
@@ -1754,7 +1779,7 @@
 
   // ---------------------------------------------------------------- looking deeper
   // The view: how close (Z, one to two and a half), and where (camX across, camY down, in units).
-  let camY = 0, camV = 0, camX = 0, Z = 1;
+  let camY = 0, camV = 0, camX = 0, Z = 1, camTo = null;
   const SZ = () => S * Z;
   function clampCam() {
     camX = clamp(camX, 0, UW - UW / Z);
@@ -1779,13 +1804,13 @@
   top.addEventListener('pointerdown', (e) => {
     // (A card on the plate takes the touch: its buttons, or nothing.)
     if (card) { const h = (card.hits || []).find((q) => e.clientX >= q.x && e.clientX <= q.x + q.w && e.clientY >= q.y && e.clientY <= q.y + q.h); if (h) h.fn(); return; }
-    { const c = captions.find((q) => q.hit && e.clientX >= q.hit.x && e.clientX <= q.hit.x + q.hit.w && e.clientY >= q.hit.y && e.clientY <= q.hit.y + q.hit.h); if (c) { camY = c.loc.y - (IN.y + IN.h / 2 - G) / SZ(); camX = clamp(c.loc.x - UW / Z / 2, 0, UW - UW / Z); camV = 0; clampCam(); marks.push({ x: c.loc.x, y: c.loc.y, at: clock }); return; } }
+    { const c = captions.find((q) => q.hit && e.clientX >= q.hit.x && e.clientX <= q.hit.x + q.hit.w && e.clientY >= q.hit.y && e.clientY <= q.hit.y + q.hit.h); if (c) { camTo = { x: clamp(c.loc.x - UW / Z / 2, 0, UW - UW / Z), y: c.loc.y - (IN.y + IN.h / 2 - G) / SZ(), left: 1.6 }; camV = 0; marks.push({ x: c.loc.x, y: c.loc.y, at: clock }); return; } }
     if (menu) { const h = (menu.hits || []).find((q) => e.clientX >= q.x && e.clientX <= q.x + q.w && e.clientY >= q.y && e.clientY <= q.y + q.h); menu = null; if (h) h.fn(); return; }
     // (The town's name, at the head of the frame: a tap pauses.)
     if (e.clientY < IN.y && e.clientX < IN.x + IN.w * 0.6) { pauseCard(); return; }
     top.setPointerCapture?.(e.pointerId);
-    fingers.set(e.pointerId, { x: e.clientX, y: e.clientY }); camV = 0;
-    if (fingers.size === 1 && faceNote && face && e.clientX > faceNote.x && e.clientX < faceNote.x + faceNote.w && e.clientY > faceNote.y && e.clientY < faceNote.y + faceNote.h) { camY = face.y - (IN.y + IN.h / 2 - G) / SZ(); camX = clamp(face.x - UW / Z / 2, 0, UW - UW / Z); clampCam(); hand = null; pan = null; return; }
+    fingers.set(e.pointerId, { x: e.clientX, y: e.clientY }); camV = 0; camTo = null;
+    if (fingers.size === 1 && faceNote && face && e.clientX > faceNote.x && e.clientX < faceNote.x + faceNote.w && e.clientY > faceNote.y && e.clientY < faceNote.y + faceNote.h) { camTo = { x: clamp(face.x - UW / Z / 2, 0, UW - UW / Z), y: face.y - (IN.y + IN.h / 2 - G) / SZ(), left: 1.6 }; hand = null; pan = null; return; }
     if (fingers.size >= 2) { hand = null; pan = pinchStart(); return; }
     if (e.clientX > IN.x + IN.w || e.clientX < IN.x || e.clientY < IN.y || e.clientY > IN.y + IN.h) { pan = { y: e.clientY, t: performance.now(), one: true }; return; }
     const x = wx(e.clientX), y = wy(e.clientY);
@@ -2031,7 +2056,7 @@
     // (In the plate: an arrow over the building, and the way in marked.)
     g.setTransform(RU * Z, 0, 0, RU * Z, (IN.x - camX * SZ()) * DPR, (G - camY * SZ()) * DPR);
     const label = (txt, x, y) => { g.font = `600 ${(20 / Math.sqrt(Z)).toFixed(1)}px ${C('--body') || 'Georgia'}`; g.textAlign = 'center'; g.textBaseline = 'middle'; const w = g.measureText(txt).width + 12, h = 20 / Math.sqrt(Z) + 8; g.fillStyle = PAPER; g.fillRect(x - w / 2, y - h / 2, w, h); g.strokeStyle = '#a3341f'; g.lineWidth = 1; g.strokeRect(x - w / 2, y - h / 2, w, h); g.fillStyle = '#a3341f'; g.fillText(txt, x, y + 0.5); };
-    if (tut.step < 3 && !tw.fall) { const ax = tw.x + tw.w / 2, ay = -tw.d.h - 22 - Math.abs(Math.sin(t * 3)) * 8; g.fillStyle = '#a3341f'; g.beginPath(); g.moveTo(ax - 14, ay - 18); g.lineTo(ax + 14, ay - 18); g.lineTo(ax, ay); g.closePath(); g.fill(); label(SETTLE ? 'Dig under this hut' : 'Dig under this one', ax, ay - 34); }
+    if (tut.step < 3 && !tw.fall) { const ax = tw.x + tw.w / 2, ay = -tw.d.h - 22 - Math.abs(Math.sin(t * 1.8)) * 7; g.fillStyle = '#a3341f'; g.beginPath(); g.moveTo(ax - 14, ay - 18); g.lineTo(ax + 14, ay - 18); g.lineTo(ax, ay); g.closePath(); g.fill(); label(SETTLE ? 'Dig under this hut' : 'Dig under this one', ax, ay - 34); }
     if (tut.step === 1) { g.strokeStyle = '#a3341f'; g.lineWidth = 2.4; g.setLineDash([5, 4]); g.beginPath(); g.arc(EX, 8, 14 + Math.sin(t * 4) * 2, 0, TAU); g.stroke(); g.setLineDash([]); label('Ants’ way in', clamp(EX, 60, UW - 60), 40); g.setLineDash([5, 4]); g.globalAlpha = 0.6; g.beginPath(); g.moveTo(EX, 12); g.quadraticCurveTo(EX, 26, tw.x + tw.w / 2, 18); g.stroke(); g.setLineDash([]); g.globalAlpha = 1; }
     g.setTransform(DPR, 0, 0, DPR, 0, 0); g.save(); g.font = `15px ${C('--body') || 'Georgia'}`;
     const w = Math.min(IN.w - 24, 330), pad = 14, words = say.split(' '), lines = []; let line = '';
@@ -2457,6 +2482,7 @@
     // (While a card is on the plate, the world holds still.)
     if (card) { last = now; draw(clock); requestAnimationFrame(frame); return; }
     const dt = Math.min(0.05, (now - last) / 1000); last = now; clock += dt;
+    if (camTo) { const e = 1 - Math.exp(-dt * 4.5); camX += (camTo.x - camX) * e; camY += (camTo.y - camY) * e; clampCam(); if ((camTo.left -= dt) < 0 || (Math.abs(camTo.x - camX) < 0.5 && Math.abs(camTo.y - camY) < 0.5)) camTo = null; }
     if (!pan && Math.abs(camV) > 5) { look(camV * dt); camV *= Math.exp(-dt * 3.2); if (camY <= -20 && Z <= 1.001) camV = 0; }
     if (dirty && now - fieldsAt > 240) { fields(); fieldsAt = now; }
     if (now - waterAt > 80) { stepWater(); stepSmoke(); waterAt = now; }
@@ -2505,7 +2531,7 @@
     dust = dust.filter((d) => d.t < d.life);
     for (const d of debris) { d.vy += dt * 170; d.x += d.vx * dt; d.y += d.vy * dt; d.a += d.va * dt; if (d.y >= 2 && !d.landed) { d.landed = true; dust.push({ x: d.x, y: 0, r: rnd(3, 6), vx: rnd(-8, 8), vy: -0.6, t: 0, life: rnd(1.4, 2.4), s: Math.random() * 9 }); } }
     debris = debris.filter((d) => d.y < 4);
-    stepTowers(dt); stepPest(dt); stepBuild(dt);
+    stepTowers(dt); stepPest(dt); stepBuild(dt); if (SETTLE) stepBits(dt);
     if (now - slowAt > 700) { slowAt = now; settle(); scout(clock); checkCity(); raiseSecond(); stepMines(); seeLayers(); findFace(); updateStatus(); stepTutorial(); stepRoofs(0.7); looseStones(); if (trod) for (let i = 0; i < GW * GH; i++) if (trod[i] > 0) trod[i] = trod[i] < 0.01 ? 0 : trod[i] * (SETTLE ? 0.94 : 0.985); }
     if (now - subAt > 450) { subAt = now; subside(); }
     if (cityDirty) { cityDirty = false; drawCity(); }
@@ -2541,8 +2567,9 @@
       const m = t.fall ? t.w * 0.6 + 40 : 40;
       g.save(); g.beginPath(); g.moveTo(t.x - m, -600); for (let x = t.x - m; x <= t.x + t.w + m; x += CS) g.lineTo(x, surfAt(x) + 0.6); g.lineTo(t.x + t.w + m, -600); g.closePath(); g.clip();
       const sp = towerSprite(t);
-      if (t.fall) { if (t.fall.u !== undefined) drawFalling(t, sp); g.restore(); continue; } g.translate(t.x + t.w / 2, (t.sinkY || 0) * 2); g.rotate(t.tilt * 1.5); g.drawImage(sp.c, sp.ox - t.w / 2, sp.oy, sp.w, sp.h); g.restore(); // (sink and lean drawn a little more than they are, to be seen)
+      if (t.fall) { if (t.fall.u !== undefined) drawFalling(t, sp); g.restore(); continue; } g.translate(t.x + t.w / 2, (t.sinkY || 0) * 2); g.rotate(t.tilt * 1.5 + (t.shiv > 0 ? Math.sin(clock * 47) * 0.006 * Math.min(1, t.shiv * 4) : 0)); g.drawImage(sp.c, sp.ox - t.w / 2, sp.oy, sp.w, sp.h); g.restore(); // (sink and lean drawn a little more than they are, to be seen)
     }
+    if (SETTLE && vy0 < 10) drawBits();
     // The trains.
     if (vy1 > TUBE.y && vy0 < TUBE.y + TUBE.h) { for (const a of ants) if (!a.surf && a.y > TUBE.y && a.y < TUBE.y + TUBE.h) drawAnt(a); if (train.x > -998) { g.save(); g.beginPath(); g.rect(TUBE.x0, TUBE.y + 8, TUBE.x1 - TUBE.x0, TUBE.h - 16); g.clip(); for (let c = 0; c < 3; c++) blit(SPR.tube, train.x - c * 144, TUBE.y + 14); g.restore(); } }
     if (vy1 > STATION.y && vy0 < STATION.y + STATION.h) {
@@ -2657,7 +2684,7 @@
     captions = captions.filter((c) => t - c.at < c.secs);
     let y = IN.y + 26;
     for (const c of captions) {
-      const k = t - c.at, a = Math.min(1, k * 3, (c.secs - k) * 2);
+      const k = t - c.at, a = Math.min(1, k * 2.5, (c.secs - k) * 1.6);
       g.save(); g.globalAlpha = a; g.font = `italic 500 19px ${DISPLAY}`; g.textAlign = 'center'; g.textBaseline = 'middle';
       // (A long line set smaller, to fit the plate's width.)
       { const tw = g.measureText(c.text).width; if (tw > IN.w - 40) g.font = `italic 500 ${Math.max(12, Math.floor(19 * (IN.w - 40) / tw))}px ${DISPLAY}`; }

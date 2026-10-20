@@ -927,7 +927,7 @@
     }
   }
   function initCity() {
-    if (SETTLE) { initHamlet(); peak = towers.length; downed = 0; goal.of = towers.length; goal.n = Math.max(2, towers.length - 1); plateAt = clock; stats.lost = 0; plantTrees(); carts = [{ x: EX - 50, t: 0, life: 70 }]; drawSky(); return; }
+    if (SETTLE) { wreck = []; bits = []; shake = 0; pileTop.fill(1e9); initHamlet(); peak = towers.length; downed = 0; goal.of = towers.length; goal.n = Math.max(2, towers.length - 1); plateAt = clock; stats.lost = 0; plantTrees(); carts = [{ x: EX - 50, t: 0, life: 70 }]; drawSky(); return; }
     towers = []; let x = 6;
     while (x < UW - 40) {
       let w = rnd(84, 140);
@@ -1066,8 +1066,7 @@
     const f = t.fall, side = f.side;
     if (f.u === undefined) {
       const a = (t.tilt || 0) * 1.5, sy = (t.sinkY || 0) * 2, dx = side * t.w / 2;
-      f.u = Math.max(0, side * a); f.av = 0.04; f.px = t.x + t.w / 2 + dx * Math.cos(a); f.py = sy + dx * Math.sin(a); f.drop = 0; f.rest = 0; f.c = 0;
-      f.jit = Array.from({ length: 12 }, () => rnd(-1, 1));
+      f.u = Math.max(0, side * a); f.av = 0.04; f.px = t.x + t.w / 2 + dx * Math.cos(a); f.py = sy + dx * Math.sin(a); f.drop = 0;
       // (How far it can lean before the frame goes; less if a hut is in the way.)
       f.stop = rnd(0.26, 0.34);
       const reach = (u) => Math.max(t.d.wall * Math.sin(u), t.d.h * Math.sin(u) - (t.w / 2) * Math.cos(u));
@@ -1085,33 +1084,120 @@
       }
       return;
     }
-    // (The frame giving: slow, then all at once; a low cloud rolling out along the street.)
-    const was = f.c; f.c = Math.min(1, f.c + dt * (0.45 + 2.6 * f.c));
-    if (!f.hit) f.u = Math.min(f.stop + 0.1, f.u + dt * 0.05 * (1 + f.c));
-    if (was < 0.35 && f.c >= 0.35) for (let q = 0; q < 10; q++) { const x = t.x + rnd(-4, t.w + 4), dir = x < t.x + t.w / 2 ? -1 : 1; dust.push({ x, y: f.py - 1, r: rnd(6, 12), vx: dir * rnd(3, 14) + side * 5, vy: rnd(-2.5, -0.6), t: 0, life: rnd(4, 6.5), s: Math.random() * 9 }); }
-    if (f.c >= 1 && (f.rest += dt) > 0.7) {
-      const sh = side * t.w * 0.2; f.restX = t.x + sh; f.restW = t.w;
-      for (let q = 0; q < 6; q++) dust.push({ x: t.x + sh + rnd(0, t.w), y: rnd(-12, -2), r: rnd(7, 13), vx: rnd(-6, 6), vy: rnd(-2, -0.5), t: 0, life: rnd(4, 6), s: Math.random() * 9 });
-      ghosts.push({ t, sp: towerSprite(t), at: clock }); land(t);
+    // (The frame gives: the hut comes apart, and a low cloud rolls out along the street.)
+    for (let q = 0; q < 10; q++) { const x = t.x + rnd(-4, t.w + 4), dir = x < t.x + t.w / 2 ? -1 : 1; dust.push({ x, y: f.py - 1, r: rnd(6, 12), vx: dir * rnd(3, 14) + side * 5, vy: rnd(-2.5, -0.6), t: 0, life: rnd(4, 6.5), s: Math.random() * 9 }); }
+    breakHut(t); land(t);
+  }
+  // (Coming apart: the wall boards fold over the way it leant, the low side first; the roof comes down in its two
+  // halves on top of them, and the chimney topples off. Each piece falls, strikes and settles on the ground or on
+  // what has settled before it, and the wreck stays where it lies.)
+  // (Gravity, in plate units: about the real thing for huts this size, a touch heavy.)
+  const GRAV = 110;
+  let wreck = [], shake = 0;
+  const pileTop = new Float32Array(UW / 2 + 2).fill(1e9);
+  const groundAt = (x) => Math.min(surfAt(x), pileTop[clamp(Math.round(x / 2), 0, pileTop.length - 1)]);
+  function breakHut(t) {
+    const f = t.fall, side = f.side, d = t.d, w = t.w, wl = d.wall, rf = d.roof, sp = towerSprite(t), A = side * f.u;
+    const pvx = side > 0 ? w : 0, ca = Math.cos(A), sa = Math.sin(A), ox = f.px, oy = f.py + f.drop;
+    const add = (pts, wait, vx, vy, va, hinge) => {
+      let cx = 0, cy = 0, x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+      for (const [x, y] of pts) { cx += x / pts.length; cy += y / pts.length; x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+      const m = Math.max(4, (x1 - x0) * (y1 - y0) * 0.6), I = (m * ((x1 - x0) ** 2 + (y1 - y0) ** 2)) / 12;
+      const q = { sp, pts, cx, cy, x: ox + (cx - pvx) * ca - cy * sa, y: oy + (cx - pvx) * sa + cy * ca, a: A, vx, vy, va, m, I, wait, still: 0, age: 0, rest: false, hitAt: -9 };
+      // (A board stays fixed at its foot and folds over on it, till it's down.)
+      if (hinge) { q.hl = hinge; q.hx = ox + (hinge[0] - pvx) * ca - hinge[1] * sa; q.hy = oy + (hinge[0] - pvx) * sa + hinge[1] * ca; q.L = y1 - y0; }
+      wreck.push(q);
+    };
+    // (The boards, split where they break, ragged at the split.)
+    const n = Math.max(4, Math.round(w / 15)), xs = [], jx = [], my = [];
+    for (let i = 0; i <= n; i++) { xs.push((i * w) / n); jx.push(i === 0 || i === n ? 0 : rnd(-3, 3)); my.push(rnd(0.35, 0.65)); }
+    for (let i = 0; i < n; i++) {
+      const o = side > 0 ? n - 1 - i : i;
+      add([[xs[i], 0.5], [xs[i] + jx[i], -wl * my[i]], [xs[i], -wl + 1.5], [xs[i + 1], -wl + 1.5], [xs[i + 1] + jx[i + 1], -wl * my[i + 1]], [xs[i + 1], 0.5]], 0.05 + o * 0.13, 0, 0, side * rnd(0.1, 0.3), [side > 0 ? xs[i + 1] : xs[i], 0.5]);
+    }
+    // (The roof, in its two halves; the low half first.)
+    const ry = -wl + 1.5, rt = -wl - rf;
+    add([[-4, ry], [w / 2, rt], [w / 2 + rnd(-2, 2), ry]], side < 0 ? 0.55 : 0.75, side * rnd(3, 8), 0, side * rnd(0.15, 0.4));
+    add([[w / 2, rt], [w + 4, ry], [w / 2 + rnd(-2, 2), ry]], side > 0 ? 0.55 : 0.75, side * rnd(3, 8), 0, side * rnd(0.15, 0.4));
+    if (d.chimney) { const cx = w * 0.7, top = -wl - rf * 0.85 - 3, foot = -wl - rf + ((cx + 3 - w / 2) / (w / 2 + 4)) * (rf + 1.5) + 2; add([[cx - 1.5, top], [cx + 8.5, top], [cx + 8.5, foot], [cx - 1.5, foot]], 0.15, side * rnd(15, 25), -rnd(5, 15), side * rnd(1.5, 2.5)); }
+  }
+  function impact(p, wx, wy, v) {
+    if (clock - p.hitAt < 0.3) return; p.hitAt = clock;
+    const big = p.m > 250;
+    for (let q = 0; q < Math.min(5, v / 14); q++) dust.push({ x: wx + rnd(-8, 8), y: wy - 1, r: rnd(5, big ? 11 : 7), vx: rnd(-14, 14), vy: rnd(-3, -0.6), t: 0, life: rnd(3, 5), s: Math.random() * 9 });
+    for (let q = 0; q < (big ? 4 : 2); q++) bits.push({ x: wx, y: wy - 1, vx: rnd(-22, 22), vy: -rnd(20, 45), rest: 0, roof: true, a: rnd(0, TAU) });
+    shake = Math.max(shake, Math.min(2.2, v / 40) * (big ? 1 : 0.35));
+  }
+  function stepWreck(dt) {
+    shake *= Math.exp(-dt * 7);
+    for (const p of wreck) {
+      if (p.rest) continue;
+      if (p.wait > 0) { p.wait -= dt; continue; }
+      if (p.hl) {
+        // (Folding over on its foot: a falling rod, quicker the further over it goes.)
+        p.va += dt * ((1.5 * GRAV) / p.L) * Math.sin(p.a); p.va *= 0.999; p.a += p.va * dt;
+        const ca = Math.cos(p.a), sa = Math.sin(p.a), lx = p.cx - p.hl[0], ly = p.cy - p.hl[1], rx = lx * ca - ly * sa, ry = lx * sa + ly * ca;
+        p.x = p.hx + rx; p.y = p.hy + ry;
+        let down = Math.abs(p.a) > 1.45;
+        for (const [qx, qy] of p.pts) { const dx = qx - p.hl[0], dy = qy - p.hl[1]; if (dx * dx + dy * dy < 16) continue; const wx = p.hx + dx * ca - dy * sa, wy = p.hy + dx * sa + dy * ca; if (wy > surfAt(wx)) down = true; }
+        if (down) { p.vx = -p.va * ry; p.vy = p.va * rx; p.hl = null; if (Math.abs(p.vy) > 30) impact(p, p.x, p.y, Math.abs(p.vy)); }
+        continue;
+      }
+      for (let s2 = 0; s2 < 3; s2++) {
+        const h = dt / 3;
+        p.vy += GRAV * h; p.x += p.vx * h; p.y += p.vy * h; p.a += p.va * h; p.va *= 0.998;
+        const ca = Math.cos(p.a), sa = Math.sin(p.a), cs = [];
+        for (const [lx, ly] of p.pts) {
+          const rx = (lx - p.cx) * ca - (ly - p.cy) * sa, ry = (lx - p.cx) * sa + (ly - p.cy) * ca, wx = p.x + rx, wy = p.y + ry;
+          // (What has settled holds up only what comes down onto it, not what it settled over.)
+          const pt = pileTop[clamp(Math.round(wx / 2), 0, pileTop.length - 1)]; let pen = wy - surfAt(wx); if (wy - pt > 0 && wy - pt < 4) pen = Math.max(pen, wy - pt);
+          if (pen > 0) cs.push({ rx, ry, pen });
+        }
+        if (!cs.length) continue;
+        cs.sort((q1, q2) => q2.pen - q1.pen); p.y -= Math.min(2, cs[0].pen); p.va *= 0.97; p.vx *= 0.985;
+        for (const c of cs.slice(0, 2)) {
+          const vyc = p.vy + p.va * c.rx; if (vyc <= 0) continue;
+          if (vyc > 30) impact(p, p.x + c.rx, p.y + c.ry, vyc);
+          const j = (-(vyc > 20 ? 1.15 : 1) * vyc) / (1 / p.m + (c.rx * c.rx) / p.I);
+          p.vy += j / p.m; p.va += (c.rx * j) / p.I;
+          const vxc = p.vx - p.va * c.ry, jt = clamp(-vxc / (1 / p.m + (c.ry * c.ry) / p.I), -0.6 * Math.abs(j), 0.6 * Math.abs(j));
+          p.vx += jt / p.m; p.va -= (c.ry * jt) / p.I;
+        }
+      }
+      p.age += dt;
+      if (Math.abs(p.vx) + Math.abs(p.vy) < 3 && Math.abs(p.va) < 0.2) p.still += dt; else p.still = 0;
+      if (p.still > 0.4 || p.age > 6) { p.rest = true; toPile(p); }
     }
   }
-  // (What's left of a hut, held on the plate a moment till its rubble is printed under it.)
-  let ghosts = [];
+  // (A piece come to rest is ground for the ones after it.)
+  function toPile(p) {
+    const ca = Math.cos(p.a), sa = Math.sin(p.a), W = p.pts.map(([lx, ly]) => [p.x + (lx - p.cx) * ca - (ly - p.cy) * sa, p.y + (lx - p.cx) * sa + (ly - p.cy) * ca]);
+    let x0 = 1e9, x1 = -1e9; for (const [x] of W) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); }
+    for (let x = Math.ceil(x0 / 2) * 2; x <= x1; x += 2) {
+      let top = 1e9;
+      for (let k = 0; k < W.length; k++) { const [ax, ay] = W[k], [bx, by] = W[(k + 1) % W.length]; if ((ax - x) * (bx - x) > 0 || ax === bx) continue; top = Math.min(top, ay + ((x - ax) / (bx - ax)) * (by - ay)); }
+      const i = clamp(Math.round(x / 2), 0, pileTop.length - 1); if (top < pileTop[i]) pileTop[i] = top;
+    }
+  }
+  function drawWreck(x0, x1) {
+    if (!wreck.length) return;
+    g.save(); g.beginPath(); g.moveTo(x0, -600); for (let x = x0; x <= x1; x += CS) g.lineTo(x, surfAt(x) + 0.6); g.lineTo(x1, -600); g.closePath(); g.clip();
+    for (const p of wreck) {
+      g.save(); g.translate(p.x, p.y); g.rotate(p.a); g.translate(-p.cx, -p.cy);
+      g.beginPath(); p.pts.forEach(([x, y], k) => (k ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath();
+      g.save(); g.clip(); g.drawImage(p.sp.c, p.sp.ox, p.sp.oy, p.sp.w, p.sp.h); g.restore();
+      if (p.wait <= 0) { g.globalAlpha = 0.55; g.strokeStyle = OVER; g.lineWidth = 0.45; g.stroke(); }
+      g.restore();
+    }
+    g.restore();
+  }
+
   // (The hut as it goes: drawn in bands, each crushed by how far the giving has come, the low ones first; the bands
   // above slide over the way it leant, the roof last and nearly whole.)
   function drawFalling(t, sp) {
     const f = t.fall, side = f.side, bx = sp.ox - (side > 0 ? t.w : 0);
     g.translate(f.px, f.py + f.drop); g.rotate(side * f.u + (f.hold && !f.giving ? Math.sin(clock * 47) * 0.007 : 0));
-    if (!f.c) { g.drawImage(sp.c, bx, sp.oy, sp.w, sp.h); return; }
-    // (Only the hut itself, base to chimney top, is banded; the sprite's margin below the base is left out.)
-    const top = -t.d.h - 12, N = 12, bh = -top / N, ppu = sp.c.height / sp.h, py = (Y) => (Y - sp.oy) * ppu;
-    let y = 0;
-    for (let k = 0; k < N; k++) {
-      const crush = clamp(f.c * 1.8 - (k / N) * 0.8, 0, k < N * 0.45 ? 0.9 : 0.55), dh = bh * (1 - crush);
-      y -= dh;
-      const sx = side * f.c * f.c * -y * 0.45 + f.jit[k] * f.c * 2.5, y0 = -(k + 1) * bh;
-      g.drawImage(sp.c, 0, py(y0), sp.c.width, bh * ppu, bx + sx, y, sp.w, dh + 0.3);
-    }
+    g.drawImage(sp.c, bx, sp.oy, sp.w, sp.h);
   }
   function rubbleHeap(X, Wd) {
     P = plates(Wd + 80, 90, X - 40, -70);
@@ -1130,8 +1216,8 @@
     // (Its rubble fills whatever opened under it.)
     if (t.fall.floor > 0) fillHole(t.x - 10, t.x + t.w + 10);
     // (What's left: a heap, low, where it stood; and the food it held, out in the street.)
-    const rx = clamp(t.fall.restX ?? t.x, 0, UW - 10), rw = Math.min(t.fall.restW ?? t.w, UW - rx), c = rubbleHeap(rx, rw);
-    rubble.push({ x: rx, ox: -40, oy: -70, w: rw + 80, h: 90, c, x0: rx, x1: rx + rw });
+    const rx = clamp(t.fall.restX ?? t.x, 0, UW - 10), rw = Math.min(t.fall.restW ?? t.w, UW - rx);
+    if (!SETTLE) rubble.push({ x: rx, ox: -40, oy: -70, w: rw + 80, h: 90, c: rubbleHeap(rx, rw), x0: rx, x1: rx + rw });
     for (let k = 0; k < 8 + Math.round(t.d.h / 40); k++) crumbs.push({ x: clamp(rx + rnd(-20, rw + 20), 4, UW - 4), claimed: null, bait: false, at: clock });
     cityDirty = true;
   }
@@ -1482,6 +1568,7 @@
   const goal = { n: 3, of: 5 }, stats = { lost: 0 };
   function checkCity() {
     if (fallen) return;
+    if (SETTLE && wreck.some((p) => !p.rest)) return;
     if (downed >= goal.n) {
       fallen = { at: clock };
       caption(`${NAMES[era % NAMES.length]} has fallen!`, 3.4);
@@ -2531,7 +2618,7 @@
     dust = dust.filter((d) => d.t < d.life);
     for (const d of debris) { d.vy += dt * 170; d.x += d.vx * dt; d.y += d.vy * dt; d.a += d.va * dt; if (d.y >= 2 && !d.landed) { d.landed = true; dust.push({ x: d.x, y: 0, r: rnd(3, 6), vx: rnd(-8, 8), vy: -0.6, t: 0, life: rnd(1.4, 2.4), s: Math.random() * 9 }); } }
     debris = debris.filter((d) => d.y < 4);
-    stepTowers(dt); stepPest(dt); stepBuild(dt); if (SETTLE) stepBits(dt);
+    stepTowers(dt); stepPest(dt); stepBuild(dt); if (SETTLE) { stepBits(dt); stepWreck(dt); }
     if (now - slowAt > 700) { slowAt = now; settle(); scout(clock); checkCity(); raiseSecond(); stepMines(); seeLayers(); findFace(); updateStatus(); stepTutorial(); stepRoofs(0.7); looseStones(); if (trod) for (let i = 0; i < GW * GH; i++) if (trod[i] > 0) trod[i] = trod[i] < 0.01 ? 0 : trod[i] * (SETTLE ? 0.94 : 0.985); }
     if (now - subAt > 450) { subAt = now; subside(); }
     if (cityDirty) { cityDirty = false; drawCity(); }
@@ -2553,7 +2640,8 @@
   function draw(t) {
     g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, top.width, top.height);
     g.save(); g.beginPath(); g.rect(IN.x * DPR, IN.y * DPR, IN.w * DPR, IN.h * DPR); g.clip();
-    g.setTransform(RU * Z, 0, 0, RU * Z, (IN.x - camX * SZ()) * DPR, (G - camY * SZ()) * DPR);
+    const shx = shake > 0.05 ? Math.sin(t * 61) * shake * DPR : 0, shy = shake > 0.05 ? Math.sin(t * 47 + 1) * shake * 0.6 * DPR : 0;
+    g.setTransform(RU * Z, 0, 0, RU * Z, (IN.x - camX * SZ()) * DPR + shx, (G - camY * SZ()) * DPR + shy);
     const vy0 = camY - (G - IN.y) / SZ(), vy1 = camY + (IN.y + IN.h - G) / SZ();
     if (vy0 < 10) {
       g.drawImage(cityC, 0, cityC.oy, UW, cityC.height / RU);
@@ -2561,7 +2649,7 @@
     }
     for (let k = Math.max(0, Math.floor(vy0 / CH)); k <= Math.floor(vy1 / CH); k++) g.drawImage(chunk(k).c, 0, k * CH, UW, CH);
     if (SETTLE) drawTrickle(t);
-    if (SETTLE && vy0 < 10) { ghosts = ghosts.filter((q) => clock - q.at < 1.8); for (const q of ghosts) { const t = q.t, m = t.w * 0.6 + 40; g.save(); g.globalAlpha = clamp(1 - (clock - q.at - 0.9) / 0.9, 0, 1); g.beginPath(); g.moveTo(t.x - m, -600); for (let x = t.x - m; x <= t.x + t.w + m; x += CS) g.lineTo(x, surfAt(x) + 0.6); g.lineTo(t.x + t.w + m, -600); g.closePath(); g.clip(); drawFalling(t, q.sp); g.restore(); } }
+    if (SETTLE && vy0 < 10) drawWreck(Math.max(0, camX - 20), Math.min(UW, camX + UW / Z + 20));
     if (SETTLE && vy0 < 10) for (const tw of towers) { const t = tw;
       if (t.rise < 1) continue;
       const m = t.fall ? t.w * 0.6 + 40 : 40;

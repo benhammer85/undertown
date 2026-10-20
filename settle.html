@@ -1225,13 +1225,13 @@
   // ---------------------------------------------------------------- the city fights back
   let alarm = 0, pest = null, pestCool = 0, captions = [];
   const thresholds = () => [30, 55, 80].map((v) => v * Math.max(0.55, 1 - era * 0.12));
-  // (A caption about somewhere says where: a red ring marks the place on the plate for a while, and if it's out of
-  // view the caption carries an arrow; a tap on the caption takes you there.)
+  // (A caption about somewhere says where: if the place is out of view the caption carries an arrow, and a tap on
+  // the caption takes you there.)
   let marks = [];
   function caption(text, secs = 2.6, loc = null) { captions.push({ text, at: clock, secs: loc ? Math.max(secs, 3.6) : secs, loc }); if (captions.length > 2) captions.shift(); if (loc) marks.push({ x: loc.x, y: loc.y, at: clock }); }
   function drawMarks(t, vy0, vy1) {
     marks = marks.filter((m) => clock - m.at < 7);
-    for (const m of marks) { if (m.y < vy0 - 20 || m.y > vy1 + 20) continue; const k = (clock - m.at) / 7, r = 10 + Math.sin(t * 5) * 2; g.globalAlpha = 1 - k * k; g.strokeStyle = '#a3341f'; g.lineWidth = 2; g.beginPath(); g.arc(m.x, m.y, r, 0, TAU); g.stroke(); g.lineWidth = 1; g.beginPath(); g.arc(m.x, m.y, r + 6, 0, TAU); g.stroke(); }
+    // (No ring on the plate: the caption's arrow and a tap on it say where.)
     g.globalAlpha = 1;
   }
   function busiest() { let best = entrances[0], bn = -1; for (const e of entrances) { let n = 0; for (const [x, m] of mounds) if (Math.abs(x - e.x) < 40) n += m; if (n > bn) { bn = n; best = e; } } return best; }
@@ -2142,14 +2142,14 @@
     const tw = tut.tower, say = tut.step === 1 ? (SETTLE ? 'Step 1 of 3: Drag from the ants’ way in, down and under the marked hut.' : 'Step 1 of 3: Drag from the ants’ way in, down and under the marked building.') : tut.step === 2 ? (SETTLE ? 'Step 2 of 3: When the ants finish a tunnel, the ground above sinks into it. Keep digging under the hut until it reaches 100% sunk.' : 'Step 2 of 3: The ants are digging. Keep going until it says 100% dug out.') : `Step 3 of 3: It fell! Knock down ${Math.max(0, goal.n - downed)} more to finish the town.`;
     // (In the plate: an arrow over the building, and the way in marked.)
     g.setTransform(RU * Z, 0, 0, RU * Z, (IN.x - camX * SZ()) * DPR, (G - camY * SZ()) * DPR);
-    const label = (txt, x, y) => { g.font = `600 ${(20 / Math.sqrt(Z)).toFixed(1)}px ${C('--body') || 'Georgia'}`; g.textAlign = 'center'; g.textBaseline = 'middle'; const w = g.measureText(txt).width + 12, h = 20 / Math.sqrt(Z) + 8; g.fillStyle = PAPER; g.fillRect(x - w / 2, y - h / 2, w, h); g.strokeStyle = '#a3341f'; g.lineWidth = 1; g.strokeRect(x - w / 2, y - h / 2, w, h); g.fillStyle = '#a3341f'; g.fillText(txt, x, y + 0.5); };
-    if (tut.step < 3 && !tw.fall) { const ax = tw.x + tw.w / 2, ay = -tw.d.h - 22 - Math.abs(Math.sin(t * 1.8)) * 7; g.fillStyle = '#a3341f'; g.beginPath(); g.moveTo(ax - 14, ay - 18); g.lineTo(ax + 14, ay - 18); g.lineTo(ax, ay); g.closePath(); g.fill(); label(SETTLE ? 'Dig under this hut' : 'Dig under this one', ax, ay - 34); }
-    if (tut.step === 1) { g.strokeStyle = '#a3341f'; g.lineWidth = 2.4; g.setLineDash([5, 4]); g.beginPath(); g.arc(EX, 8, 14 + Math.sin(t * 4) * 2, 0, TAU); g.stroke(); g.setLineDash([]); label('Ants’ way in', clamp(EX, 60, UW - 60), 40); g.setLineDash([5, 4]); g.globalAlpha = 0.6; g.beginPath(); g.moveTo(EX, 12); g.quadraticCurveTo(EX, 26, tw.x + tw.w / 2, 18); g.stroke(); g.setLineDash([]); g.globalAlpha = 1; }
+    const label = (txt, x, y) => { g.font = `600 ${(20 / Math.sqrt(Z)).toFixed(1)}px ${C('--body') || 'Georgia'}`; g.textAlign = 'center'; g.textBaseline = 'middle'; const w = g.measureText(txt).width + 12, h = 20 / Math.sqrt(Z) + 8; g.fillStyle = PAPER; g.fillRect(x - w / 2, y - h / 2, w, h); g.strokeStyle = OVER; g.lineWidth = 0.8; g.strokeRect(x - w / 2, y - h / 2, w, h); g.fillStyle = OVER; g.fillText(txt, x, y + 0.5); };
+    if (tut.step < 3 && !tw.fall) { const ax = tw.x + tw.w / 2, ay = -tw.d.h - 22 - Math.abs(Math.sin(t * 1.8)) * 7; g.strokeStyle = OVER; g.lineWidth = 1.4; g.beginPath(); g.moveTo(ax, ay - 22); g.lineTo(ax, ay); g.moveTo(ax - 6, ay - 7); g.lineTo(ax, ay); g.lineTo(ax + 6, ay - 7); g.stroke(); label(SETTLE ? 'Dig under this hut' : 'Dig under this one', ax, ay - 34); }
+    if (tut.step === 1) { g.strokeStyle = OVER; g.lineWidth = 1.2; label('Ants’ way in', clamp(EX, 60, UW - 60), 40); g.setLineDash([5, 4]); g.globalAlpha = 0.6; g.beginPath(); g.moveTo(EX, 12); g.quadraticCurveTo(EX, 26, tw.x + tw.w / 2, 18); g.stroke(); g.setLineDash([]); g.globalAlpha = 1; }
     g.setTransform(DPR, 0, 0, DPR, 0, 0); g.save(); g.font = `15px ${C('--body') || 'Georgia'}`;
     const w = Math.min(IN.w - 24, 330), pad = 14, words = say.split(' '), lines = []; let line = '';
     for (const wd of words) { const t2 = line ? line + ' ' + wd : wd; if (g.measureText(t2).width > w - pad * 2 && line) { lines.push(line); line = wd; } else line = t2; } lines.push(line);
     const h = lines.length * 20 + 18, x = IN.x + (IN.w - w) / 2, y = IN.y + IN.h - h - 52;
-    g.fillStyle = PAPER; g.fillRect(x, y, w, h); g.strokeStyle = '#a3341f'; g.lineWidth = 1.4; g.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+    g.fillStyle = PAPER; g.fillRect(x, y, w, h); g.strokeStyle = OVER; g.lineWidth = 1; g.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
     g.fillStyle = OVER; g.textAlign = 'center'; g.textBaseline = 'middle'; lines.forEach((l2, k) => g.fillText(l2, x + w / 2, y + 19 + k * 20)); g.restore();
   }
   function drawMenu() {

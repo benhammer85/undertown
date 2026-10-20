@@ -19,5 +19,6 @@ const { open, sleep } = require('./_page.cjs');
   const lost = await ev('card && card.title');
   console.log({ opening, standing, surveyOk, plateOneWeapon, fallen, next, lost, errors: errors.length });
   await browser.close();
+  if (errors.length) console.log(errors);
   if (!opening || !standing || !surveyOk || plateOneWeapon !== 'bait' || !/brought down/.test(fallen || '') || next[0] !== 1 || !/wiped out/.test(lost || '') || errors.length) process.exit(1);
 })();

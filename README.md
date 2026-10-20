@@ -9,17 +9,16 @@ fights back with bait, smoke and concrete. Each town that falls is buried, and a
 
 ## How it plays
 
-Each plate is a town. Its card says how many buildings to bring down; the pips by its name count them.
-The city answers with bait, then (on later plates) smoke and concrete; the ground is surveyed deeper each plate.
+The game opens on a title: **Continue** (it saves itself as you play), **New game**, **How to play**. Each town's
+card gives the goal: knock down so many of its buildings. The first town walks you through it in three steps.
 
-
-- **Draw** a line underground: the ants dig it. Where it can't go straight (water, the subway), they find a way.
-  Tap a pencilled route to rub it out; when the digging is out of view, a note at the bottom takes you there.
-- **Hold** to make a room. **Tap** a room to change it: larder, nursery, fungus garden, sump.
-- **Tap the queen**, then a room, to move her. Below the smoke line (80 m) nothing can reach her.
-- **Mind the ground.** Wide rooms crack and cave in (clay and rock hold any span). Dig under a loose stone
-  and it drops on whatever is below: aim it.
-- **Tap a tunnel** to post guards. **Tap the water main** to burst it. **Two fingers** to scroll and zoom.
+- **Drag** to draw a tunnel; the ants dig it, finding a way round water and the subway.
+- **Hold** to make a room.
+- **Tap anything** (the queen, a room, a dotted tunnel, the water pipe, a tunnel) for what you can do there:
+  move the queen, make a room a nursery or a food store, cancel a tunnel, burst the pipe, post guards.
+- **Two fingers** to scroll and zoom. **Tap the town's name** at the top to pause.
+- The city fights back: poison bait, then (from town two) gas, then (from town three) concrete. Keep the queen
+  deep, out of their reach. Wide rooms can cave in; loose rocks drop when you dig under them.
 
 ## Files
 
@@ -28,7 +27,7 @@ The city answers with bait, then (on later plates) smoke and concrete; the groun
   settings a phone uses when the site is added to its home screen (the icon is drawn by `sketches/icon/icon.html`).
 - `sketches/` — earlier studies: the print-style mockup (`plates.html`) and the Spiral City prototype.
 - `tests/` — headless checks (Playwright + Chromium): `smoke.cjs` (loads, frame rate, no errors), `reach.cjs`
-  (every location reachable), `ground.cjs` (stones drop, wide rooms cave in), `plates.cjs` (goal, survey, weapons by plate, endings), `colony.cjs` (the colony
+  (every location reachable), `ground.cjs` (stones drop, wide rooms cave in), `plates.cjs` (goal, survey, weapons by plate, endings), `save.cjs` (save, reload, Continue), `colony.cjs` (the colony
   grows; taps work). Run with `npm test`.
 - `HISTORY.md` — what changed, when.
 

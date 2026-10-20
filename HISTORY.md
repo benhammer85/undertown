@@ -76,3 +76,15 @@ An icon in the print's two inks: one ant walking its tunnel through the pink ear
 game full screen. (Drawn by `sketches/icon/icon.html`.)
 
 (The icons first went up missing: `.gitignore` excluded every PNG, to keep test screenshots out. Now only those.)
+
+## 2026-10-20 — simpler, and kept
+- **Simpler:** two kinds of room (nursery, food store); guards from town three; the sewer's floods and the old
+  mine's cave-ins rare.
+- **Tap for options:** a tap opens a small menu of what can be done there (move the queen, make it a nursery or a
+  food store, cancel this tunnel, burst the water pipe, post or remove guards). The key now says just that.
+- **The first town, step by step:** "Dig under this one" over a building and "Ants' way in" at the entrance; then
+  "keep going until 100% dug out"; then "it fell, knock down N more".
+- **Saved as you play** (every few seconds, and when the phone puts the page away), in the browser's own
+  storage. A **title** opens the game: Continue, New game, How to play. **Tap the town's name** to pause.
+  A continued game prints its ground again exactly as it first was (each fallen town's layer too), then puts back
+  the dug ground and everything in it. New test, `tests/save.cjs`.

@@ -14,7 +14,7 @@ async function open({ debug = false } = {}) {
   const exe = process.env.CHROMIUM || (fs.existsSync('/opt/pw-browsers/chromium-1194/chrome-linux/chrome') ? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' : undefined);
   const browser = await chromium.launch(exe ? { executablePath: exe } : {});
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
-  const errors = []; page.on('pageerror', (e) => errors.push(e.message)); page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+  const errors = []; page.on('pageerror', (e) => errors.push(e.message)); page.on('console', (m) => m.type() === 'error' && !/Failed to load resource/.test(m.text()) && errors.push(m.text())); // (the debug copy runs from a temp folder, without the icons beside it)
   await page.goto('file://' + file); await page.waitForTimeout(3500);
   const ev = (q) => page.evaluate((q) => window.__ev(q), q);
   // (The plate's opening card waits for a tap; a test begins straight away.)

@@ -942,7 +942,7 @@
     chimney(w * 0.75, -wl - rf * 0.3, rf * 0.6);
     const rp = [[-2, -wl + 1], [w / 2, -wl - rf], [w + 2, -wl + 1]]; occlude(rp); tint(rp, 0.55); poly(k, rp, 1, true, 0.3);
     for (let r2 = 1; r2 < 8; r2++) { const yy = -wl + 1 - (rf + 1) * (r2 / 8), half = (w / 2 + 2) * (1 - r2 / 8); line(k, w / 2 - half, yy, w / 2 + half, yy, 0.35, 0); }
-    hatch(k, [[w / 2, -wl - rf], [w + 2, -wl + 1], [w / 2, -wl + 1]], 1.2, 1.2, 0.35);
+    hatch(k, [[w / 2, -wl - rf], [w + 2, -wl + 1], [w / 2, -wl + 1]], 1.2, 3.4, 0.35);
     cornice(-1, -wl + 2, w + 2, 3);
   }
   function cottageDesign(w) { const wall = rnd(34, 40), roof = w * rnd(0.5, 0.6); return { kind: 'cottage', w, wall, roof, h: wall + roof, chimney: true, chx: 0.8 }; }
@@ -961,7 +961,7 @@
     chimney(w * 0.8, -wl - rf * 0.3, rf * 0.55);
     const rp = [[-3, -wl + 1.5], [w / 2, -wl - rf], [w + 3, -wl + 1.5]]; occlude(rp); tint(rp, 0.55); poly(k, rp, 1, true, 0.3);
     for (let r2 = 1; r2 < 9; r2++) { const yy = -wl + 1.5 - (rf + 1.5) * (r2 / 9), half = (w / 2 + 3) * (1 - r2 / 9); line(k, w / 2 - half, yy, w / 2 + half, yy, 0.35, 0); for (let x = w / 2 - half + (r2 % 2 ? 3 : 6); x < w / 2 + half - 2; x += 6) line(k, x, yy, x, yy + ((rf + 1.5) / 9) * 0.9, 0.25, 0); }
-    hatch(k, [[w / 2, -wl - rf], [w + 3, -wl + 1.5], [w / 2, -wl + 1.5]], 1.2, 1.2, 0.35);
+    hatch(k, [[w / 2, -wl - rf], [w + 3, -wl + 1.5], [w / 2, -wl + 1.5]], 1.2, 3.4, 0.35);
     line(k, -4, -wl + 1.5, w + 4, -wl + 1.5, 1.1, 0);
   }
   function hut(b) {
@@ -973,7 +973,7 @@
     const win = rect(w * 0.58, -wl * 0.74, Math.min(9, w * 0.17), wl * 0.32); occlude(win); poly(k, win, 0.6, true, 0); line(k, w * 0.58 + Math.min(9, w * 0.17) / 2, -wl * 0.74, w * 0.58 + Math.min(9, w * 0.17) / 2, -wl * 0.42, 0.4, 0); hatch(k, win, 0.8, 1, 0.3);
     if (b.chimney) chimney(w * 0.7, -wl - rf * 0.35, rf * 0.5);
     const rp = [[-4, -wl + 1.5], [w / 2, -wl - rf], [w + 4, -wl + 1.5]]; occlude(rp); tint(rp, b.thatch ? 0.6 : 'brick'); poly(k, rp, 0.9, true, 0.3);
-    if (b.thatch) { hatch(k, rp, 1.3, 1.2, 0.32, (px) => (px > w / 2 ? 0.85 : 0.35)); line(k, -4, -wl + 1.5, w + 4, -wl + 1.5, 1.1, 0); }
+    if (b.thatch) { hatch(k, rp, 1.3, 1.2, 0.32, (px) => (px > w / 2 ? 0.55 : 0.35)); line(k, -4, -wl + 1.5, w + 4, -wl + 1.5, 1.1, 0); }
     else for (let r2 = 1; r2 < 6; r2++) { const yy = -wl - rf * (r2 / 6), half = (w / 2 + 4) * (1 - r2 / 6); line(k, w / 2 - half, yy, w / 2 + half, yy, 0.35, 0); }
   }
   // (The market town's street: which columns are paved, which were; and its wells.)
@@ -1104,10 +1104,10 @@
       towers.push(tower(x, cottageDesign(w))); x += w + rnd(22, 34);
     }
   }
-  // (The hamlet down, its people come back: they level the ground, filling whatever's open near the top that the
-  // ants aren't keeping open, and build again in stone.)
+  // (The hamlet down, the town comes back: the ground's levelled, filling whatever's open near the top that the
+  // ants aren't keeping open; and it's built again in stone.)
   function rebuild() {
-    townN++; stageN = townN >= 2 ? 2 : 1; fallen = null; removeWells(); paveCol.fill(0); paveWas.fill(0); downed = 0; winterSaid = false; seasonEnd = clock + seasonLen(); growAt = clock + 55; wreck = []; bits = []; folk = []; fam = []; junk = []; pileTop.fill(1e9); tut = null;
+    townN++; stageN = townN >= 2 ? 2 : 1; fallen = null; removeWells(); paveCol.fill(0); paveWas.fill(0); downed = 0; winterSaid = false; seasonEnd = clock + seasonLen(); growAt = clock + 55; wreck = []; bits = []; folk = []; junk = []; truckAt = clock + 20; pileTop.fill(1e9); tut = null;
     for (let i = 0; i < GW * 15; i++) if ((soil[i] === 0 || soil[i] === 4) && !(trod && trod[i] > 0.3)) { soil[i] = 1; plan[i] = 0; for (const a of [...ants]) if (!a.surf && gi(a.x, a.y) === i) kill(a); }
     markDug(UW / 2, 22, UW / 2 + 10); dirty = true;
     if (stageN === 2) initMarket(); else initVillage(); towers.forEach((t, k) => (t.rise = -k * 0.3));
@@ -1124,7 +1124,7 @@
     }
   }
   function initCity() {
-    if (SETTLE) { paveCol.fill(0); paveWas.fill(0); wells = []; stageN = 0; townN = 0; score = 0; winterSaid = false; seasonEnd = clock + 240; growAt = clock + 55; folk = []; fam = []; junk = []; wreck = []; bits = []; shake = 0; pileTop.fill(1e9); initHamlet(); peak = towers.length; downed = 0; goal.of = towers.length; goal.n = Math.max(2, towers.length - 1); plateAt = clock; stats.lost = 0; plantTrees(); carts = [{ x: EX - 50, t: 0, life: 70 }]; drawSky(); return; }
+    if (SETTLE) { paveCol.fill(0); paveWas.fill(0); wells = []; stageN = 0; townN = 0; score = 0; winterSaid = false; seasonEnd = clock + 240; growAt = clock + 55; folk = []; junk = []; wreck = []; bits = []; shake = 0; pileTop.fill(1e9); initHamlet(); peak = towers.length; downed = 0; goal.of = towers.length; goal.n = Math.max(2, towers.length - 1); plateAt = clock; stats.lost = 0; plantTrees(); carts = [{ x: EX - 50, t: 0, life: 70 }]; drawSky(); return; }
     towers = []; let x = 6;
     while (x < UW - 40) {
       let w = rnd(84, 140);
@@ -1230,7 +1230,6 @@
   function crack(t, side) { t.cracked++; t.side = side; t.spr = null; cityDirty = true; }
   function collapse(t, side) {
     if (t.fall) return;
-    if (SETTLE) emptyHouse(t, side, true);
     // (Over an open hole it leans and slides down into it; otherwise it settles into its own footing.)
     const floor = holeFloorUnder(t.x, t.x + t.w);
     t.fall = { t: 0, side, sink: 0, v: 0, floor };
@@ -1581,138 +1580,107 @@
       // (Before it goes it gives warning: cracks that spread by stages, a shudder, bits off the low eave, soil
       // spilling from under the low corner.)
       const sd = t.want >= 0 ? 1 : -1, stage = k >= 0.8 ? 3 : k >= 0.55 ? 2 : k >= 0.3 ? 1 : 0;
-      if (stage >= 2) emptyHouse(t, sd);
       if (stage > (t.stage || 0)) { t.stage = stage; t.damage = stage; t.cracked = Math.max(t.cracked || 0, stage); t.side = sd; t.spr = null; t.shiv = 0.5; warnBits(t, sd, 2 + stage * 2); }
       else if (k > 0.6 && Math.random() < 0.3 * k) { t.shiv = 0.35; warnBits(t, sd, 1 + (Math.random() < 0.5)); }
       if (k >= 1) collapse(t, sd);
     }
   }
-  // The town's people. The ones who live in a house carry their things out when it cracks, and stand in the street
-  // to watch; nobody is in a house when it goes. And in the village a work crew comes with a barrow of earth to fill
-  // any dip near the houses: plugging tunnel mouths, burying ants under the fill. Dig out the ground under the crew
-  // and the barrow goes down the hole.
-  let folk = [], fam = [], junk = [], folkSaid = false, buriedSaid = false, lostSaid = false;
+  // The town's machines. In the village a tipper lorry backs up to any dip in the street and tips a load of earth
+  // into it, plugging the tunnel mouth and burying any ants under it; in the market town a cement mixer pours
+  // concrete instead, which doesn't settle and is slow to chew through. Dig the ground out from under either and it
+  // goes down the hole, and stays there.
+  let folk = [], junk = [], folkSaid = false, buriedSaid = false, lostSaid = false, truckAt = 0;
+  const TL = 30; // (a machine's length)
   const onHouse = (x) => towers.some((o) => !o.fall && o.rise >= 1 && x > o.x - 3 && x < o.x + o.w + 3);
-  const doorOf = (h) => h.x + h.w * (h.d.kind === 'cottage' ? 0.2 : 0.16) + 5;
   const footY = (x) => Math.min(surfAt(x), 6);
-  function emptyHouse(h, side, hurry = false) {
-    if (h.emptied) return; h.emptied = true;
-    const n = 2 + Math.floor(Math.random() * 3), away = side > 0 ? -1 : 1, door = doorOf(h);
-    let base = away < 0 ? h.x - rnd(26, 44) : h.x + h.w + rnd(26, 44);
-    for (let k = 0; k < n; k++) {
-      const tx = clamp(base + away * k * 6 + rnd(-2, 2), 6, UW - 6);
-      fam.push({ home: h, x: door, tx, st: 'wait', t: -k * 0.45 - (hurry ? 0 : 0.6), child: k === n - 1 && n > 2, bundle: k < 2, dir: away, speed: hurry ? 17 : 9, said: false });
-    }
-  }
+  const wheelsOf = (f) => [f.x + f.face * (TL / 2 - 4), f.x - f.face * (TL / 2 - 5)];
   function sendFolk() {
-    if (stageN < 1) return;
-    for (const h of towers) {
-      if (h.fall || h.rise < 1 || h.emptied || (h.folkAt && clock - h.folkAt < 7) || folk.some((f) => f.home === h)) continue;
-      const door = doorOf(h); let tx = null, bd = 1e9;
-      for (let x = h.x - 70; x <= h.x + h.w + 70; x += CS) {
-        if (x < 4 || x > UW - 4 || Math.abs(x - EX) < 9 || onHouse(x) || folk.some((f) => Math.abs(f.tx - x) < 14) || surfAt(x) < 3) continue;
-        if (Math.abs(x - door) < bd) { bd = Math.abs(x - door); tx = x; }
-      }
-      if (tx === null) continue;
-      const dir = tx > door ? 1 : -1;
-      // (It stops short of the dip, at its edge, with the barrow's nose over it.)
-      folk.push({ home: h, x: door, tx, stand: tx - dir * 13, st: 'notice', t: 0, dir, barrow: true, full: true, tip: 0 });
-      if (!folkSaid) { folkSaid = true; caption('A work crew is coming to fill in your holes', 3, { x: tx, y: 0 }); }
+    if (stageN < 1 || folk.length || clock < truckAt) return;
+    let tx = null, bd = 1e9;
+    for (let x = 6; x < UW - 6; x += CS) {
+      if (Math.abs(x - EX) < 9 || onHouse(x) || wells.some((w) => Math.abs(w.x - x) < 12) || surfAt(x) < 3 || junk.some((j) => Math.abs(j.x - x) < 20)) continue;
+      // (The dip nearest a house first: that's where it matters to them.)
+      const d = Math.min(...towers.filter((o) => !o.fall).map((o) => Math.min(Math.abs(x - o.x), Math.abs(x - o.x - o.w))), 999);
+      if (d < bd) { bd = d; tx = x; }
     }
+    if (tx === null) return;
+    const move = tx < UW / 2 ? 1 : -1, kind = stageN === 2 ? 'mixer' : 'lorry';
+    folk.push({ kind, x: move > 0 ? -TL : UW + TL, tx, move, face: -move, stand: tx - move * (5 + TL / 2), st: 'in', t: 0, tip: 0, full: true });
+    if (!folkSaid) { folkSaid = true; caption(kind === 'mixer' ? 'A cement mixer is coming to fill your holes with concrete' : 'A lorry is coming to fill in your holes', 3.2, { x: tx, y: 0 }); }
   }
   function stepFolk(dt) {
     for (const f of folk) {
       f.t += dt;
-      const fl = surfAt(f.x);
-      // (The ground gone from under the crew: down they go, barrow and all.)
-      if ((f.st === 'go' || f.st === 'tip' || f.st === 'dig') && fl >= 9) {
-        f.st = 'fall'; f.t = 0; f.y0 = footY(f.x);
-        if (f.barrow) { junk.push({ x: f.x + f.dir * 10, a: f.dir * rnd(0.6, 1.4), full: f.full }); f.barrow = false; }
-        for (let q = 0; q < 4; q++) dust.push({ x: f.x + rnd(-6, 6), y: 0, r: rnd(4, 8), vx: rnd(-8, 8), vy: rnd(-2, -0.5), t: 0, life: rnd(2, 3.5), s: Math.random() * 9 });
-        if (!lostSaid) { lostSaid = true; caption('The crew lost their barrow down a hole', 3, { x: f.x, y: 0 }); }
+      if ((f.st === 'in' || f.st === 'tip') && f.x > -TL / 2 && f.x < UW + TL / 2 && wheelsOf(f).some((x) => surfAt(x) >= 9)) {
+        // (Down it goes: its back end into the hole, and there it stays.)
+        f.st = 'fall'; f.t = 0;
+        for (let q = 0; q < 6; q++) dust.push({ x: f.x + rnd(-14, 14), y: 0, r: rnd(5, 10), vx: rnd(-10, 10), vy: rnd(-2.5, -0.6), t: 0, life: rnd(2.5, 4), s: Math.random() * 9 });
+        shake = Math.max(shake, 1.4); score++; updateStatus();
+        caption(`The ${f.kind === 'mixer' ? 'cement mixer' : 'lorry'} went down a hole: +1`, 2.8, { x: f.x, y: 0 });
       }
-      if (f.st === 'notice') { if (f.t > 1.1) { f.st = 'go'; f.t = 0; } continue; }
-      if (f.st === 'tip') { f.tip = Math.min(1, f.t / 0.6); if (f.t > 0.9) { fillAt(f.tx); f.full = false; f.st = 'dig'; f.t = 0; } continue; }
-      if (f.st === 'dig') { f.tip = Math.max(0, 1 - f.t * 2); if (f.t > 1.8) { f.st = 'home'; f.t = 0; } else if (Math.random() < dt * 3) bits.push({ x: f.tx, y: -3, vx: -f.dir * rnd(4, 12), vy: -rnd(15, 30), rest: 0, roof: false, a: 0 }); continue; }
-      if (f.st === 'fall') { if (f.t > 1.6) { f.st = 'storm'; f.t = 0; } continue; }
-      const to = f.st === 'go' ? f.stand : doorOf(f.home), sp = f.st === 'storm' ? 17 : 10;
-      f.dir = to > f.x ? 1 : -1; f.x += f.dir * Math.min(Math.abs(to - f.x), sp * dt);
-      if (Math.abs(to - f.x) < 0.5) { if (f.st === 'go') { f.st = 'tip'; f.t = 0; f.dir = f.tx > f.x ? 1 : -1; } else f.done = true; }
-      if ((f.st === 'home' || f.st === 'storm') && (f.home.fall || !towers.includes(f.home))) f.done = true;
+      if (f.st === 'fall') { f.sink = Math.min(1, f.t / 0.7); if (f.t > 0.8) { junk.push({ x: f.x, face: f.face, kind: f.kind, full: f.full }); f.done = true; } continue; }
+      if (f.st === 'tip') {
+        f.tip = Math.min(1, f.t / 0.8);
+        if (f.t > 1.1 && f.full) { (f.kind === 'mixer' ? pourAt : fillAt)(f.tx); f.full = false; }
+        if (f.t > 2) { f.st = 'out'; f.t = 0; f.face = f.move = -f.move; } continue;
+      }
+      if (f.st === 'out') f.tip = Math.max(0, f.tip - dt * 1.5);
+      const to = f.st === 'in' ? f.stand : f.move > 0 ? UW + TL + 4 : -TL - 4, sp = f.st === 'in' ? 14 : 20;
+      f.x += Math.sign(to - f.x) * Math.min(Math.abs(to - f.x), sp * dt);
+      if (Math.abs(to - f.x) < 0.5) { if (f.st === 'in') { f.st = 'tip'; f.t = 0; } else f.done = true; }
     }
-    for (const f of folk) if (f.done) f.home.folkAt = clock;
+    if (folk.some((f) => f.done && f.st !== 'fall')) truckAt = clock + 6;
+    if (folk.some((f) => f.done && f.st === 'fall')) truckAt = clock + 14;
     folk = folk.filter((f) => !f.done);
-    for (const m of fam) {
-      m.t += dt; if (m.t < 0) continue;
-      if (m.st === 'wait') { m.st = 'out'; m.said = true; }
-      const gone = m.home.fall || !towers.includes(m.home);
-      if (m.st === 'watch') {
-        m.dir = m.home.x + m.home.w / 2 > m.x ? 1 : -1;
-        if (surfAt(m.x) >= 6) { m.tx = clamp(m.x + (m.x < m.home.x ? -16 : 16), 6, UW - 6); m.st = 'out'; }
-        if (gone && (m.goneAt = m.goneAt || clock) && clock - m.goneAt > 6) { m.st = 'leave'; m.tx = m.x < UW / 2 ? -14 : UW + 14; }
-        continue;
-      }
-      m.dir = m.tx > m.x ? 1 : -1; m.x += m.dir * Math.min(Math.abs(m.tx - m.x), m.speed * dt);
-      if (Math.abs(m.tx - m.x) < 0.5) { if (m.st === 'leave') m.done = true; else m.st = 'watch'; }
-    }
-    fam = fam.filter((m) => !m.done);
   }
-  // (A barrow of earth into the dip: the ground made up level again, and any ants under it buried.)
-  function fillAt(x0) {
+  // (The dip made up level again, with earth, or with concrete; any ants under it buried.)
+  function fillAt(x0, mat = 1) {
     let n = 0, dead = 0;
     for (let x = x0 - 7; x <= x0 + 7; x += CS) {
       const rows = Math.min(6, Math.round(surfAt(x) / CS));
-      for (let r = 0; r < rows; r++) { const i = gi(x, r * CS + 1); if (i < 0 || (soil[i] !== 0 && soil[i] !== 4)) continue; soil[i] = 1; plan[i] = 0; if (trod) trod[i] = 0; n++; for (const a of [...ants]) if (!a.surf && gi(a.x, a.y) === i) { kill(a); dead++; } markDug(cxOf(i), cyOf(i), 4); }
+      for (let r = 0; r < rows; r++) { const i = gi(x, r * CS + 1); if (i < 0 || (soil[i] !== 0 && soil[i] !== 4)) continue; soil[i] = mat; plan[i] = 0; if (trod) trod[i] = 0; n++; for (const a of [...ants]) if (!a.surf && gi(a.x, a.y) === i) { kill(a); dead++; } markDug(cxOf(i), cyOf(i), 4); }
     }
-    for (let c = Math.floor((x0 - 7) / CS); c <= Math.ceil((x0 + 7) / CS); c++) if (c >= 0 && c < GW && paveWas[c] && !paveCol[c] && soil[c] === 1 && soil[GW + c] === 1) paveCol[c] = 1;
-    junk = junk.filter((j) => Math.abs(j.x - x0) > 10);
+    if (mat === 1) for (let c = Math.floor((x0 - 7) / CS); c <= Math.ceil((x0 + 7) / CS); c++) if (c >= 0 && c < GW && paveWas[c] && !paveCol[c] && soil[c] === 1 && soil[GW + c] === 1) paveCol[c] = 1;
+    junk = junk.filter((j) => Math.abs(j.x - x0) > 16);
     if (n) { dirty = true; for (let q = 0; q < 3; q++) dust.push({ x: x0 + rnd(-6, 6), y: -1, r: rnd(3, 6), vx: rnd(-5, 5), vy: rnd(-1.5, -0.4), t: 0, life: rnd(2, 3), s: Math.random() * 9 }); }
-    if (dead && !buriedSaid) { buriedSaid = true; caption(`The crew buried ${dead} of your ants`, 3, { x: x0, y: 0 }); }
+    if (dead && !buriedSaid) { buriedSaid = true; caption(`${dead} of your ants were buried`, 3, { x: x0, y: 0 }); }
   }
-  // (A person, in the plate's ink: coat, head, hat; drawn first wide in the paper's colour so it stands clear of a
-  // busy wall behind. A child is smaller and bareheaded.)
-  function drawPerson(x, y, d, o) {
-    const sc = o.child ? 1.25 : 1.8, ph = o.walk ? Math.sin(o.t * (o.run ? 13 : 8)) : 0, lean = o.lean || (o.walk ? 0.08 : 0);
-    for (const halo of [true, false]) {
-      const ink = halo ? PAPER : OVER, wx = halo ? 1.1 : 0;
-      g.save(); g.translate(x, y - (o.walk ? Math.abs(ph) * 0.3 : 0)); g.scale(d * sc, sc); g.strokeStyle = ink; g.lineCap = 'round'; g.lineJoin = 'round';
-      g.lineWidth = 0.75 + wx; g.beginPath(); g.moveTo(0, -5); g.lineTo(-ph * 1.6, 0); g.moveTo(0, -5); g.lineTo(ph * 1.6 + (o.brace ? 1.2 : 0), 0); g.stroke();
-      g.rotate(lean);
-      g.fillStyle = halo ? PAPER : PINK; g.beginPath(); g.moveTo(-1.6, -4.2); g.lineTo(1.8, -4.2); g.lineTo(1.1, -10); g.lineTo(-1.1, -10); g.closePath(); g.fill(); g.stroke();
-      if (o.bundle) { g.fillStyle = halo ? PAPER : PINK; g.beginPath(); g.arc(-2.3, -8.2, 1.9, 0, TAU); g.fill(); g.stroke(); }
-      g.fillStyle = PAPER; g.beginPath(); g.arc(0.3, -11.8, 1.5, 0, TAU); g.fill(); g.stroke();
-      if (!o.child) { g.fillStyle = ink; g.fillRect(-1.8 - wx / 2, -13.4 - wx / 2, 4.2 + wx, 0.7 + wx); g.fillRect(-0.9 - wx / 2, -14.6 - wx / 2, 2.4 + wx, 1.3 + wx); }
-      g.lineWidth = 0.6 + wx; g.beginPath();
-      if (o.arms === 'push') { g.moveTo(0.5, -9); g.lineTo(3, -6.5); }
-      else if (o.arms === 'dig') { const hy = o.dig * 1.5; g.moveTo(0.8, -8.5); g.lineTo(4.5, -2 + hy); g.moveTo(3.6, -1.2 + hy); g.lineTo(5.6, -2.6 + hy); g.moveTo(0.5, -9); g.lineTo(2.2, -6.5 + hy * 0.5); }
-      else if (o.arms === 'up') { g.moveTo(0.5, -9); g.lineTo(2.5, -13); g.moveTo(-0.5, -9); g.lineTo(-2.2, -12.5); }
-      else { g.moveTo(0.4, -9); g.lineTo(1 + ph * 0.8, -5.5); }
-      g.stroke(); g.restore();
+  const pourAt = (x0) => fillAt(x0, 3);
+  // (The machines, side on, cab at the front: a tipper lorry, its body raised on the back hinge to tip; a mixer, its
+  // drum turning, its chute let down to pour.)
+  function drawMachine(f, x, y, sink) {
+    const L = TL, t = clock;
+    g.save(); g.translate(x, y); g.scale(f.face, 1);
+    if (sink) { g.translate(L / 2 - 4, 0); g.rotate(-sink * 0.75); g.translate(-(L / 2 - 4), sink * 5); }
+    g.strokeStyle = OVER; g.lineWidth = 0.9; g.lineJoin = 'round';
+    // chassis and wheels
+    g.fillStyle = PAPER; g.beginPath(); g.rect(-L / 2, -5, L, 2.2); g.fill(); g.stroke();
+    for (const wx of [L / 2 - 4, -L / 2 + 5, -L / 2 + 10]) { g.beginPath(); g.arc(wx, -2.5, 2.5, 0, TAU); g.fill(); g.stroke(); g.beginPath(); g.arc(wx, -2.5, 0.8, 0, TAU); g.stroke(); }
+    // cab
+    g.fillStyle = PINK; g.beginPath(); g.moveTo(L / 2 - 9, -5); g.lineTo(L / 2 - 9, -15); g.lineTo(L / 2 - 3, -15); g.lineTo(L / 2, -10); g.lineTo(L / 2, -5); g.closePath(); g.fill(); g.stroke();
+    g.fillStyle = PAPER; g.beginPath(); g.moveTo(L / 2 - 7.5, -13.5); g.lineTo(L / 2 - 3.6, -13.5); g.lineTo(L / 2 - 1.6, -10.4); g.lineTo(L / 2 - 7.5, -10.4); g.closePath(); g.fill(); g.stroke();
+    if (f.kind === 'lorry') {
+      g.save(); g.translate(-L / 2 + 0.5, -5); g.rotate(-(f.tip || 0) * 0.55);
+      const bw = L - 10.5;
+      if (f.full && !(f.tip > 0.5)) { g.fillStyle = PINK; g.beginPath(); g.moveTo(0.5, -6); g.quadraticCurveTo(bw / 2, -11, bw - 0.5, -6); g.closePath(); g.fill(); g.stroke(); }
+      g.fillStyle = PAPER; g.beginPath(); g.rect(0, -6, bw, 6); g.fill(); g.stroke();
+      g.lineWidth = 0.4; for (let k = 1; k < 4; k++) { g.beginPath(); g.moveTo((bw * k) / 4, -6); g.lineTo((bw * k) / 4, 0); g.stroke(); }
+      g.restore();
+      if (f.tip > 0.5 && f.full !== undefined && f.st === 'tip') { g.fillStyle = PINK; g.globalAlpha = 0.85; g.beginPath(); g.moveTo(-L / 2, -6); g.quadraticCurveTo(-L / 2 - 4, -3, -L / 2 - 6, 2); g.lineTo(-L / 2 - 1, 2); g.closePath(); g.fill(); g.globalAlpha = 1; }
+    } else {
+      g.save(); g.translate(-3, -11); g.rotate(-0.18);
+      g.fillStyle = PAPER; g.beginPath(); g.ellipse(0, 0, 10.5, 5.6, 0, 0, TAU); g.fill(); g.stroke();
+      g.save(); g.beginPath(); g.ellipse(0, 0, 10.5, 5.6, 0, 0, TAU); g.clip(); g.lineWidth = 0.6;
+      for (let k = -3; k <= 3; k++) { const o = ((t * (f.st === 'tip' ? 9 : 4)) % 6) + k * 6; g.beginPath(); g.moveTo(o - 4, -6); g.lineTo(o + 4, 6); g.stroke(); }
+      g.restore(); g.restore();
+      g.beginPath(); g.moveTo(-8, -5); g.lineTo(-6, -9); g.moveTo(4, -5); g.lineTo(3, -8); g.stroke();
+      if (f.st === 'tip') { g.beginPath(); g.moveTo(-L / 2 + 1, -10); g.lineTo(-L / 2 - 5, -3); g.stroke(); if (f.t > 0.8 && f.t < 1.9) { g.globalAlpha = 0.6; g.lineWidth = 1.6; g.beginPath(); g.moveTo(-L / 2 - 5, -3); g.lineTo(-L / 2 - 6, 3); g.stroke(); g.globalAlpha = 1; } }
     }
-    if (o.mark) { g.save(); g.fillStyle = OVER; g.font = `italic 700 7px ${DISPLAY}`; g.textAlign = 'center'; g.fillText(o.mark, x, y - sc * 17); g.restore(); }
-  }
-  // (The barrow: wheel at the front, tray, handles back to the hands; tipped forward on its wheel to empty.)
-  function drawBarrow(x, y, d, tip, full) {
-    g.save(); g.translate(x + d * 14, y - 2.4); g.scale(d * 1.55, 1.55); g.rotate(tip * 0.9);
-    g.strokeStyle = OVER; g.lineWidth = 0.9; g.fillStyle = PAPER;
-    g.beginPath(); g.arc(0, 0, 1.6, 0, TAU); g.fill(); g.stroke();
-    const tray = [[-8, -5.5], [1.5, -5.5], [0, -2], [-6.5, -2]];
-    if (full) { g.fillStyle = PINK; g.beginPath(); g.moveTo(-8, -5.5); g.quadraticCurveTo(-3.5, -9.5, 1.5, -5.5); g.closePath(); g.fill(); g.stroke(); }
-    g.fillStyle = PAPER; g.beginPath(); tray.forEach(([a, b], k) => (k ? g.lineTo(a, b) : g.moveTo(a, b))); g.closePath(); g.fill(); g.stroke();
-    g.beginPath(); g.moveTo(-6.5, -2); g.lineTo(-11.5, -4.2); g.moveTo(-3, -2); g.lineTo(-3.5, 0.5); g.stroke();
     g.restore();
   }
   function drawFolk() {
-    for (const j of junk) { g.save(); g.translate(j.x, surfAt(j.x) - 1); g.rotate(j.a); drawBarrow(-14, 2.4, 1, 0, j.full); g.restore(); }
-    for (const m of fam) {
-      if (m.t < 0) continue;
-      drawPerson(m.x, footY(m.x), m.dir, { t: m.t, walk: m.st !== 'watch', child: m.child, bundle: m.bundle && m.st !== 'watch', arms: m.st === 'watch' && (m.home.fall || m.home.shiv > 0) && !m.child ? 'up' : null, mark: m.t < 1.2 ? '!' : null });
-    }
-    for (const f of folk) {
-      const fall = f.st === 'fall', y = fall ? f.y0 + Math.min(1, f.t / 0.35) * Math.max(0, Math.min(surfAt(f.x), 22) - f.y0) * (f.t < 1 ? 1 : Math.max(0, 1 - (f.t - 1) / 0.6)) : footY(f.x);
-      if (f.barrow) drawBarrow(f.x, y, f.dir, f.tip, f.full);
-      drawPerson(f.x, y, f.dir, { t: f.t, walk: f.st === 'go' || f.st === 'home' || f.st === 'storm', run: f.st === 'storm', arms: f.st === 'dig' ? 'dig' : f.barrow ? 'push' : fall ? 'up' : null, dig: f.st === 'dig' ? Math.sin(f.t * 5) : 0, lean: f.st === 'dig' ? 0.25 : f.barrow ? 0.18 : 0, brace: f.st === 'dig', mark: f.st === 'notice' ? (f.t < 0.5 ? '?' : '!') : f.st === 'storm' && f.t < 1.5 ? '!' : null });
-    }
+    for (const j of junk) drawMachine({ ...j, tip: 0, st: 'junk' }, j.x, footY(j.x) - 0.5, 1);
+    for (const f of folk) drawMachine(f, f.x, Math.min(footY(wheelsOf(f)[0]), footY(wheelsOf(f)[1])), f.st === 'fall' ? f.sink : 0);
   }
   let bits = [];
   function warnBits(t, side, n) {
@@ -2441,7 +2409,7 @@
   function fallenCard() {
     if (SETTLE) {
       const left = Math.max(0, Math.round(seasonEnd - clock)), next = NAMES[(townN + 1) % NAMES.length];
-      card = { title: `${NAMES[townN % NAMES.length]} is gone`, lines: [`${score} down so far, with ${mins(left)} to spare.`, stageN === 0 ? `Next: ${next}, a stone village. Stone houses need a wide hole under them. And a work crew will fill in your holes, burying any ants they catch.` : stageN === 1 ? `Next: ${next}, a market town. Its street is paved, so a small hole won’t open there. Tall houses have cellars: break into one and the house comes down fast. And the well is full of water.` : `Next: ${next}. More houses, less time.`], buttons: [{ label: 'Next town', fn: () => { card = null; rebuild(); } }] };
+      card = { title: `${NAMES[townN % NAMES.length]} is gone`, lines: [`${score} down so far, with ${mins(left)} to spare.`, stageN === 0 ? `Next: ${next}, a stone village. Stone houses need a wide hole under them. And a lorry will come to fill in your holes, burying any ants it catches.` : stageN === 1 ? `Next: ${next}, a market town. Its street is paved, so a small hole won’t open there. Tall houses have cellars: break into one and the house comes down fast. A cement mixer fills holes with concrete. And the well is full of water.` : `Next: ${next}. More houses, less time.`], buttons: [{ label: 'Next town', fn: () => { card = null; rebuild(); } }] };
       return;
     }
     card = { title: `You brought down ${NAMES[era % NAMES.length]}`, lines: [`Time: ${mins(clock - plateAt)}. Buildings down: ${downed}. Deepest tunnel: ${deepest()} m. Ants left: ${ants.length}. Ants lost: ${stats.lost}.`],

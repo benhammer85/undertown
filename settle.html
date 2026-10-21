@@ -1107,6 +1107,137 @@
     if (!sewer || sewerSaid) return;
     for (const [a, b] of sewer.segs) for (let c = a; c <= b; c++) for (let r = SEW.r0; r <= SEW.r1; r++) { if (!(r === SEW.r0 || r === SEW.r1 || c === a || c === b)) continue; const i = r * GW + c; if (soil[i] !== 2) { sewerSaid = true; caption('You broke into the sewer. The water is coming out', 3, { x: c * CS, y: r * CS }); return; } }
   }
+  // (A city block: the town's own designs, brick and glass, now and then a hall; on piles.)
+  function cityDesign(w) { const e = era; era = 1; const d = design(w); era = e; d.city = true; d.wall = d.h; d.roof = 0; d.chimney = false; return d; }
+  function sinkPiles(t) {
+    const n = t.w > 80 ? 3 : 2; t.piles = [];
+    for (let k = 0; k < n; k++) {
+      const x = t.x + (t.w * (k + 0.5)) / n, cells = [];
+      for (let y = 3; y < FIRM + 9; y += CS) for (const dx of [-1.5, 1.5]) { const i = gi(x + dx, y); if (i < 0) continue; soil[i] = 2; plan[i] = 0; preset.add(i); cells.push(i); }
+      t.piles.push({ x, cells });
+    }
+    markDug(t.x + t.w / 2, FIRM / 2, Math.max(t.w / 2, FIRM / 2) + 8); dirty = true;
+  }
+  function pullPiles(t) { for (const p2 of t.piles || []) for (const i of p2.cells) if (soil[i] === 2) { soil[i] = 1; preset.delete(i); markDug(cxOf(i), cyOf(i), 4); } t.piles = null; dirty = true; }
+  function pileState(t) {
+    let failed = 0, lean = 0;
+    for (const p2 of t.piles || []) {
+      const cut = p2.cells.some((i) => soil[i] !== 2);
+      let under = 0; for (const dx of [-1.5, 1.5]) for (const dy of [3, 6]) { const i = gi(p2.x + dx, FIRM + 9 + dy); if (i >= 0 && soil[i] === 0) under++; }
+      p2.failed = cut || under >= 2;
+      if (p2.failed) { failed++; lean += Math.sign(p2.x - (t.x + t.w / 2)) || (Math.random() < 0.5 ? 1 : -1); }
+    }
+    const n = (t.piles || []).length || 1;
+    return { f: failed / n, lean: failed ? lean / failed : 0 };
+  }
+  function drawPiles(t) {
+    for (const p2 of t.piles || []) {
+      g.strokeStyle = OVER; g.lineWidth = 0.7; g.fillStyle = PINK;
+      let y0 = 3;
+      const seg = (a, b) => { if (b <= a) return; g.globalAlpha = 0.85; g.fillRect(p2.x - 3, a, 6, b - a); g.globalAlpha = 1; g.beginPath(); g.moveTo(p2.x - 3, a); g.lineTo(p2.x - 3, b); g.moveTo(p2.x + 3, a); g.lineTo(p2.x + 3, b); g.stroke(); g.lineWidth = 0.3; g.beginPath(); for (let y = a + 4; y < b; y += 6) { g.moveTo(p2.x - 3, y); g.lineTo(p2.x + 3, y - 3); } g.stroke(); g.lineWidth = 0.7; };
+      for (let y = 3; y < FIRM + 9; y += CS) { const i = gi(p2.x - 1.5, y); if (i >= 0 && soil[i] !== 2) { seg(y0, y); y0 = y + CS; } }
+      seg(y0, FIRM + 9);
+      g.beginPath(); g.moveTo(p2.x - 3, FIRM + 9); g.lineTo(p2.x, FIRM + 13); g.lineTo(p2.x + 3, FIRM + 9); g.stroke();
+      if (p2.failed) { g.lineWidth = 0.6; g.beginPath(); g.moveTo(p2.x - 4, FIRM + 4); g.lineTo(p2.x + 4, FIRM + 1); g.stroke(); }
+    }
+  }
+  // (The gas main: an iron pipe under the street. Cut it and the gas comes out into your tunnels.)
+  let gasMain = null, gasCutSaid = false;
+  const GM = { r0: 25, r1: 26 };
+  function layGasMain() {
+    const segs = [[1, Math.floor((EX - 16) / CS)], [Math.ceil((EX + 16) / CS), GW - 2]].filter(([a, b]) => b - a > 8);
+    gasMain = { segs, leaks: [] };
+    for (const [a, b] of segs) for (let c = a; c <= b; c++) for (let r = GM.r0; r <= GM.r1; r++) { const i = r * GW + c; soil[i] = 2; plan[i] = 0; preset.add(i); }
+    markDug(UW / 2, GM.r0 * CS, UW / 2 + 8); dirty = true;
+  }
+  function stepGasMain() {
+    if (!gasMain) return;
+    for (const [a, b] of gasMain.segs) for (let c = a; c <= b; c++) for (let r = GM.r0; r <= GM.r1; r++) {
+      const i = r * GW + c; if (soil[i] === 2) continue;
+      // (Cut: the gas comes out, round the cut, into whatever's open.)
+      for (const j of [i, i - 1, i + 1, i - GW, i + GW, i + 2 * GW]) if (j >= 0 && soil[j] === 0) smoke[j] = Math.min(1.5, smoke[j] + 0.4);
+      if (!gasCutSaid) { gasCutSaid = true; caption('You cut the gas main. Gas is coming into your tunnels', 3.2, { x: c * CS, y: r * CS }); }
+    }
+  }
+  function removeGasMain() {
+    if (!gasMain) return;
+    for (const [a, b] of gasMain.segs) for (let c = a; c <= b; c++) for (let r = GM.r0; r <= GM.r1; r++) { const i = r * GW + c; soil[i] = 1; preset.delete(i); }
+    markDug(UW / 2, GM.r0 * CS, UW / 2 + 8); gasMain = null; dirty = true;
+  }
+  function drawGasMain(x0, x1) {
+    if (!gasMain) return;
+    const y = GM.r0 * CS, h = (GM.r1 - GM.r0 + 1) * CS;
+    for (const [a, b] of gasMain.segs) {
+      let run = null;
+      const flush = (c) => { if (run === null) return; const xa = run * CS, xb = c * CS; g.fillStyle = PAPER; g.fillRect(xa, y, xb - xa, h); g.strokeStyle = OVER; g.lineWidth = 0.8; g.beginPath(); g.moveTo(xa, y); g.lineTo(xb, y); g.moveTo(xa, y + h); g.lineTo(xb, y + h); g.stroke(); g.lineWidth = 0.4; g.beginPath(); g.moveTo(xa, y + 1.6); g.lineTo(xb, y + 1.6); g.stroke(); for (let x = Math.ceil(xa / 30) * 30; x < xb; x += 30) { g.lineWidth = 1.1; g.beginPath(); g.moveTo(x, y - 1); g.lineTo(x, y + h + 1); g.stroke(); } run = null; };
+      for (let c = Math.max(a, Math.floor(x0 / CS)); c <= Math.min(b, Math.ceil(x1 / CS)); c++) { const ok = soil[GM.r0 * GW + c] === 2 && soil[GM.r1 * GW + c] === 2; if (ok && run === null) run = c; if (!ok) flush(c); }
+      flush(Math.min(b, Math.ceil(x1 / CS)) + 1);
+    }
+  }
+  // (The train tunnel: a concrete box, a terminus at its inner end. Its concrete holds the ground over it; trains
+  // run in it, and an ant in their way is killed.)
+  let tunnel = null, runOverSaid = false;
+  function layTunnel() {
+    const x0 = Math.min(UW - 120, EX + 40), x1 = UW, y0 = 150, y1 = 192, c0 = Math.floor(x0 / CS), c1 = GW - 1, r0 = y0 / CS, r1 = y1 / CS;
+    tunnel = { x0, x1, y0, y1, train: { x: x1 + 10, st: 'away', t: 6 } };
+    for (let c = c0; c <= c1; c++) for (let r = r0; r <= r1; r++) { const i = r * GW + c, wall = r === r0 || r === r1 || c === c0; soil[i] = wall ? 2 : 0; plan[i] = 0; preset.add(i); }
+    markDug((x0 + x1) / 2, (y0 + y1) / 2, (x1 - x0) / 2 + 30); dirty = true;
+  }
+  function removeTunnel() {
+    if (!tunnel) return;
+    for (let c = Math.floor(tunnel.x0 / CS); c < GW; c++) for (let r = tunnel.y0 / CS; r <= tunnel.y1 / CS; r++) { const i = r * GW + c; soil[i] = 1; preset.delete(i); }
+    markDug((tunnel.x0 + tunnel.x1) / 2, (tunnel.y0 + tunnel.y1) / 2, (tunnel.x1 - tunnel.x0) / 2 + 30); tunnel = null; dirty = true;
+  }
+  const TRAIN = 132;
+  function stepTunnel(dt) {
+    if (!tunnel) return;
+    const tr = tunnel.train; tr.t -= dt;
+    if (tr.st === 'away' && tr.t <= 0) { tr.st = 'in'; tr.x = tunnel.x1 + 4; }
+    if (tr.st === 'in') { tr.x = Math.max(tunnel.x0 + 8, tr.x - dt * 70); if (tr.x <= tunnel.x0 + 8) { tr.st = 'stand'; tr.t = 5; } }
+    if (tr.st === 'stand' && tr.t <= 0) tr.st = 'out';
+    if (tr.st === 'out') { tr.x += dt * 70; if (tr.x > tunnel.x1 + 4) { tr.st = 'away'; tr.t = 14; } }
+    if (tr.st === 'in' || tr.st === 'out') for (const a of [...ants]) if (!a.surf && a.y > tunnel.y0 && a.y < tunnel.y1 && a.x > tr.x && a.x < tr.x + TRAIN) { kill(a); if (!runOverSaid) { runOverSaid = true; caption('A train ran over your ants', 2.8, { x: a.x, y: a.y }); } }
+  }
+  function drawTunnel(x0, x1) {
+    if (!tunnel) return;
+    const T = tunnel, w = (T.x1 - T.x0);
+    g.strokeStyle = OVER; g.lineWidth = 1.1;
+    g.fillStyle = 'rgba(28,94,43,0.07)'; g.fillRect(T.x0 + 3, T.y0 + 3, w, T.y1 - T.y0 - 3);
+    // (the concrete: crown, invert, the terminus wall; and the rail)
+    g.fillStyle = PINK; g.globalAlpha = 0.9;
+    for (let c = Math.floor(T.x0 / CS); c < GW; c++) for (const r of [T.y0 / CS, T.y1 / CS]) { const i = r * GW + c; if (soil[i] === 2) g.fillRect(c * CS, r * CS, CS, CS); }
+    for (let r = T.y0 / CS; r <= T.y1 / CS; r++) { const i = r * GW + Math.floor(T.x0 / CS); if (soil[i] === 2) g.fillRect(Math.floor(T.x0 / CS) * CS, r * CS, CS, CS); }
+    g.globalAlpha = 1; g.lineWidth = 0.5; g.beginPath(); for (let x = T.x0 + 6; x < T.x1; x += 9) { g.moveTo(x, T.y0); g.lineTo(x + 3, T.y0 + 3); g.moveTo(x, T.y1); g.lineTo(x + 3, T.y1 + 3); } g.stroke();
+    g.lineWidth = 0.9; g.beginPath(); g.moveTo(T.x0 + 3, T.y1 - 1.5); g.lineTo(T.x1, T.y1 - 1.5); g.stroke();
+    g.fillStyle = PAPER; g.fillRect(T.x0 + 3, T.y1 - 9, 22, 7.5); g.strokeRect(T.x0 + 3, T.y1 - 9, 22, 7.5);
+    // (the train: three cars, windows lit, the pantograph up)
+    const tr = T.train; if (tr.st === 'away') return;
+    g.save(); g.beginPath(); g.rect(T.x0 + 3, T.y0 + 3, w, T.y1 - T.y0 - 3); g.clip();
+    for (let k = 0; k < 3; k++) {
+      const cx = tr.x + k * 44, cy = T.y1 - 4;
+      g.fillStyle = PAPER; g.lineWidth = 0.9; g.beginPath(); g.roundRect ? g.roundRect(cx, cy - 22, 42, 20, 3) : g.rect(cx, cy - 22, 42, 20); g.fill(); g.stroke();
+      g.fillStyle = PINK; g.fillRect(cx + 1, cy - 9, 40, 3);
+      g.lineWidth = 0.5; for (let wx = cx + 4; wx < cx + 38; wx += 7) { g.fillStyle = PAPER; g.fillRect(wx, cy - 19, 5, 6); g.strokeRect(wx, cy - 19, 5, 6); }
+      g.fillStyle = OVER; for (const wx of [cx + 7, cx + 35]) { g.beginPath(); g.arc(wx, cy - 1.5, 1.8, 0, TAU); g.fill(); }
+      if (k === 0) { g.lineWidth = 0.6; g.beginPath(); g.moveTo(cx + 12, cy - 22); g.lineTo(cx + 18, cy - 28); g.lineTo(cx + 24, cy - 22); g.moveTo(cx + 14, cy - 28); g.lineTo(cx + 22, cy - 28); g.stroke(); }
+    }
+    g.restore();
+  }
+  function initCityS() {
+    towers = []; let x = rnd(6, 14);
+    while (x < UW - 50) {
+      const w = rnd(60, 96);
+      if (x < EX + 36 && x + w > EX - 36) { x = EX + 38; continue; }
+      const tr2 = trees.find((q) => q.alive && x < q.x + 12 && x + w > q.x - 12); if (tr2) { x = tr2.x + 14; continue; }
+      if (x + w > UW - 6) break;
+      towers.push(tower(x, cityDesign(w))); x += w + rnd(14, 24);
+    }
+    paveCol.fill(0);
+    for (let c = 0; c < GW; c++) { const x = c * CS + 1.5; if (Math.abs(x - EX) < 9 || towers.some((o) => x > o.x - 3 && x < o.x + o.w + 3)) continue; paveCol[c] = 1; }
+    paveWas.set(paveCol);
+    layGasMain(); layTunnel();
+    for (const t of towers) sinkPiles(t);
+  }
   // (Rows of terraces, and the mill; the street between paved.)
   function initMill() {
     towers = []; let x = rnd(6, 14), millDone = false;
@@ -1165,7 +1296,7 @@
     if (clock > growAt) { growAt = clock + 55; growTown(); }
   }
   function growTown() {
-    const tallNew = stageN === 2 && Math.random() < 0.6, rowNew = stageN === 3, w = rowNew ? rnd(40, 46) : tallNew ? rnd(62, 78) : stageN ? rnd(70, 88) : rnd(72, 86), spots = [];
+    const cityNew = stageN === 4, tallNew = stageN === 2 && Math.random() < 0.6, rowNew = stageN === 3, w = cityNew ? rnd(60, 90) : rowNew ? rnd(40, 46) : tallNew ? rnd(62, 78) : stageN ? rnd(70, 88) : rnd(72, 86), spots = [];
     for (let x = 8; x < UW - w - 8; x += 6) {
       if (x < EX + 36 && x + w > EX - 36) continue;
       if (towers.some((o) => (!o.fall || o.fall) && x < o.x + o.w + 16 && x + w > o.x - 16)) continue;
@@ -1179,7 +1310,7 @@
     wreck = wreck.filter((q) => !(q.x > x - 20 && q.x < x + w + 20)); pileTop.fill(1e9); for (const q of wreck) if (q.rest) toPile(q);
     for (let r = 0; r < 15; r++) for (let xx = x - 6; xx <= x + w + 6; xx += CS) { const i = gi(xx, r * CS + 1); if (i >= 0 && (soil[i] === 0 || soil[i] === 4) && !(trod && trod[i] > 0.3)) { soil[i] = 1; plan[i] = 0; for (const a of [...ants]) if (!a.surf && gi(a.x, a.y) === i) kill(a); } }
     markDug(x + w / 2, 22, w / 2 + 12); dirty = true;
-    const t = tower(x, rowNew ? terraceDesign(w) : tallNew ? townDesign(w) : stageN ? cottageDesign(w) : hutDesign(w, false)); t.rise = 0; towers.push(t); if (tallNew) digCellar(t);
+    const t = tower(x, cityNew ? cityDesign(w) : rowNew ? terraceDesign(w) : tallNew ? townDesign(w) : stageN ? cottageDesign(w) : hutDesign(w, false)); t.rise = 0; towers.push(t); if (tallNew) digCellar(t); if (cityNew) sinkPiles(t);
     caption('A new house is going up', 2.4, { x: x + w / 2, y: -20 });
   }
   function initVillage() {
@@ -1196,12 +1327,12 @@
   // (The hamlet down, the town comes back: the ground's levelled, filling whatever's open near the top that the
   // ants aren't keeping open; and it's built again in stone.)
   function rebuild() {
-    townN++; stageN = townN >= 3 ? 3 : townN >= 2 ? 2 : 1; fallen = null; removeWells(); removeDrain(); sewerSaid = false; paveCol.fill(0); paveWas.fill(0); downed = 0; winterSaid = false; seasonEnd = clock + seasonLen(); growAt = clock + 55; wreck = []; bits = []; folk = []; junk = []; truckAt = clock + 20; pileTop.fill(1e9); tut = null;
+    townN++; stageN = townN >= 4 ? 4 : townN >= 3 ? 3 : townN >= 2 ? 2 : 1; fallen = null; removeWells(); removeDrain(); removeGasMain(); removeTunnel(); for (const t of towers) if (t.piles) pullPiles(t); sewerSaid = false; gasCutSaid = false; runOverSaid = false; pest = null; pestCool = 25; alarm = 0; paveCol.fill(0); paveWas.fill(0); downed = 0; winterSaid = false; seasonEnd = clock + seasonLen(); growAt = clock + 55; wreck = []; bits = []; folk = []; junk = []; truckAt = clock + 20; pileTop.fill(1e9); tut = null;
     for (let i = 0; i < GW * 15; i++) if ((soil[i] === 0 || soil[i] === 4) && !(trod && trod[i] > 0.3)) { soil[i] = 1; plan[i] = 0; for (const a of [...ants]) if (!a.surf && gi(a.x, a.y) === i) kill(a); }
     markDug(UW / 2, 22, UW / 2 + 10); dirty = true;
-    if (stageN === 3) initMill(); else if (stageN === 2) initMarket(); else initVillage(); towers.forEach((t, k) => (t.rise = -k * 0.3));
+    if (stageN === 4) initCityS(); else if (stageN === 3) initMill(); else if (stageN === 2) initMarket(); else initVillage(); towers.forEach((t, k) => (t.rise = -k * 0.3));
     goal.of = towers.length; goal.n = Math.min(Math.max(2, towers.length - 1), 2 + townN); peak = towers.length; plateAt = clock;
-    caption(townN === 1 ? `${NAMES[townN % NAMES.length]} is going up, in stone` : townN === 2 ? `${NAMES[townN % NAMES.length]}: a market town, paved` : townN === 3 ? `${NAMES[townN % NAMES.length]}: a mill town` : `${NAMES[townN % NAMES.length]}: more houses, less time`, 3.4);
+    caption(townN === 1 ? `${NAMES[townN % NAMES.length]} is going up, in stone` : townN === 2 ? `${NAMES[townN % NAMES.length]}: a market town, paved` : townN === 3 ? `${NAMES[townN % NAMES.length]}: a mill town` : townN === 4 ? `${NAMES[townN % NAMES.length]}: a city` : `${NAMES[townN % NAMES.length]}: more houses, less time`, 3.4);
   }
   function initHamlet() {
     towers = []; let x = 14;
@@ -1213,7 +1344,7 @@
     }
   }
   function initCity() {
-    if (SETTLE) { paveCol.fill(0); paveWas.fill(0); wells = []; sewer = null; sewerSaid = false; lastDownAt = -99; combo = 0; stageN = 0; townN = 0; score = 0; winterSaid = false; seasonEnd = clock + 240; growAt = clock + 55; folk = []; junk = []; wreck = []; bits = []; shake = 0; pileTop.fill(1e9); initHamlet(); peak = towers.length; downed = 0; goal.of = towers.length; goal.n = Math.max(2, towers.length - 1); plateAt = clock; stats.lost = 0; plantTrees(); carts = [{ x: EX - 50, t: 0, life: 70 }]; drawSky(); return; }
+    if (SETTLE) { paveCol.fill(0); paveWas.fill(0); wells = []; sewer = null; gasMain = null; tunnel = null; sewerSaid = false; lastDownAt = -99; combo = 0; stageN = 0; townN = 0; score = 0; winterSaid = false; seasonEnd = clock + 240; growAt = clock + 55; folk = []; junk = []; wreck = []; bits = []; shake = 0; pileTop.fill(1e9); initHamlet(); peak = towers.length; downed = 0; goal.of = towers.length; goal.n = Math.max(2, towers.length - 1); plateAt = clock; stats.lost = 0; plantTrees(); carts = [{ x: EX - 50, t: 0, life: 70 }]; drawSky(); return; }
     towers = []; let x = 6;
     while (x < UW - 40) {
       let w = rnd(84, 140);
@@ -1323,7 +1454,7 @@
     const floor = holeFloorUnder(t.x, t.x + t.w);
     t.fall = { t: 0, side, sink: 0, v: 0, floor };
     alarm += 24;
-    caption(SETTLE ? (t.d.kind === 'hut' ? 'A hut fell' : t.d.kind === 'mill' ? 'The mill is coming down' : 'A house fell') : 'A building fell', 2.6, { x: t.x + t.w / 2, y: -20 });
+    caption(SETTLE ? (t.d.kind === 'hut' ? 'A hut fell' : t.d.kind === 'mill' ? 'The mill is coming down' : t.d.city ? 'A tower is coming down' : 'A house fell') : 'A building fell', 2.6, { x: t.x + t.w / 2, y: -20 });
     for (let q = 0; q < 6; q++) dust.push({ x: t.x + rnd(-6, t.w + 6), y: rnd(-4, 0), r: rnd(5, 10), vx: rnd(-18, 18), vy: rnd(-2, -0.5), t: 0, life: rnd(2.5, 4), s: Math.random() * 9 });
   }
   function stepTowers(dt) {
@@ -1394,10 +1525,10 @@
       if (hinge) { q.hl = hinge; q.hx = ox + (hinge[0] - pvx) * ca - hinge[1] * sa; q.hy = oy + (hinge[0] - pvx) * sa + hinge[1] * ca; q.L = y1 - y0; }
       wreck.push(q);
     };
-    if (d.kind === 'cottage' || d.kind === 'town' || d.kind === 'terrace' || d.kind === 'mill') {
+    if (d.city || d.kind === 'cottage' || d.kind === 'town' || d.kind === 'terrace' || d.kind === 'mill') {
       // (Stone: the walls burst in blocks, along the courses and between them, the low side first, the top a moment
       // before the foot.)
-      const n = Math.max(d.kind === 'terrace' ? 3 : 4, Math.round(w / 16)), rows = d.kind === 'cottage' ? 3 : 5, xs = [], jy = [];
+      const n = Math.max(d.kind === 'terrace' ? 3 : 4, Math.round(w / 16)), rows = d.city ? Math.max(4, Math.round(wl / 22)) : d.kind === 'cottage' ? 3 : 5, xs = [], jy = [];
       for (let i = 0; i <= n; i++) xs.push(i === 0 || i === n ? (i * w) / n : (i * w) / n + rnd(-3, 3));
       for (let r = 0; r <= rows; r++) jy.push(r === 0 ? 0.5 : r === rows ? -wl + 1.5 : (-wl * r) / rows + rnd(-2, 2));
       for (let r = 0; r < rows; r++) for (let i = 0; i < n; i++) {
@@ -1415,7 +1546,9 @@
     }
     // (The roof, in its two halves; the low half first.)
     const ry = -wl + 1.5, rt = -wl - rf;
-    if (d.flat) {
+    if (d.city) {
+      // (no roof to come off: it came down with the rest)
+    } else if (d.flat) {
       // (A terrace's roof runs back from the street: it comes off in two slabs.)
       add([[-0.5, -wl], [1.5, rt], [w / 2, rt], [w / 2 + rnd(-2, 2), -wl]], side < 0 ? 0.55 : 0.75, side * rnd(3, 8), 0, side * rnd(0.15, 0.4));
       add([[w / 2, rt], [w - 1.5, rt], [w + 0.5, -wl], [w / 2 + rnd(-2, 2), -wl]], side > 0 ? 0.55 : 0.75, side * rnd(3, 8), 0, side * rnd(0.15, 0.4));
@@ -1521,7 +1654,7 @@
     return printed(P, false);
   }
   function land(t) {
-    towers.splice(towers.indexOf(t), 1); downed++;
+    towers.splice(towers.indexOf(t), 1); downed++; if (t.piles) pullPiles(t);
     if (SETTLE) {
       score++;
       if (t.d.kind === 'mill') { score++; caption('The mill is down: +2', 2.6, { x: t.x + t.w / 2, y: -30 }); }
@@ -1554,7 +1687,7 @@
   // (Where the van or the mixer pulls up: just past the hole, or short of it where the street ends.)
   const parkOf = (p) => { const sd = p.x + 56 > UW - 6 ? -1 : 1; return [p.x + 46 * sd, sd]; };
   function stepPest(dt) {
-    if (SETTLE) return;
+    if (SETTLE && stageN < 4) return;
     alarm = Math.max(0, alarm - dt * 0.7);
     if (leaks.length) alarm += dt * 0.6;
     alarm += ants.filter((a) => a.surf).length * dt * 0.02;
@@ -1564,7 +1697,7 @@
     const open = holes.find((h) => !h.filled && clock - h.at > 20);
     if (!pest && open) { pest = { kind: 'grout', x: open.cx, hole: open, t: 0, van: UW + 90, done: false }; caption('Workers are filling in the hole', 2.8, { x: open.cx, y: 0 }); }
     if (!pest && pestCool <= 0 && entrances.length && QUEEN.alive) {
-      const [b, s, c] = thresholds(), kind = alarm >= c && era >= 2 ? 'concrete' : alarm >= s && era >= 1 ? 'smoke' : alarm >= b ? 'bait' : null;
+      const [b, s, c] = thresholds(), ek = SETTLE ? 2 : era, kind = alarm >= c && ek >= 2 ? 'concrete' : alarm >= s && ek >= 1 ? 'smoke' : alarm >= b ? 'bait' : null;
       if (kind) { const e = busiest(); pest = { kind, x: e.x, t: 0, van: UW + 90, done: false }; caption(kind === 'bait' ? 'The city put down poison bait' : kind === 'smoke' ? 'The city is pumping gas into your tunnels' : 'The city is filling your tunnels with concrete', 2.6, { x: e.x, y: 2 }); }
     }
     if (!pest) return;
@@ -1670,6 +1803,12 @@
   function hutSupport() {
     for (const t of towers) {
       if (t.fall || t.rise < 1) continue;
+      let k;
+      if (t.d.city) {
+        // (A city block stands on piles down to the clay: what the ground does near the top is nothing to it. It goes
+        // when its piles do: cut through, or the clay dug out from under their tips.)
+        const ps = pileState(t); t.sinkTo = ps.f * 3; t.want = ps.lean * 0.12 + (t.push || 0); k = ps.f * 1.2;
+      } else {
       let l = 0, r = 0, nl = 0, nr = 0, cols = [];
       for (let x = t.x + 3; x < t.x + t.w - 3; x += CS) cols.push([x, Math.min(18, surfAt(x))]);
       // (A stone cottage's footing spans a narrow gap: under it, ground counts as gone only where it's gone across
@@ -1679,7 +1818,8 @@
       for (const [x, d] of cols) { if (x < t.x + t.w / 2) { l += d; nl++; } else { r += d; nr++; } }
       l /= nl || 1; r /= nr || 1;
       t.sinkTo = (l + r) / 2; t.want = Math.atan2(r - l, t.w / 2) * (stone ? 0.6 : 0.9) + (t.push || 0);
-      let k = Math.max(t.sinkTo / 8, Math.abs(t.want) / 0.1);
+      k = Math.max(t.sinkTo / 8, Math.abs(t.want) / 0.1);
+      }
       // (Past a point it's done for: what's left of its footing goes on giving without more digging.)
       t.creep = k >= 0.6 ? Math.min(0.6, (t.creep || 0) + 0.025) : Math.max(0, (t.creep || 0) - 0.05);
       if (t.creep) { k += t.creep; t.sinkTo += t.creep * 6; t.want += (t.want >= 0 ? 1 : -1) * t.creep * 0.06; }
@@ -1711,7 +1851,7 @@
       if (d < bd) { bd = d; tx = x; }
     }
     if (tx === null) return;
-    const move = tx < UW / 2 ? 1 : -1, kind = stageN === 3 ? 'pump' : stageN === 2 ? 'mixer' : 'lorry';
+    const move = tx < UW / 2 ? 1 : -1, kind = stageN === 3 ? 'pump' : stageN >= 2 ? 'mixer' : 'lorry';
     folk.push({ kind, x: move > 0 ? -TL : UW + TL, tx, move, face: -move, stand: tx - move * (5 + TL / 2), st: 'in', t: 0, tip: 0, full: true });
     if (!folkSaid) { folkSaid = true; caption(kind === 'pump' ? 'A steam pump is coming to flood your holes' : kind === 'mixer' ? 'A cement mixer is coming to fill your holes with concrete' : 'A lorry is coming to fill in your holes', 3.2, { x: tx, y: 0 }); }
   }
@@ -2571,7 +2711,7 @@
   function fallenCard() {
     if (SETTLE) {
       const left = Math.max(0, Math.round(seasonEnd - clock)), next = NAMES[(townN + 1) % NAMES.length];
-      card = { title: `${NAMES[townN % NAMES.length]} is gone`, lines: [`${score} down so far, with ${mins(left)} to spare.`, stageN === 0 ? `Next: ${next}, a stone village. Stone houses need a wide hole under them. And a lorry will come to fill in your holes, burying any ants it catches.` : stageN === 2 ? `Next: ${next}, a mill town. Brick terraces stand wall to wall: one going over can take the next. The mill is worth two. A sewer full of water runs under the street, and a steam pump will flood your holes.` : stageN === 1 ? `Next: ${next}, a market town. Its street is paved, so a small hole won’t open there. Tall houses have cellars: break into one and the house comes down fast. A cement mixer fills holes with concrete. And the well is full of water.` : `Next: ${next}. More houses, less time.`], buttons: [{ label: 'Next town', fn: () => { card = null; rebuild(); } }] };
+      card = { title: `${NAMES[townN % NAMES.length]} is gone`, lines: [`${score} down so far, with ${mins(left)} to spare.`, stageN === 0 ? `Next: ${next}, a stone village. Stone houses need a wide hole under them. And a lorry will come to fill in your holes, burying any ants it catches.` : stageN === 3 ? `Next: ${next}, a city. Its towers stand on piles down to the clay: dig out under the pile tips, or cut through the piles. A gas main and a train tunnel run under the street. And the city fights back, with poison bait, gas and concrete.` : stageN === 2 ? `Next: ${next}, a mill town. Brick terraces stand wall to wall: one going over can take the next. The mill is worth two. A sewer full of water runs under the street, and a steam pump will flood your holes.` : stageN === 1 ? `Next: ${next}, a market town. Its street is paved, so a small hole won’t open there. Tall houses have cellars: break into one and the house comes down fast. A cement mixer fills holes with concrete. And the well is full of water.` : `Next: ${next}. More houses, less time.`], buttons: [{ label: 'Next town', fn: () => { card = null; rebuild(); } }] };
       return;
     }
     card = { title: `You brought down ${NAMES[era % NAMES.length]}`, lines: [`Time: ${mins(clock - plateAt)}. Buildings down: ${downed}. Deepest tunnel: ${deepest()} m. Ants left: ${ants.length}. Ants lost: ${stats.lost}.`],
@@ -2724,7 +2864,7 @@
     era = sv.era; buryWays.length = 0; buryWays.push(...sv.ways);
     ensureRows(sv.GH); soil.set(sv.soil); plan.set(sv.plan); water.set(sv.water); still.set(sv.still); smoke.fill(0);
     [PIPE, GAS, TUBE, SEWER, STATION].forEach((o, k) => { if (o && st.works[k] != null) o.y = st.works[k]; });
-    towers = st.towers; if (SETTLE) { stageN = towers.some((t) => t.d.kind === 'terrace' || t.d.kind === 'mill') ? 3 : towers.some((t) => t.d.kind === 'town') ? 2 : towers.some((t) => t.d.kind === 'cottage') ? 1 : 0; townN = stageN; score = st.downed || 0; seasonEnd = clock + 180; growAt = clock + 55; } rubble = st.rubble.map((r) => ({ x: r.x, ox: -40, oy: -70, w: r.w + 80, h: 90, c: rubbleHeap(r.x, r.w), x0: r.x, x1: r.x + r.w }));
+    towers = st.towers; if (SETTLE) { stageN = towers.some((t) => t.d.city) ? 4 : towers.some((t) => t.d.kind === 'terrace' || t.d.kind === 'mill') ? 3 : towers.some((t) => t.d.kind === 'town') ? 2 : towers.some((t) => t.d.kind === 'cottage') ? 1 : 0; townN = stageN; score = st.downed || 0; seasonEnd = clock + 180; growAt = clock + 55; } rubble = st.rubble.map((r) => ({ x: r.x, ox: -40, oy: -70, w: r.w + 80, h: 90, c: rubbleHeap(r.x, r.w), x0: r.x, x1: r.x + r.w }));
     holes = st.holes; crumbs = st.crumbs; mounds = new Map(st.mounds); chambers = st.chambers; plans = st.plans;
     brood = st.brood.map((b) => ({ ...b, room: chambers[b.room] || null })); plugs = st.plugs; rebuildGuards(); ants = st.ants;
     Object.assign(QUEEN, st.QUEEN); Object.assign(PRIN, st.PRIN); trees = st.trees; deposits = st.deposits.map((d) => ({ ...d, tree: d.tree >= 0 ? trees[d.tree] : undefined }));
@@ -3130,8 +3270,8 @@
     dust = dust.filter((d) => d.t < d.life);
     for (const d of debris) { d.vy += dt * 170; d.x += d.vx * dt; d.y += d.vy * dt; d.a += d.va * dt; if (d.y >= 2 && !d.landed) { d.landed = true; dust.push({ x: d.x, y: 0, r: rnd(3, 6), vx: rnd(-8, 8), vy: -0.6, t: 0, life: rnd(1.4, 2.4), s: Math.random() * 9 }); } }
     debris = debris.filter((d) => d.y < 4);
-    stepTowers(dt); stepPest(dt); stepBuild(dt); if (SETTLE) { stepBits(dt); stepWreck(dt); stepFolk(dt); for (const m of towers) if (m.d.kind === 'mill' && !m.fall && m.rise >= 1 && Math.random() < dt * 1.6) dust.push({ x: m.x + m.d.sx + rnd(-1, 1) + (m.tilt || 0) * 150, y: -m.d.stack - 3 + (m.sinkY || 0) * 2, r: rnd(3, 5), vx: rnd(3, 7), vy: rnd(-4, -2.5), t: 0, life: rnd(5, 7), s: Math.random() * 9 }); }
-    if (now - slowAt > 700) { slowAt = now; settle(); if (SETTLE) { freeCutOff(); sendFolk(); stepSeason(); countTunnel(); if (stageN >= 2) { checkPaving(); checkCellars(); drownCheck(); checkDrain(); } } scout(clock); checkCity(); raiseSecond(); stepMines(); seeLayers(); findFace(); updateStatus(); stepTutorial(); stepRoofs(0.7); looseStones(); if (trod) for (let i = 0; i < GW * GH; i++) if (trod[i] > 0) trod[i] = trod[i] < 0.01 ? 0 : trod[i] * (SETTLE ? 0.94 : 0.985); }
+    stepTowers(dt); stepPest(dt); stepBuild(dt); if (SETTLE) { stepBits(dt); stepWreck(dt); stepFolk(dt); stepTunnel(dt); for (const m of towers) if (m.d.kind === 'mill' && !m.fall && m.rise >= 1 && Math.random() < dt * 1.6) dust.push({ x: m.x + m.d.sx + rnd(-1, 1) + (m.tilt || 0) * 150, y: -m.d.stack - 3 + (m.sinkY || 0) * 2, r: rnd(3, 5), vx: rnd(3, 7), vy: rnd(-4, -2.5), t: 0, life: rnd(5, 7), s: Math.random() * 9 }); }
+    if (now - slowAt > 700) { slowAt = now; settle(); if (SETTLE) { freeCutOff(); sendFolk(); stepSeason(); countTunnel(); if (stageN >= 2) { checkPaving(); checkCellars(); drownCheck(); checkDrain(); stepGasMain(); } } scout(clock); checkCity(); raiseSecond(); stepMines(); seeLayers(); findFace(); updateStatus(); stepTutorial(); stepRoofs(0.7); looseStones(); if (trod) for (let i = 0; i < GW * GH; i++) if (trod[i] > 0) trod[i] = trod[i] < 0.01 ? 0 : trod[i] * (SETTLE ? 0.94 : 0.985); }
     if (now - subAt > 450) { subAt = now; subside(); }
     if (cityDirty) { cityDirty = false; drawCity(); }
     dead = dead.filter((d) => clock - d.at < 14);
@@ -3162,6 +3302,7 @@
     for (let k = Math.max(0, Math.floor(vy0 / CH)); k <= Math.floor(vy1 / CH); k++) g.drawImage(chunk(k).c, 0, k * CH, UW, CH);
     if (SETTLE) drawTrickle(t);
     if (SETTLE && sewer) drawDrain(camX - 10, camX + UW / Z + 10);
+    if (SETTLE && stageN === 4) { drawGasMain(camX - 10, camX + UW / Z + 10); drawTunnel(camX - 10, camX + UW / Z + 10); for (const t of towers) drawPiles(t); }
     if (SETTLE && vy0 < 10) drawWreck(Math.max(0, camX - 20), Math.min(UW, camX + UW / Z + 20));
     if (SETTLE && vy0 < 10) for (const tw of towers) { const t = tw;
       if (t.rise < 1) continue;

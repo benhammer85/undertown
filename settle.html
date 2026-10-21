@@ -1827,13 +1827,55 @@
   // A building going up: the site fenced, a lorry with the bricks, a crane lifting them, scaffolding rising a
   // floor at a time with the building inside it; then the scaffold and the crane come down.
   // (In the village, a house goes up course by course inside a light timber frame.)
-  function raising(t) {
-    const p = clamp(t.rise, 0, 1), s2 = towerSprite(t), Ht = t.d.h * Math.min(1, p / 0.85);
-    g.save(); g.translate(t.x, 0); g.beginPath(); g.rect(s2.ox - 40, -Ht - 1, s2.w + 80, Ht + 41); g.clip(); g.drawImage(s2.c, s2.ox, s2.oy, s2.w, s2.h); g.restore();
-    if (p > 0.95) return;
-    g.strokeStyle = OVER; g.lineWidth = 0.55; g.globalAlpha = 0.85 * Math.min(1, (0.95 - p) * 10); const top = Math.min(t.d.h, Ht + 10);
-    g.beginPath(); for (const x of [t.x - 4, t.x + t.w + 4]) { g.moveTo(x, 0); g.lineTo(x, -top); } for (let y = -10; y > -top; y -= 10) { g.moveTo(t.x - 6, y); g.lineTo(t.x + t.w + 6, y); } g.stroke(); g.globalAlpha = 1;
+  // (Dust, printed the way the plate is: a cloud of overlapping rounds laid in the pink, the green stippled into it
+  // thickest at its foot, and its top edge cut as a firm line that curls; it rolls out, grows and thins.)
+  const hash = (n) => { const v = Math.sin(n * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); };
+  function drawDust() {
+    for (const d of dust) {
+      const k = d.t / d.life, al = Math.min(1, d.t * 2.5) * (1 - k) * (1 - k * 0.3), lobes = [];
+      for (let q = 0; q < 4; q++) { const a = Math.PI * (0.95 + q * 0.37) + (hash(d.s + q) - 0.5) * 0.5; lobes.push([d.x + Math.cos(a) * d.r * 0.55, d.y + Math.sin(a) * d.r * 0.3 - d.r * 0.15, d.r * (0.42 + hash(d.s * 3 + q) * 0.25)]); }
+      g.globalAlpha = al * 0.5; g.fillStyle = PINK; g.beginPath(); for (const [x, y, r] of lobes) { g.moveTo(x + r, y); g.arc(x, y, r, 0, TAU); } g.fill();
+      g.globalAlpha = al * 0.75; g.fillStyle = OVER;
+      for (let q = 0; q < 14; q++) { const [x, y, r] = lobes[q % 4], a = hash(d.s * 7 + q) * TAU, rr = Math.sqrt(hash(d.s * 11 + q)) * r * 0.9, py = y + Math.abs(Math.sin(a)) * rr; g.beginPath(); g.arc(x + Math.cos(a) * rr, py, 0.32 + (py - d.y + d.r) / (d.r * 6), 0, TAU); g.fill(); }
+      g.globalAlpha = al * 0.85; g.strokeStyle = OVER; g.lineWidth = 0.6; g.beginPath();
+      for (const [x, y, r] of lobes) { g.moveTo(x + Math.cos(Math.PI * 1.05) * r, y + Math.sin(Math.PI * 1.05) * r); g.arc(x, y, r, Math.PI * 1.05, Math.PI * 1.95); }
+      g.stroke();
+      // (a curl at the crown)
+      const [cx, cy, cr] = lobes[1]; g.lineWidth = 0.45; g.beginPath(); g.arc(cx + cr * 0.15, cy - cr * 0.2, cr * 0.35, Math.PI * 0.9, Math.PI * 2.2); g.stroke();
+    }
+    g.globalAlpha = 1;
   }
+  // (Building: the house goes up course by course inside a timber scaffold: standards, ledgers at every lift, a brace
+  // in every other bay, boards and a ladder at the lift they're working, a gin pole at the top with its load going
+  // up, and the stone stacked at the foot.)
+  function raising(t) {
+    const p = clamp(t.rise, 0, 1), s2 = towerSprite(t), Ht = t.d.h * Math.min(1, p / 0.85), x0 = t.x, w = t.w;
+    g.save(); g.translate(x0, 0); g.beginPath(); g.rect(s2.ox - 40, -Ht - 1, s2.w + 80, Ht + 41); g.clip(); g.drawImage(s2.c, s2.ox, s2.oy, s2.w, s2.h); g.restore();
+    if (p > 0.97) return;
+    const fade = Math.min(1, (0.97 - p) * 12), lift = 12, top = Math.min(t.d.wall + 6, Math.ceil((Ht + 4) / lift) * lift), work = Math.max(lift, Math.floor(Math.min(Ht, t.d.wall) / lift) * lift);
+    const bays = Math.max(2, Math.round((w + 12) / 22)), xs = []; for (let i = 0; i <= bays; i++) xs.push(x0 - 6 + ((w + 12) * i) / bays);
+    g.save(); g.globalAlpha = fade; g.strokeStyle = OVER; g.lineCap = 'round'; g.lineJoin = 'round';
+    // (the fresh course: a ragged top to the wall where it's got to)
+    if (Ht < t.d.wall) { g.lineWidth = 0.8; g.beginPath(); for (let x = x0; x <= x0 + w; x += 3) g.lineTo(x, -Ht - hash(t.x + x) * 1.6); g.stroke(); }
+    g.lineWidth = 1.4; g.beginPath(); for (const x of xs) { g.moveTo(x, 0.5); g.lineTo(x, -top - 4); } g.stroke();
+    g.lineWidth = 1; g.beginPath(); for (let y = -lift; y >= -top; y -= lift) { g.moveTo(xs[0] - 2, y); g.lineTo(xs[xs.length - 1] + 2, y); } g.stroke();
+    g.lineWidth = 0.6; g.beginPath(); for (let i = 0; i < bays; i += 2) for (let y = 0; y > -top + 1; y -= lift * 2) { g.moveTo(xs[i], y); g.lineTo(xs[i + 1], Math.max(-top, y - lift * 2)); } g.stroke();
+    // (boards at the working lift)
+    g.fillStyle = PAPER; g.lineWidth = 0.7; g.beginPath(); g.rect(xs[0] - 3, -work - 1.8, xs[xs.length - 1] - xs[0] + 6, 1.8); g.fill(); g.stroke();
+    g.lineWidth = 0.35; g.beginPath(); for (let x = xs[0]; x < xs[xs.length - 1]; x += 7) { g.moveTo(x, -work - 1.8); g.lineTo(x, -work); } g.stroke();
+    // (the ladder)
+    const lx = xs[xs.length - 1] + 3; g.lineWidth = 0.7; g.beginPath(); g.moveTo(lx, 0); g.lineTo(lx + 2.5, -work - 5); g.moveTo(lx + 3.5, 0); g.lineTo(lx + 6, -work - 5); for (let y = -3; y > -work - 3; y -= 3) { const f = -y / (work + 5); g.moveTo(lx + 2.5 * f, y); g.lineTo(lx + 3.5 + 2.5 * f, y); } g.stroke();
+    // (the gin pole and its load)
+    const gx = xs[0] - 1, gt = -top - 12, bob = (Math.sin(clock * 0.9 + t.x) * 0.5 + 0.5) * (top - 4), ly = -4 - bob;
+    g.lineWidth = 1.1; g.beginPath(); g.moveTo(gx, -top); g.lineTo(gx, gt); g.lineTo(gx - 7, gt + 2); g.stroke();
+    g.lineWidth = 0.4; g.beginPath(); g.moveTo(gx - 7, gt + 2); g.lineTo(gx - 7, ly - 3); g.stroke();
+    g.fillStyle = PINK; g.lineWidth = 0.7; g.beginPath(); g.rect(gx - 9.5, ly - 3, 5, 3); g.fill(); g.stroke();
+    g.fillStyle = PAPER; g.beginPath(); g.arc(gx - 7, gt + 2, 1.1, 0, TAU); g.fill(); g.stroke();
+    // (the stone stacked at the foot)
+    g.fillStyle = PINK; g.lineWidth = 0.6; for (let r = 0; r < 3; r++) for (let c = 0; c < 4 - r; c++) { g.beginPath(); g.rect(x0 + w + 12 + c * 4.2 + r * 2.1, -2.6 * (r + 1), 4, 2.6); g.fill(); g.stroke(); }
+    g.restore();
+  }
+
   function site(t, time) {
     const p = clamp(t.rise, 0, 1), d = t.d, Ht = d.h, x0 = t.x, w = t.w;
     const raw = clamp((p - 0.08) / 0.74, 0, 1) * Ht, built = p >= 0.82 ? Ht : Math.floor(raw / 26) * 26;
@@ -3096,11 +3138,7 @@
       }
       for (const a of ants) if (a.surf) drawAnt(a);
       // Dust and falling pieces, in the green, stippled.
-      // (Dust drawn as the chimneys' smoke is: a few loops of fine line, rolling low and thinning out.)
-      g.strokeStyle = OVER;
-      for (const d of dust) { const al = Math.min(1, d.t * 3) * (1 - d.t / d.life); g.globalAlpha = al * 0.7; g.lineWidth = 0.35; g.beginPath(); for (let q = 0; q < 3; q++) { const a = d.s + q * 2.1, cx = d.x + Math.cos(a) * d.r * 0.5, cy = d.y - Math.abs(Math.sin(a)) * d.r * 0.3, r = d.r * (0.45 + 0.15 * q); g.moveTo(cx + Math.cos(Math.PI * 0.95) * r, cy + Math.sin(Math.PI * 0.95) * r); g.arc(cx, cy, r, Math.PI * 0.95, Math.PI * 2.1); } g.stroke(); }
-      g.globalAlpha = 1;
-      g.globalAlpha = 1;
+      drawDust();
       g.strokeStyle = OVER; g.lineWidth = 0.8;
       for (const d of debris) { if (d.landed) continue; g.save(); g.translate(d.x, d.y); g.rotate(d.a); g.beginPath(); if (d.pts) { g.moveTo(...d.pts[0]); for (const q of d.pts) g.lineTo(...q); g.closePath(); } else g.rect(-d.s / 2, -d.s / 3, d.s, d.s * 0.66); g.fillStyle = '#f2c4b2'; g.fill(); g.strokeStyle = OVER; g.lineWidth = 0.6; g.stroke(); g.lineWidth = 0.3; g.beginPath(); g.moveTo(-d.s * 0.4, 0); g.lineTo(d.s * 0.3, d.s * 0.2); g.stroke(); g.restore(); }
     }

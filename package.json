@@ -1,9 +1,9 @@
 {
   "name": "undertown",
   "private": true,
-  "description": "A two-ink screen-print ant farm under an invented old town.",
+  "description": "A two-ink screen-print game: an ant colony brings down a town that grows from a hamlet to a city.",
   "scripts": {
-    "test": "node tests/smoke.cjs && node tests/reach.cjs && node tests/ground.cjs && node tests/plates.cjs && node tests/save.cjs && node tests/colony.cjs"
+    "test": "node tests/run.cjs && node tests/smoke.cjs && node tests/reach.cjs && node tests/ground.cjs && node tests/plates.cjs && node tests/save.cjs && node tests/colony.cjs"
   },
   "devDependencies": {
     "playwright": "^1.48.0"

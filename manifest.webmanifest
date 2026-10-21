@@ -1,7 +1,7 @@
 {
   "name": "Undertown",
   "short_name": "Undertown",
-  "description": "Dig under a small town with an ant colony until its buildings fall.",
+  "description": "An ant colony brings down a town that grows from a hamlet to a city.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

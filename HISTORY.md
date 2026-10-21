@@ -116,3 +116,16 @@ earth over it takes a grain from above, so a tunnel closes from the top and come
 what the ants keep using holds; the clay never settles. A hut sinks and leans on what's left under each side, and
 falls when it's sunk or leaning far enough. Its own save, apart from the game's. The main game is unchanged (the
 test is the same source with one switch thrown).
+
+## 2026-10-21 — the settling run becomes the game
+The settling test grew into a whole run: hamlet, village, market town, mill town, city, each against winter,
+each bringing one new thing (stone footings, paving and cellars and wells, terraces and the mill and the sewer,
+piles and the gas main and the train tunnel and the city's defences), with machines rather than people fighting
+back, houses that come apart in their own pieces, printed dust, a timber scaffold, a tunnel budget, a chalked
+pencil line, and no numbers while you play. It is now `index.html`. The first game is kept as `classic.html`;
+`settle.html` sends you on to the game.
+- **Saving the run:** a game saved mid-town now comes back with its town, score and time to winter, its street
+  (paving, wells, cellars), the works under it (sewer, gas main, train tunnel, piles), the wreck as it lay, and
+  which tunnels the ants were using (without that, every tunnel would settle shut on a reload). New test,
+  `tests/run.cjs`.
+

@@ -55,8 +55,8 @@
 
   // The world is measured in the plate's units: 600 across the window, the street at 0, the ground below it.
   const UW = 600, M = 7.5; // (units across; units to a metre)
-  // (The settling test: a hamlet on natural ground, where whatever the ants dig out, the ground above sinks into.)
-  const SETTLE = false, FIRM = 240;
+  // (The settling run: a hamlet on natural ground, where whatever the ants dig out, the ground above sinks into.)
+  const SETTLE = true, FIRM = 240;
   let W, H, F, IN, G, S, RU, SKY, bg, g;
   function layout() {
     W = innerWidth; H = innerHeight;
@@ -810,7 +810,7 @@
     for (const i of way) markPlan(cxOf(i), cyOf(i), BITE + 0.4, true);
     if (show && way.length > 1) { const pts = []; for (let k = 0; k < way.length; k += 3) pts.push([cxOf(way[k]), cyOf(way[k])]); pts.push([cxOf(way[way.length - 1]), cyOf(way[way.length - 1])]); plans.push({ kind: 'path', pts }); }
   }
-  // (In the settling test the colony can keep only so much tunnel open: while a drawn line is being laid out,
+  // (In the settling run the colony can keep only so much tunnel open: while a drawn line is being laid out,
   // budgetLeft counts down the cells it may still take.)
   let budgetLeft = null, ranOut = false;
   const BASE_M = 62, PER_ANT = 1, CELLS_M = (3 * M) / CS; // (metres of tunnel the colony keeps, and a metre more an ant; cells to a metre)
@@ -1555,7 +1555,7 @@
       let cx = 0, cy = 0, x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
       for (const [x, y] of pts) { cx += x / pts.length; cy += y / pts.length; x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
       const m = Math.max(4, (x1 - x0) * (y1 - y0) * 0.6) * dens, I = (m * ((x1 - x0) ** 2 + (y1 - y0) ** 2)) / 12;
-      const q = { sp, pts, cx, cy, x: ox + (cx - pvx) * ca - cy * sa, y: oy + (cx - pvx) * sa + cy * ca, a: A, vx, vy, va, m, I, wait, still: 0, age: 0, rest: false, hitAt: -9 };
+      const q = { sp, src: { x: t.x, d: t.d, cracked: t.cracked, damage: t.damage, side: t.side }, pts, cx, cy, x: ox + (cx - pvx) * ca - cy * sa, y: oy + (cx - pvx) * sa + cy * ca, a: A, vx, vy, va, m, I, wait, still: 0, age: 0, rest: false, hitAt: -9 };
       // (A board stays fixed at its foot and folds over on it, till it's down.)
       if (hinge) { q.hl = hinge; q.hx = ox + (hinge[0] - pvx) * ca - hinge[1] * sa; q.hy = oy + (hinge[0] - pvx) * sa + hinge[1] * ca; q.L = y1 - y0; }
       wreck.push(q);
@@ -2412,7 +2412,7 @@
       const b = i + GW;
       if (soil[b] === 0 && water[b] < 1) { const m = Math.min(w, 1 - water[b]); water[b] += m; w -= m; moved = true; }
       if (w > 0.02) for (const n of [i - 1, i + 1]) { const nx = n % GW; if (Math.abs(nx - x) === 1 && soil[n] === 0 && water[n] < w - 0.01) { const m = (w - water[n]) * (SETTLE ? 0.7 : 0.3); water[n] += m; w -= m; moved = true; } }
-      if (!still[i]) w = Math.max(0, w - (SETTLE ? 0.0005 : 0.0025)); // (in the settling test a flood runs on: it's the threat)
+      if (!still[i]) w = Math.max(0, w - (SETTLE ? 0.0005 : 0.0025)); // (in the settling run a flood runs on: it's the threat)
       water[i] = w;
     }
     if (moved || leaks.length) dirty = true;
@@ -2899,6 +2899,9 @@
     const n = GH * GW;
     return { v: SAVE_V, when: Date.now(), era, GH, born: chunkBorn.slice(), ways: buryWays.slice(),
       soil: soil.slice(0, n), plan: plan.slice(0, n), water: water.slice(0, n), still: still.slice(0, n),
+      trod: trod ? Uint8Array.from(trod.subarray(0, n), (v) => Math.round(v * 255)) : null,
+      run: SETTLE ? JSON.stringify({ stageN, townN, score, left: seasonEnd - clock, grow: growAt - clock, winterSaid, pave: [...paveCol], paveWas: [...paveWas], wells, sewer, gasMain, tunnel, junk,
+        wreck: wreck.map((q) => ({ ...q, sp: null })), said: { folkSaid, buriedSaid, lostSaid, wellSaid, cellarSaid, paveSaid, drownSaid, sewerSaid, gasCutSaid, runOverSaid, cutSaid } }) : null,
       s: JSON.stringify({ clock, works: [PIPE, GAS, TUBE, SEWER, STATION].map((o) => (o ? o.y : null)), towers: towers.map((t) => ({ ...t, spr: null })), rubble: rubble.map((r) => ({ x: r.x, w: r.w - 80 })), holes,
         crumbs: crumbs.map((c) => ({ ...c, claimed: null })), mounds: [...mounds], chambers, plans, brood: brood.map((b) => ({ ...b, room: chambers.indexOf(b.room) })), plugs, ants: ants.map((a) => ({ ...a })),
         QUEEN: { ...QUEEN, go: null, tx: null }, PRIN, trees, deposits: deposits.map((d) => ({ ...d, tree: trees.indexOf(d.tree) })), leaks, MINES, RIV, stones, stoneAt: [...stoneAt], preset: [...preset], decor: DECOR.map((d) => d.dy),
@@ -2932,7 +2935,7 @@
     era = sv.era; buryWays.length = 0; buryWays.push(...sv.ways);
     ensureRows(sv.GH); soil.set(sv.soil); plan.set(sv.plan); water.set(sv.water); still.set(sv.still); smoke.fill(0);
     [PIPE, GAS, TUBE, SEWER, STATION].forEach((o, k) => { if (o && st.works[k] != null) o.y = st.works[k]; });
-    towers = st.towers; if (SETTLE) { stageN = towers.some((t) => t.d.city) ? 4 : towers.some((t) => t.d.kind === 'terrace' || t.d.kind === 'mill') ? 3 : towers.some((t) => t.d.kind === 'town') ? 2 : towers.some((t) => t.d.kind === 'cottage') ? 1 : 0; townN = stageN; score = st.downed || 0; seasonEnd = clock + 180; growAt = clock + 55; } rubble = st.rubble.map((r) => ({ x: r.x, ox: -40, oy: -70, w: r.w + 80, h: 90, c: rubbleHeap(r.x, r.w), x0: r.x, x1: r.x + r.w }));
+    towers = st.towers; rubble = st.rubble.map((r) => ({ x: r.x, ox: -40, oy: -70, w: r.w + 80, h: 90, c: rubbleHeap(r.x, r.w), x0: r.x, x1: r.x + r.w }));
     holes = st.holes; crumbs = st.crumbs; mounds = new Map(st.mounds); chambers = st.chambers; plans = st.plans;
     brood = st.brood.map((b) => ({ ...b, room: chambers[b.room] || null })); plugs = st.plugs; rebuildGuards(); ants = st.ants;
     Object.assign(QUEEN, st.QUEEN); Object.assign(PRIN, st.PRIN); trees = st.trees; deposits = st.deposits.map((d) => ({ ...d, tree: d.tree >= 0 ? trees[d.tree] : undefined }));
@@ -2941,6 +2944,20 @@
     eraLines = st.eraLines; tubeBreaks = st.tubeBreaks; tubeBroken = st.tubeBroken; EX = st.EX; stock = st.stock; poison = st.poison; alarm = st.alarm; buildAt = st.buildAt; downed = st.downed; peak = st.peak;
     Object.assign(goal, st.goal); Object.assign(stats, st.stats); plateAt = st.plateAt; seenL.clear(); st.seenL.forEach((n) => seenL.add(n)); baitSaid = st.baitSaid; flushAt = st.flushAt; moleAt = st.moleAt; clock = st.clock;
     tut = st.tut && towers[st.tut.tower] ? { step: st.tut.step, tower: towers[st.tut.tower], at: clock } : null;
+    if (SETTLE) {
+      trod = new Float32Array(cap); if (sv.trod) for (let i = 0; i < sv.trod.length; i++) trod[i] = sv.trod[i] / 255;
+      const r = sv.run ? JSON.parse(sv.run) : null;
+      if (r) {
+        ({ stageN, townN, score, winterSaid, wells, sewer, gasMain, tunnel, junk } = r);
+        seasonEnd = clock + Math.max(20, r.left); growAt = clock + Math.max(10, r.grow);
+        paveCol.set(r.pave); paveWas.set(r.paveWas);
+        ({ folkSaid, buriedSaid, lostSaid, wellSaid, cellarSaid, paveSaid, drownSaid, sewerSaid, gasCutSaid, runOverSaid, cutSaid } = r.said);
+        // (The wreck as it lay, its pieces printed again from what they came off.)
+        const prints = new Map(); wreck = r.wreck.map((q) => { const key = JSON.stringify([q.src.x, q.src.d.h, q.src.cracked, q.src.side]); if (!prints.has(key)) prints.set(key, towerSprite({ ...q.src, spr: null })); return { ...q, sp: prints.get(key) }; });
+        pileTop.fill(1e9); for (const q of wreck) if (q.rest) toPile(q);
+      } else { stageN = towers.some((t) => t.d.city) ? 4 : towers.some((t) => t.d.kind === 'terrace' || t.d.kind === 'mill') ? 3 : towers.some((t) => t.d.kind === 'town') ? 2 : towers.some((t) => t.d.kind === 'cottage') ? 1 : 0; townN = stageN; score = downed; seasonEnd = clock + 180; growAt = clock + 55; }
+      folk = []; bits = [];
+    }
     for (const ch of chunks) { ch.dirty = null; repaint(ch, 0, ch.y0, UW, ch.y0 + CH); }
     drawSky(); cityDirty = true; dirty = true; hasSave = true;
   }

@@ -928,9 +928,9 @@
   function terraceHouse(b) {
     const k = P.ink, wl = b.wall, rf = b.roof, w = b.w;
     const body = rect(0, -wl, w, wl); occlude(body); tint(body, 'brick'); poly(k, body, 1, true, 0.4);
-    for (let y = -3, row = 0; y > -wl + 1; y -= 3, row++) { line(k, 0.5, y, w - 0.5, y, 0.2, 0); for (let x = (row % 2 ? 3 : 6); x < w - 1; x += 6) line(k, x, y, x, Math.min(0, y + 3), 0.16, 0); }
+    for (let y = -4, row = 0; y > -wl + 1; y -= 4, row++) { line(k, 0.5, y, w - 0.5, y, 0.2, 0); for (let x = (row % 2 ? 4 : 8); x < w - 1; x += 8) line(k, x, y, x, Math.min(0, y + 4), 0.16, 0); }
     line(k, 0, -wl * 0.5, w, -wl * 0.5, 0.9, 0);
-    const win = (wx, wy, ww, wh) => { const r2 = rect(wx, wy, ww, wh); occlude(r2); tint(r2, 0.95); poly(k, r2, 0.7, true, 0); line(k, wx, wy + wh / 2, wx + ww, wy + wh / 2, 0.4, 0); line(k, wx + ww / 2, wy, wx + ww / 2, wy + wh, 0.4, 0); hatch(k, r2, 0.8, 1.1, 0.25); line(k, wx - 1, wy - 1, wx + ww + 1, wy - 1, 1.1, 0); };
+    const win = (wx, wy, ww, wh) => { const rv = rect(wx - 1.2, wy - 1.2, ww + 2.4, wh + 2.4); occlude(rv); tint(rv, 0.98); poly(k, rv, 0.5, true, 0); const r2 = rect(wx, wy, ww, wh); occlude(r2); tint(r2, 0.95); poly(k, r2, 0.7, true, 0); line(k, wx, wy + wh / 2, wx + ww, wy + wh / 2, 0.4, 0); line(k, wx + ww / 2, wy, wx + ww / 2, wy + wh, 0.4, 0); hatch(k, r2, 0.8, 2.2, 0.25); line(k, wx - 1, wy - 1, wx + ww + 1, wy - 1, 1.1, 0); };
     win(w * 0.12, -wl * 0.93, 7, wl * 0.24); win(w * 0.6, -wl * 0.93, 7, wl * 0.24); win(w * 0.56, -wl * 0.42, 9, wl * 0.26);
     const dx = w * 0.14, door = rect(dx, -wl * 0.4, 8, wl * 0.4 - 1.5); occlude(door); tint(door, 0.9); poly(k, door, 0.7, true, 0.2); hatch(k, door, 1.57, 1.1, 0.35);
     curve(k, [[dx, -wl * 0.4], [dx + 4, -wl * 0.4 - 4], [dx + 8, -wl * 0.4]], 0.7); poly(k, rect(dx - 1.5, -1.5, 11, 1.5), 0.6, true, 0);
@@ -950,7 +950,7 @@
     const body = rect(0, -wl, w, wl); occlude(body); tint(body, 'brick'); poly(k, body, 1.1, true, 0.4);
     for (let y = -3, row = 0; y > -wl + 1; y -= 3, row++) { line(k, 0.5, y, w - 0.5, y, 0.18, 0); for (let x = (row % 2 ? 3 : 6); x < w - 1; x += 6) line(k, x, y, x, Math.min(0, y + 3), 0.14, 0); }
     for (let f = 0; f < 3; f++) { const fy = -wl + 4 + f * (wl / 3); line(k, 0, fy - 2, w, fy - 2, f ? 0.9 : 0, 0);
-      for (let x = 7; x < w - 9; x += 13) { if (f === 2 && x > w * 0.42 && x < w * 0.58) continue; const wy = fy + 2, wh = wl / 3 - 8, r2 = rect(x, wy, 7, wh); occlude(r2); tint(r2, 0.95); poly(k, r2, 0.6, true, 0); curve(k, [[x, wy], [x + 3.5, wy - 3.5], [x + 7, wy]], 0.6); line(k, x + 3.5, wy, x + 3.5, wy + wh, 0.35, 0); line(k, x, wy + wh * 0.5, x + 7, wy + wh * 0.5, 0.35, 0); hatch(k, r2, 0.8, 1.2, 0.25); } }
+      for (let x = 7; x < w - 9; x += 13) { if (f === 2 && x > w * 0.42 && x < w * 0.58) continue; const wy = fy + 2, wh = wl / 3 - 8, rv = rect(x - 1, wy - 1, 9, wh + 2); occlude(rv); tint(rv, 0.98); const r2 = rect(x, wy, 7, wh); occlude(r2); tint(r2, 0.95); poly(k, r2, 0.6, true, 0); curve(k, [[x, wy], [x + 3.5, wy - 3.5], [x + 7, wy]], 0.6); line(k, x + 3.5, wy, x + 3.5, wy + wh, 0.35, 0); line(k, x, wy + wh * 0.5, x + 7, wy + wh * 0.5, 0.35, 0); hatch(k, r2, 0.8, 2.4, 0.25); } }
     const ld = rect(w * 0.44, -wl * 0.36, w * 0.12, wl * 0.36); occlude(ld); tint(ld, 0.9); poly(k, ld, 0.8, true, 0.3); hatch(k, ld, 1.57, 1.4, 0.35);
     line(k, w * 0.5, -wl + 2, w * 0.5, -wl - 6, 1, 0); line(k, w * 0.5, -wl - 6, w * 0.5 + 9, -wl - 6, 1, 0); line(k, w * 0.5 + 8, -wl - 6, w * 0.5 + 8, -wl * 0.55, 0.35, 0);
     const rp = [[-3, -wl + 1], [w / 2, -wl - rf], [w + 3, -wl + 1]]; occlude(rp); tint(rp, 0.55); poly(k, rp, 1, true, 0.3);
@@ -962,13 +962,13 @@
   function townhouse(b) {
     const k = P.ink, wl = b.wall, rf = b.roof, w = b.w;
     const body = rect(0, -wl, w, wl); occlude(body); tint(body, 'brick'); poly(k, body, 1, true, 0.4);
-    for (let y = -3, row = 0; y > -wl + 1; y -= 3, row++) { line(k, 0.5, y, w - 0.5, y, 0.22, 0); for (let x = (row % 2 ? 3 : 6); x < w - 1; x += 6) line(k, x, y, x, Math.min(0, y + 3), 0.18, 0); }
+    for (let y = -4, row = 0; y > -wl + 1; y -= 4, row++) { line(k, 0.5, y, w - 0.5, y, 0.22, 0); for (let x = (row % 2 ? 4 : 8); x < w - 1; x += 8) line(k, x, y, x, Math.min(0, y + 4), 0.18, 0); }
     line(k, -1, -wl * 0.5, w + 1, -wl * 0.5, 1, 0);
     const cols = Math.max(2, Math.round(w / 24)), ww = 7, wh = wl * 0.22;
     for (let f = 0; f < 2; f++) for (let c = 0; c < cols; c++) {
       const cx = ((c + 0.5) * w) / cols, wx = cx - ww / 2, wy = f === 0 ? -wl * 0.95 : -wl * 0.45;
       if (f === 1 && c === 0) continue;
-      const win = rect(wx, wy, ww, wh); occlude(win); tint(win, 0.95); poly(k, win, 0.7, true, 0); line(k, wx, wy + wh / 2, wx + ww, wy + wh / 2, 0.4, 0); line(k, cx, wy, cx, wy + wh, 0.4, 0); hatch(k, win, 0.8, 1.1, 0.25);
+      const rv = rect(wx - 1.2, wy - 1.2, ww + 2.4, wh + 2.4); occlude(rv); tint(rv, 0.98); poly(k, rv, 0.5, true, 0); const win = rect(wx, wy, ww, wh); occlude(win); tint(win, 0.95); poly(k, win, 0.7, true, 0); line(k, wx, wy + wh / 2, wx + ww, wy + wh / 2, 0.4, 0); line(k, cx, wy, cx, wy + wh, 0.4, 0); hatch(k, win, 0.8, 2.2, 0.25);
       line(k, wx - 1, wy - 1, wx + ww + 1, wy - 1, 1.1, 0);
     }
     const dx = w / cols / 2 - 4.5, door = rect(dx, -wl * 0.38, 9, wl * 0.38 - 3); occlude(door); tint(door, 0.9); poly(k, door, 0.7, true, 0.2); hatch(k, door, 1.57, 1.1, 0.35);
@@ -1072,7 +1072,7 @@
     markDug(t.x + t.w / 2, 13, t.w / 2 + 4); dirty = true;
   }
   function drownCheck() {
-    for (const a of [...ants]) { if (a.surf) continue; const i = gi(a.x, a.y); if (i >= 0 && water[i] > 0.6 && Math.random() < 0.4) { kill(a); if (!drownSaid) { drownSaid = true; caption('Water from the well is flooding your tunnels', 3, { x: a.x, y: a.y }); } } }
+    for (const a of [...ants]) { if (a.surf) continue; const i = gi(a.x, a.y); if (i >= 0 && water[i] > 0.28 && Math.random() < 0.7) { kill(a); if (!drownSaid) { drownSaid = true; caption('Water from the well is flooding your tunnels', 3, { x: a.x, y: a.y }); } } }
   }
   // (The mill town's sewer: a brick barrel under the street, running full. Its brick holds up the ground over it; break
   // into it and the water comes out into your tunnels.)
@@ -1099,8 +1099,8 @@
       const i = r * GW + c, x = c * CS, y = r * CS;
       if (soil[i] !== 2) { if (water[i] > 0.3) { g.fillStyle = 'rgba(28,94,43,0.16)'; g.fillRect(x, y, CS, CS); } continue; } g.fillStyle = PINK; g.globalAlpha = 0.9; g.fillRect(x, y, CS, CS); g.globalAlpha = 1;
       g.beginPath(); g.moveTo(x, y + 1.5); g.lineTo(x + CS, y + 1.5); if ((c + r) % 2) { g.moveTo(x + 1.5, y); g.lineTo(x + 1.5, y + 1.5); } else { g.moveTo(x + 1.5, y + 1.5); g.lineTo(x + 1.5, y + 3); } g.stroke();
-      if (r === SEW.r0 && soil[i - GW] !== 2) { g.lineWidth = 0.9; g.beginPath(); g.moveTo(x, y); g.lineTo(x + CS, y); g.stroke(); g.lineWidth = 0.5; }
-      if (r === SEW.r1) { g.lineWidth = 0.9; g.beginPath(); g.moveTo(x, y + CS); g.lineTo(x + CS, y + CS); g.stroke(); g.lineWidth = 0.5; }
+      if (r === SEW.r0 && soil[i - GW] !== 2) { g.lineWidth = 1.3; g.beginPath(); g.moveTo(x, y); g.lineTo(x + CS, y); g.stroke(); g.lineWidth = 0.5; }
+      if (r === SEW.r1) { g.lineWidth = 1.3; g.beginPath(); g.moveTo(x, y + CS); g.lineTo(x + CS, y + CS); g.stroke(); g.lineWidth = 0.5; }
     }
   }
   function checkDrain() {
@@ -1111,10 +1111,15 @@
   function cityDesign(w) { const e = era; era = 1; const d = design(w); era = e; d.city = true; d.wall = d.h; d.roof = 0; d.chimney = false; return d; }
   function sinkPiles(t) {
     const n = t.w > 80 ? 3 : 2; t.piles = [];
+    // (Each pile is driven where there's solid clay under its tip: not into a room the colony already has.)
+    // (If there's no such place under the house, the pile stops short, above the room.)
+    const openAt = (x) => { for (let y = FIRM - 24; y < FIRM + 24; y += CS) for (const dx of [-3, 0, 3]) { const i = gi(x + dx, y); if (i >= 0 && soil[i] === 0) return y; } return Infinity; };
     for (let k = 0; k < n; k++) {
-      const x = t.x + (t.w * (k + 0.5)) / n, cells = [];
-      for (let y = 3; y < FIRM + 9; y += CS) for (const dx of [-1.5, 1.5]) { const i = gi(x + dx, y); if (i < 0) continue; soil[i] = 2; plan[i] = 0; preset.add(i); cells.push(i); }
-      t.piles.push({ x, cells });
+      let x = t.x + (t.w * (k + 0.5)) / n, best = openAt(x); const cells = [];
+      for (const o of [6, -6, 12, -12, 18, -18]) { if (best === Infinity) break; const xx = x + o; if (xx > t.x + 4 && xx < t.x + t.w - 4) { const y = openAt(xx); if (y > best) { best = y; x = xx; } } }
+      const tip = Math.min(FIRM + 9, best - 9);
+      for (let y = 3; y < tip; y += CS) for (const dx of [-1.5, 1.5]) { const i = gi(x + dx, y); if (i < 0) continue; soil[i] = 2; plan[i] = 0; preset.add(i); cells.push(i); }
+      t.piles.push({ x, cells, tip });
     }
     markDug(t.x + t.w / 2, FIRM / 2, Math.max(t.w / 2, FIRM / 2) + 8); dirty = true;
   }
@@ -1123,7 +1128,7 @@
     let failed = 0, lean = 0;
     for (const p2 of t.piles || []) {
       const cut = p2.cells.some((i) => soil[i] !== 2);
-      let under = 0; for (const dx of [-1.5, 1.5]) for (const dy of [3, 6]) { const i = gi(p2.x + dx, FIRM + 9 + dy); if (i >= 0 && soil[i] === 0) under++; }
+      let under = 0; for (const dx of [-1.5, 1.5]) for (const dy of [3, 6]) { const i = gi(p2.x + dx, (p2.tip || FIRM + 9) + dy); if (i >= 0 && soil[i] === 0) under++; }
       p2.failed = cut || under >= 2;
       if (p2.failed) { failed++; lean += Math.sign(p2.x - (t.x + t.w / 2)) || (Math.random() < 0.5 ? 1 : -1); }
     }
@@ -1132,13 +1137,14 @@
   }
   function drawPiles(t) {
     for (const p2 of t.piles || []) {
-      g.strokeStyle = OVER; g.lineWidth = 0.7; g.fillStyle = PINK;
+      g.strokeStyle = OVER; g.lineWidth = 1.2; g.fillStyle = PINK;
       let y0 = 3;
-      const seg = (a, b) => { if (b <= a) return; g.globalAlpha = 0.85; g.fillRect(p2.x - 3, a, 6, b - a); g.globalAlpha = 1; g.beginPath(); g.moveTo(p2.x - 3, a); g.lineTo(p2.x - 3, b); g.moveTo(p2.x + 3, a); g.lineTo(p2.x + 3, b); g.stroke(); g.lineWidth = 0.3; g.beginPath(); for (let y = a + 4; y < b; y += 6) { g.moveTo(p2.x - 3, y); g.lineTo(p2.x + 3, y - 3); } g.stroke(); g.lineWidth = 0.7; };
-      for (let y = 3; y < FIRM + 9; y += CS) { const i = gi(p2.x - 1.5, y); if (i >= 0 && soil[i] !== 2) { seg(y0, y); y0 = y + CS; } }
-      seg(y0, FIRM + 9);
-      g.beginPath(); g.moveTo(p2.x - 3, FIRM + 9); g.lineTo(p2.x, FIRM + 13); g.lineTo(p2.x + 3, FIRM + 9); g.stroke();
-      if (p2.failed) { g.lineWidth = 0.6; g.beginPath(); g.moveTo(p2.x - 4, FIRM + 4); g.lineTo(p2.x + 4, FIRM + 1); g.stroke(); }
+      const seg = (a, b) => { if (b <= a) return; g.globalAlpha = 1; g.fillRect(p2.x - 3, a, 6, b - a); g.beginPath(); g.moveTo(p2.x - 3, a); g.lineTo(p2.x - 3, b); g.moveTo(p2.x + 3, a); g.lineTo(p2.x + 3, b); g.stroke(); g.lineWidth = 0.5; g.beginPath(); for (let y = a + 4; y < b; y += 4) { g.moveTo(p2.x - 3, y); g.lineTo(p2.x + 3, y - 3); } g.stroke(); g.lineWidth = 1.2; };
+      const tip = p2.tip || FIRM + 9;
+      for (let y = 3; y < tip; y += CS) { const i = gi(p2.x - 1.5, y); if (i >= 0 && soil[i] !== 2) { seg(y0, y); y0 = y + CS; } }
+      seg(y0, tip);
+      g.beginPath(); g.moveTo(p2.x - 3, tip); g.lineTo(p2.x, tip + 4); g.lineTo(p2.x + 3, tip); g.stroke();
+      if (p2.failed) { g.lineWidth = 0.6; g.beginPath(); g.moveTo(p2.x - 4, tip - 5); g.lineTo(p2.x + 4, tip - 8); g.stroke(); }
     }
   }
   // (The gas main: an iron pipe under the street. Cut it and the gas comes out into your tunnels.)
@@ -1169,7 +1175,7 @@
     const y = GM.r0 * CS, h = (GM.r1 - GM.r0 + 1) * CS;
     for (const [a, b] of gasMain.segs) {
       let run = null;
-      const flush = (c) => { if (run === null) return; const xa = run * CS, xb = c * CS; g.fillStyle = PAPER; g.fillRect(xa, y, xb - xa, h); g.strokeStyle = OVER; g.lineWidth = 0.8; g.beginPath(); g.moveTo(xa, y); g.lineTo(xb, y); g.moveTo(xa, y + h); g.lineTo(xb, y + h); g.stroke(); g.lineWidth = 0.4; g.beginPath(); g.moveTo(xa, y + 1.6); g.lineTo(xb, y + 1.6); g.stroke(); for (let x = Math.ceil(xa / 30) * 30; x < xb; x += 30) { g.lineWidth = 1.1; g.beginPath(); g.moveTo(x, y - 1); g.lineTo(x, y + h + 1); g.stroke(); } run = null; };
+      const flush = (c) => { if (run === null) return; const xa = run * CS, xb = c * CS; g.fillStyle = PINK; g.fillRect(xa, y, xb - xa, h); g.strokeStyle = OVER; g.lineWidth = 1.3; g.beginPath(); g.moveTo(xa, y); g.lineTo(xb, y); g.moveTo(xa, y + h); g.lineTo(xb, y + h); g.stroke(); g.lineWidth = 0.4; g.beginPath(); g.moveTo(xa, y + 1.6); g.lineTo(xb, y + 1.6); g.stroke(); for (let x = Math.ceil(xa / 30) * 30; x < xb; x += 30) { g.lineWidth = 2; g.beginPath(); g.moveTo(x, y - 1); g.lineTo(x, y + h + 1); g.stroke(); } run = null; };
       for (let c = Math.max(a, Math.floor(x0 / CS)); c <= Math.min(b, Math.ceil(x1 / CS)); c++) { const ok = soil[GM.r0 * GW + c] === 2 && soil[GM.r1 * GW + c] === 2; if (ok && run === null) run = c; if (!ok) flush(c); }
       flush(Math.min(b, Math.ceil(x1 / CS)) + 1);
     }
@@ -1198,6 +1204,20 @@
     if (tr.st === 'out') { tr.x += dt * 70; if (tr.x > tunnel.x1 + 4) { tr.st = 'away'; tr.t = 14; } }
     if (tr.st === 'in' || tr.st === 'out') for (const a of [...ants]) if (!a.surf && a.y > tunnel.y0 && a.y < tunnel.y1 && a.x > tr.x && a.x < tr.x + TRAIN) { kill(a); if (!runOverSaid) { runOverSaid = true; caption('A train ran over your ants', 2.8, { x: a.x, y: a.y }); } }
   }
+  // (The terminus: a raised platform, iron columns to the roof, lamps, a hanging clock and the station's name board.)
+  function drawStation(T) {
+    const px = T.x0 + 3, pw = 96, top = T.y1 - 9;
+    g.strokeStyle = OVER; g.fillStyle = PINK; g.lineWidth = 0.9;
+    g.beginPath(); g.rect(px, top, pw, 7.5); g.fill(); g.stroke();
+    g.lineWidth = 0.4; g.beginPath(); for (let x = px + 3; x < px + pw; x += 4) { g.moveTo(x, top + 1); g.lineTo(x + 2, top + 7.5); } g.stroke();
+    g.lineWidth = 0.9; g.beginPath(); g.moveTo(px, top + 1.2); g.lineTo(px + pw, top + 1.2); g.stroke();
+    g.lineWidth = 1.1; g.beginPath(); for (let x = px + 12; x < px + pw; x += 24) { g.moveTo(x, top); g.lineTo(x, T.y0 + 3); g.moveTo(x - 3, T.y0 + 3); g.lineTo(x, T.y0 + 6); g.lineTo(x + 3, T.y0 + 3); } g.stroke();
+    g.lineWidth = 0.5; for (let x = px + 24; x < px + pw; x += 24) { g.beginPath(); g.moveTo(x, T.y0 + 3); g.lineTo(x, T.y0 + 9); g.stroke(); g.fillStyle = PAPER; g.beginPath(); g.arc(x, T.y0 + 10.5, 1.6, 0, TAU); g.fill(); g.stroke(); }
+    const cx = px + pw * 0.55; g.beginPath(); g.moveTo(cx, T.y0 + 3); g.lineTo(cx, T.y0 + 8); g.stroke(); g.fillStyle = PAPER; g.lineWidth = 0.8; g.beginPath(); g.arc(cx, T.y0 + 11.5, 3.4, 0, TAU); g.fill(); g.stroke();
+    g.lineWidth = 0.5; g.beginPath(); g.moveTo(cx, T.y0 + 11.5); g.lineTo(cx, T.y0 + 9.2); g.moveTo(cx, T.y0 + 11.5); g.lineTo(cx + 1.8, T.y0 + 12.2); g.stroke();
+    g.fillStyle = PAPER; g.lineWidth = 0.8; g.beginPath(); g.rect(px + 4, T.y0 + 6, 30, 7); g.fill(); g.stroke();
+    g.fillStyle = OVER; g.font = `italic 600 5px ${DISPLAY}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(NAMES[townN % NAMES.length], px + 19, T.y0 + 9.6);
+  }
   function drawTunnel(x0, x1) {
     if (!tunnel) return;
     const T = tunnel, w = (T.x1 - T.x0);
@@ -1207,9 +1227,10 @@
     g.fillStyle = PINK; g.globalAlpha = 0.9;
     for (let c = Math.floor(T.x0 / CS); c < GW; c++) for (const r of [T.y0 / CS, T.y1 / CS]) { const i = r * GW + c; if (soil[i] === 2) g.fillRect(c * CS, r * CS, CS, CS); }
     for (let r = T.y0 / CS; r <= T.y1 / CS; r++) { const i = r * GW + Math.floor(T.x0 / CS); if (soil[i] === 2) g.fillRect(Math.floor(T.x0 / CS) * CS, r * CS, CS, CS); }
-    g.globalAlpha = 1; g.lineWidth = 0.5; g.beginPath(); for (let x = T.x0 + 6; x < T.x1; x += 9) { g.moveTo(x, T.y0); g.lineTo(x + 3, T.y0 + 3); g.moveTo(x, T.y1); g.lineTo(x + 3, T.y1 + 3); } g.stroke();
+    g.globalAlpha = 1; g.lineWidth = 1.3; g.beginPath(); g.moveTo(T.x0, T.y0); g.lineTo(T.x1, T.y0); g.moveTo(T.x0 + 3, T.y0 + 3); g.lineTo(T.x1, T.y0 + 3); g.moveTo(T.x0 + 3, T.y1); g.lineTo(T.x1, T.y1); g.moveTo(T.x0, T.y1 + 3); g.lineTo(T.x1, T.y1 + 3); g.moveTo(T.x0, T.y0); g.lineTo(T.x0, T.y1 + 3); g.stroke();
+    g.lineWidth = 0.5; g.beginPath(); for (let x = T.x0 + 6; x < T.x1; x += 9) { g.moveTo(x, T.y0); g.lineTo(x + 3, T.y0 + 3); g.moveTo(x, T.y1); g.lineTo(x + 3, T.y1 + 3); } g.stroke();
     g.lineWidth = 0.9; g.beginPath(); g.moveTo(T.x0 + 3, T.y1 - 1.5); g.lineTo(T.x1, T.y1 - 1.5); g.stroke();
-    g.fillStyle = PAPER; g.fillRect(T.x0 + 3, T.y1 - 9, 22, 7.5); g.strokeRect(T.x0 + 3, T.y1 - 9, 22, 7.5);
+    drawStation(T);
     // (the train: three cars, windows lit, the pantograph up)
     const tr = T.train; if (tr.st === 'away') return;
     g.save(); g.beginPath(); g.rect(T.x0 + 3, T.y0 + 3, w, T.y1 - T.y0 - 3); g.clip();
@@ -1224,13 +1245,15 @@
     g.restore();
   }
   function initCityS() {
+    // (No trees in the city: they're cut down for it.)
+    for (const q of trees) { q.alive = false; q.buried = true; }
     towers = []; let x = rnd(6, 14);
     while (x < UW - 50) {
-      const w = rnd(60, 96);
+      const w = rnd(58, 88);
       if (x < EX + 36 && x + w > EX - 36) { x = EX + 38; continue; }
       const tr2 = trees.find((q) => q.alive && x < q.x + 12 && x + w > q.x - 12); if (tr2) { x = tr2.x + 14; continue; }
       if (x + w > UW - 6) break;
-      towers.push(tower(x, cityDesign(w))); x += w + rnd(14, 24);
+      towers.push(tower(x, cityDesign(w))); x += w + rnd(12, 20);
     }
     paveCol.fill(0);
     for (let c = 0; c < GW; c++) { const x = c * CS + 1.5; if (Math.abs(x - EX) < 9 || towers.some((o) => x > o.x - 3 && x < o.x + o.w + 3)) continue; paveCol[c] = 1; }
@@ -1240,20 +1263,27 @@
   }
   // (Rows of terraces, and the mill; the street between paved.)
   function initMill() {
-    towers = []; let x = rnd(6, 14), millDone = false;
+    towers = []; let x = rnd(6, 14);
+    // (The mill first, where there's room for it and its stack; the rows round it.)
+    const mw = rnd(98, 108), free = (a, b) => b < UW - 6 && !(a < EX + 36 && b > EX - 36) && !trees.some((q) => q.alive && a < q.x + 12 && b > q.x - 12);
+    const mspots = []; for (let mx = 6; mx < UW - mw - 20; mx += 6) if (free(mx, mx + mw + 14)) mspots.push(mx);
+    const mx = mspots.length ? pick(mspots) : null;
+    if (mx !== null) towers.push(tower(mx, millDesign(mw)));
     while (x < UW - 40) {
       if (x < EX + 36 && x + 40 > EX - 36) { x = EX + 38; continue; }
       const tr2 = trees.find((q) => q.alive && x < q.x + 12 && x + 40 > q.x - 12); if (tr2) { x = tr2.x + 14; continue; }
-      if (!millDone && x + 118 < UW - 6 && !(x < EX + 36 && x + 118 > EX - 36) && !trees.some((q) => q.alive && x < q.x + 12 && x + 118 > q.x - 12) && (Math.random() < 0.5 || x > UW / 2)) {
-        const w = rnd(98, 108); towers.push(tower(x, millDesign(w))); x += w + 14 + rnd(20, 28); millDone = true; continue;
-      }
-      // (a row of three or four, wall to wall)
-      let k = 0; const n = 3 + (Math.random() < 0.5), w = rnd(40, 46);
+      if (mx !== null && x < mx + mw + 14 + 20 && x + 40 > mx - 20) { x = mx + mw + 14 + rnd(20, 28); continue; }
+      // (a row of three or four, wall to wall; never a row of one)
+      let k = 0; const w = rnd(40, 46), clear = (xx) => xx + w < UW - 6 && !(xx < EX + 36 && xx + w > EX - 36) && !trees.some((q) => q.alive && xx < q.x + 12 && xx + w > q.x - 12) && !(mx !== null && xx < mx + mw + 14 + 18 && xx + w > mx - 18);
+      let fit = 0; while (fit < 4 && clear(x + fit * w)) fit++;
+      if (fit < 2) { x += 6; continue; }
+      const n = Math.min(fit, 3 + (Math.random() < 0.5));
       while (k < n && x + w < UW - 6 && !(x < EX + 36 && x + w > EX - 36) && !trees.some((q) => q.alive && x < q.x + 12 && x + w > q.x - 12)) { towers.push(tower(x, terraceDesign(w))); x += w; k++; }
       x += k ? rnd(20, 28) : 6;
     }
+    towers.sort((a, b) => a.x - b.x);
     paveCol.fill(0);
-    for (let c = 0; c < GW; c++) { const x = c * CS + 1.5; if (Math.abs(x - EX) < 9 || towers.some((o) => x > o.x - 3 && x < o.x + o.w + 3)) continue; paveCol[c] = 1; }
+    for (let c = 0; c < GW; c++) { const x = c * CS + 1.5; if (Math.abs(x - EX) < 9 || towers.some((o) => x > o.x - 3 && x < o.x + (o.d.sx ? o.d.sx + 6 : o.w) + 3)) continue; paveCol[c] = 1; }
     paveWas.set(paveCol);
     layDrain();
   }
@@ -1305,6 +1335,8 @@
       spots.push(x);
     }
     if (!spots.length) return;
+    // (A market town now and then sinks another well instead of building.)
+    if (stageN === 2 && wells.length < 2 && Math.random() < 0.35) { const wx = pick(spots) + w / 2; if (!wells.some((q) => Math.abs(q.x - wx) < 60)) { sinkWell(wx); caption('They’ve sunk a new well', 2.4, { x: wx, y: -10 }); return; } }
     const x = pick(spots);
     // (They clear the wreck off and make the ground up level before building.)
     wreck = wreck.filter((q) => !(q.x > x - 20 && q.x < x + w + 20)); pileTop.fill(1e9); for (const q of wreck) if (q.rest) toPile(q);
@@ -1327,10 +1359,13 @@
   // (The hamlet down, the town comes back: the ground's levelled, filling whatever's open near the top that the
   // ants aren't keeping open; and it's built again in stone.)
   function rebuild() {
-    townN++; stageN = townN >= 4 ? 4 : townN >= 3 ? 3 : townN >= 2 ? 2 : 1; fallen = null; removeWells(); removeDrain(); removeGasMain(); removeTunnel(); for (const t of towers) if (t.piles) pullPiles(t); sewerSaid = false; gasCutSaid = false; runOverSaid = false; pest = null; pestCool = 25; alarm = 0; paveCol.fill(0); paveWas.fill(0); downed = 0; winterSaid = false; seasonEnd = clock + seasonLen(); growAt = clock + 55; wreck = []; bits = []; folk = []; junk = []; truckAt = clock + 20; pileTop.fill(1e9); tut = null;
+    townN++; try { localStorage.setItem('undertown-settle-reached', String(Math.max(reachedTown(), Math.min(4, townN)))); } catch {}
+    stageN = townN >= 4 ? 4 : townN >= 3 ? 3 : townN >= 2 ? 2 : 1; fallen = null; removeWells(); removeDrain(); removeGasMain(); removeTunnel(); for (const t of towers) if (t.piles) pullPiles(t); sewerSaid = false; gasCutSaid = false; runOverSaid = false; pest = null; pestCool = 25; alarm = 0; paveCol.fill(0); paveWas.fill(0); downed = 0; winterSaid = false; seasonEnd = clock + seasonLen(); growAt = clock + 55; wreck = []; bits = []; folk = []; junk = []; truckAt = clock + 20; pileTop.fill(1e9); tut = null;
     for (let i = 0; i < GW * 15; i++) if ((soil[i] === 0 || soil[i] === 4) && !(trod && trod[i] > 0.3)) { soil[i] = 1; plan[i] = 0; for (const a of [...ants]) if (!a.surf && gi(a.x, a.y) === i) kill(a); }
     markDug(UW / 2, 22, UW / 2 + 10); dirty = true;
-    if (stageN === 4) initCityS(); else if (stageN === 3) initMill(); else if (stageN === 2) initMarket(); else initVillage(); towers.forEach((t, k) => (t.rise = -k * 0.3));
+    if (stageN === 4) initCityS(); else if (stageN === 3) initMill(); else if (stageN === 2) initMarket(); else initVillage();
+    // (What's new is underground: stand back so it's in view.)
+    if (stageN >= 2) { Z = 1; camX = 0; camY = 40; camTo = null; clampCam(); } towers.forEach((t, k) => (t.rise = -k * 0.3));
     goal.of = towers.length; goal.n = Math.min(Math.max(2, towers.length - 1), 2 + townN); peak = towers.length; plateAt = clock;
     caption(townN === 1 ? `${NAMES[townN % NAMES.length]} is going up, in stone` : townN === 2 ? `${NAMES[townN % NAMES.length]}: a market town, paved` : townN === 3 ? `${NAMES[townN % NAMES.length]}: a mill town` : townN === 4 ? `${NAMES[townN % NAMES.length]}: a city` : `${NAMES[townN % NAMES.length]}: more houses, less time`, 3.4);
   }
@@ -1896,7 +1931,7 @@
   const pourAt = (x0) => fillAt(x0, 3);
   // (Water pumped down the hole, to the bottom of it, where it runs off along whatever's open.)
   function floodAt(x0, dt) {
-    for (let x = x0 - 3; x <= x0 + 3; x += CS) { let last = -1; for (let r = 0; r < 40; r++) { const i = gi(x, r * CS + 1); if (i < 0 || soil[i] !== 0) break; last = i; } if (last >= 0) water[last] = Math.min(1.6, water[last] + dt * 5); }
+    for (let x = x0 - 3; x <= x0 + 3; x += CS) { let last = -1; for (let r = 0; r < 40; r++) { const i = gi(x, r * CS + 1); if (i < 0 || soil[i] !== 0) break; last = i; } if (last >= 0) water[last] = Math.min(1.6, water[last] + dt * 12); }
     dirty = true;
   }
   // (The machines, side on, cab at the front: a tipper lorry, its body raised on the back hinge to tip; a mixer, its
@@ -1906,12 +1941,17 @@
     g.save(); g.translate(x, y); g.scale(f.face, 1);
     if (sink) { g.translate(L / 2 - 4, 0); g.rotate(-sink * 0.75); g.translate(-(L / 2 - 4), sink * 5); }
     g.strokeStyle = OVER; g.lineWidth = 0.9; g.lineJoin = 'round';
+    // (its shadow on the street)
+    g.fillStyle = 'rgba(28,94,43,0.14)'; g.beginPath(); g.ellipse(0, 0.2, L / 2 + 2, 1.3, 0, 0, TAU); g.fill();
     // chassis and wheels
     g.fillStyle = PAPER; g.beginPath(); g.rect(-L / 2, -5, L, 2.2); g.fill(); g.stroke();
-    for (const wx of [L / 2 - 4, -L / 2 + 5, -L / 2 + 10]) { g.beginPath(); g.arc(wx, -2.5, 2.5, 0, TAU); g.fill(); g.stroke(); g.beginPath(); g.arc(wx, -2.5, 0.8, 0, TAU); g.stroke(); }
+    for (const wx of [L / 2 - 4, -L / 2 + 5, -L / 2 + 10]) { g.fillStyle = OVER; g.beginPath(); g.arc(wx, -2.5, 2.6, 0, TAU); g.fill(); g.fillStyle = PAPER; g.beginPath(); g.arc(wx, -2.5, 1.5, 0, TAU); g.fill(); g.stroke(); const a0 = (x * f.face) / 2.5; g.lineWidth = 0.4; g.beginPath(); for (let q = 0; q < 3; q++) { const a = a0 + (q * TAU) / 3; g.moveTo(wx, -2.5); g.lineTo(wx + Math.cos(a) * 1.5, -2.5 + Math.sin(a) * 1.5); } g.stroke(); g.lineWidth = 0.9; }
+    g.lineWidth = 0.35; g.beginPath(); for (let q = -L / 2 + 2; q < L / 2; q += 2.5) { g.moveTo(q, -2.8); g.lineTo(q + 1.5, -5); } g.stroke(); g.lineWidth = 0.9;
     // cab
     g.fillStyle = PINK; g.beginPath(); g.moveTo(L / 2 - 9, -5); g.lineTo(L / 2 - 9, -15); g.lineTo(L / 2 - 3, -15); g.lineTo(L / 2, -10); g.lineTo(L / 2, -5); g.closePath(); g.fill(); g.stroke();
     g.fillStyle = PAPER; g.beginPath(); g.moveTo(L / 2 - 7.5, -13.5); g.lineTo(L / 2 - 3.6, -13.5); g.lineTo(L / 2 - 1.6, -10.4); g.lineTo(L / 2 - 7.5, -10.4); g.closePath(); g.fill(); g.stroke();
+    // (the cab's shaded lower half, its door and lamp)
+    g.lineWidth = 0.35; g.beginPath(); for (let q = L / 2 - 9; q < L / 2; q += 1.4) { g.moveTo(q, -5); g.lineTo(Math.min(L / 2, q + 2.5), -8.5); } g.stroke(); g.lineWidth = 0.6; g.beginPath(); g.moveTo(L / 2 - 8, -9.6); g.lineTo(L / 2 - 4, -9.6); g.stroke(); g.fillStyle = PAPER; g.beginPath(); g.arc(L / 2 - 0.4, -7, 0.8, 0, TAU); g.fill(); g.stroke(); g.lineWidth = 0.9;
     if (f.kind === 'pump') {
       g.fillStyle = PAPER; g.beginPath(); g.roundRect ? g.roundRect(-L / 2 + 1, -13, L - 11, 8, 4) : g.rect(-L / 2 + 1, -13, L - 11, 8); g.fill(); g.stroke();
       g.lineWidth = 0.4; for (let x = -L / 2 + 5; x < L / 2 - 11; x += 4) { g.beginPath(); g.moveTo(x, -13); g.lineTo(x, -5); g.stroke(); } g.lineWidth = 0.9;
@@ -1958,11 +1998,17 @@
     }
     bits = bits.filter((b) => b.rest < 1.6);
   }
+  // (Bits off a house: shards of tile and stone, pink, outlined; spilled soil, a few grains together.)
   function drawBits() {
-    g.fillStyle = OVER;
-    for (const b of bits) { g.globalAlpha = 0.85 * clamp(1 - (b.rest - 0.8) / 0.8, 0, 1); if (b.roof) { g.save(); g.translate(b.x, b.y - 0.5); g.rotate(b.a); g.fillRect(-1.6, -0.7, 3.2, 1.4); g.restore(); } else g.fillRect(b.x - 0.7, b.y - 1.4, 1.4, 1.4); }
+    g.lineWidth = 0.4; g.strokeStyle = OVER;
+    for (const b of bits) {
+      g.globalAlpha = 0.9 * clamp(1 - (b.rest - 0.8) / 0.8, 0, 1);
+      if (b.roof) { g.save(); g.translate(b.x, b.y - 0.6); g.rotate(b.a); g.fillStyle = PINK; g.beginPath(); g.moveTo(-1.8, -0.5); g.lineTo(0.6, -0.9); g.lineTo(1.9, 0.3); g.lineTo(-0.9, 0.8); g.closePath(); g.fill(); g.stroke(); g.restore(); }
+      else { g.fillStyle = OVER; for (const [dx, dy, r] of [[0, 0, 0.55], [0.9, 0.4, 0.4], [-0.7, 0.5, 0.35]]) { g.beginPath(); g.arc(b.x + dx, b.y - 0.8 + dy, r, 0, TAU); g.fill(); } }
+    }
     g.globalAlpha = 1;
   }
+
   // (Ants shut off from the nest by a tunnel closing behind them dig back to the nearest open way that's still
   // joined to it.)
   let cutSaid = false;
@@ -2365,7 +2411,7 @@
       let w = water[i]; if (w <= 0.001) continue;
       const b = i + GW;
       if (soil[b] === 0 && water[b] < 1) { const m = Math.min(w, 1 - water[b]); water[b] += m; w -= m; moved = true; }
-      if (w > 0.02) for (const n of [i - 1, i + 1]) { const nx = n % GW; if (Math.abs(nx - x) === 1 && soil[n] === 0 && water[n] < w - 0.01) { const m = (w - water[n]) * 0.3; water[n] += m; w -= m; moved = true; } }
+      if (w > 0.02) for (const n of [i - 1, i + 1]) { const nx = n % GW; if (Math.abs(nx - x) === 1 && soil[n] === 0 && water[n] < w - 0.01) { const m = (w - water[n]) * (SETTLE ? 0.7 : 0.3); water[n] += m; w -= m; moved = true; } }
       if (!still[i]) w = Math.max(0, w - (SETTLE ? 0.0005 : 0.0025)); // (in the settling test a flood runs on: it's the threat)
       water[i] = w;
     }
@@ -2880,9 +2926,19 @@
   const HOWTO = SETTLE ? ['Your ants live under a small village. Bring its houses down before winter.', 'Drag to draw a tunnel. Your ants dig it, and the ground above sinks in. Dig under a house and it will lean and fall. Tap a pencil line to rub it out.', 'You only have so much tunnel. Old tunnels fill in and give it back. Deep clay never fills in.', 'Each time a town falls, a bigger one is built, and you get less time.'] : ['Your ants live under a small town. Knock down its buildings by digging away the ground under them.',
     'Drag to draw a tunnel and the ants dig it. Hold still to make a room. Tap anything (the queen, a room, a tunnel) to see what you can do.',
     'The city fights back: bait, then gas, then concrete. Keep the queen deep, out of reach. Each town you bring down is buried, and a new one is built on top.'];
+  const KINDS = ['hamlet', 'village', 'market town', 'mill town', 'city'];
+  const reachedTown = () => { try { return +localStorage.getItem('undertown-settle-reached') || 0; } catch { return 0; } };
+  // (Towns you've reached before, to start a run at.)
+  function laterCard() {
+    const n = Math.min(4, reachedTown());
+    card = { title: 'Start at', lines: ['Towns you’ve reached before. The score starts again from nothing.'], stack: true, buttons: [
+      ...Array.from({ length: n }, (_, k) => ({ label: `Town ${TOWN(k + 1)}: the ${KINDS[k + 1]}`, fn: () => { card = { title: 'Starting…', lines: [''], buttons: [] }; clearSave().then(() => { try { location.hash = 'town' + (k + 1); } catch {} location.reload(); }); } })),
+      { label: 'Back', fn: titleCard }] };
+  }
   function titleCard() {
     card = { big: true, title: 'Undertown', lines: [SETTLE ? 'Bring the town down before winter.' : 'An ant colony under a small town.'], stack: true, buttons: [
       ...(hasSave ? [{ label: 'Continue', fn: continueGame }] : []),
+      ...(SETTLE && reachedTown() > 0 ? [{ label: 'Start at a later town', fn: laterCard }] : []),
       { label: 'New game', fn: () => (hasSave ? confirmNew(titleCard) : newGame()) },
       { label: 'How to play', fn: () => howTo(titleCard) }] };
   }
@@ -3271,7 +3327,7 @@
     for (const d of debris) { d.vy += dt * 170; d.x += d.vx * dt; d.y += d.vy * dt; d.a += d.va * dt; if (d.y >= 2 && !d.landed) { d.landed = true; dust.push({ x: d.x, y: 0, r: rnd(3, 6), vx: rnd(-8, 8), vy: -0.6, t: 0, life: rnd(1.4, 2.4), s: Math.random() * 9 }); } }
     debris = debris.filter((d) => d.y < 4);
     stepTowers(dt); stepPest(dt); stepBuild(dt); if (SETTLE) { stepBits(dt); stepWreck(dt); stepFolk(dt); stepTunnel(dt); for (const m of towers) if (m.d.kind === 'mill' && !m.fall && m.rise >= 1 && Math.random() < dt * 1.6) dust.push({ x: m.x + m.d.sx + rnd(-1, 1) + (m.tilt || 0) * 150, y: -m.d.stack - 3 + (m.sinkY || 0) * 2, r: rnd(3, 5), vx: rnd(3, 7), vy: rnd(-4, -2.5), t: 0, life: rnd(5, 7), s: Math.random() * 9 }); }
-    if (now - slowAt > 700) { slowAt = now; settle(); if (SETTLE) { freeCutOff(); sendFolk(); stepSeason(); countTunnel(); if (stageN >= 2) { checkPaving(); checkCellars(); drownCheck(); checkDrain(); stepGasMain(); } } scout(clock); checkCity(); raiseSecond(); stepMines(); seeLayers(); findFace(); updateStatus(); stepTutorial(); stepRoofs(0.7); looseStones(); if (trod) for (let i = 0; i < GW * GH; i++) if (trod[i] > 0) trod[i] = trod[i] < 0.01 ? 0 : trod[i] * (SETTLE ? 0.94 : 0.985); }
+    if (now - slowAt > 700) { slowAt = now; settle(); if (SETTLE) { freeCutOff(); sendFolk(); stepSeason(); countTunnel(); if (stageN >= 2) { checkPaving(); checkCellars(); checkDrain(); stepGasMain(); } drownCheck(); } scout(clock); checkCity(); raiseSecond(); stepMines(); seeLayers(); findFace(); updateStatus(); stepTutorial(); stepRoofs(0.7); looseStones(); if (trod) for (let i = 0; i < GW * GH; i++) if (trod[i] > 0) trod[i] = trod[i] < 0.01 ? 0 : trod[i] * (SETTLE ? 0.94 : 0.985); }
     if (now - subAt > 450) { subAt = now; subside(); }
     if (cityDirty) { cityDirty = false; drawCity(); }
     dead = dead.filter((d) => clock - d.at < 14);
@@ -3480,7 +3536,7 @@
   makePaper();
   makeSprites();
   cityC = document.createElement('canvas'); cityC.width = Math.ceil(UW * RU); cityC.oy = -(SKY + 90); cityC.height = Math.ceil((SKY + 100) * RU); cityX = cityC.getContext('2d');
-  let resume = false, fresh = false; try { resume = location.hash === '#continue'; fresh = location.hash === '#new'; if (resume || fresh) history.replaceState(null, '', location.pathname + location.search); } catch {}
+  let resume = false, fresh = false, startTown = 0; try { resume = location.hash === '#continue'; fresh = location.hash === '#new'; { const m = /^#town(\d)$/.exec(location.hash); if (SETTLE && m) { fresh = true; startTown = Math.min(4, +m[1]); } } if (resume || fresh) history.replaceState(null, '', location.pathname + location.search); } catch {}
   const sv = await loadSave(); hasSave = !!(sv && sv.v === SAVE_V);
   if (resume && hasSave) {
     try { restore(sv); freshWorld = false; drawBase(); drawCity(); fields(); caption(`Welcome back to ${NAMES[era % NAMES.length]}`, 2.4); requestAnimationFrame(frame); return; }
@@ -3491,6 +3547,7 @@
   if (SETTLE) { EX = 300; found(EX, 270, 30); trod = new Float32Array(cap); for (let i = 0; i < GW * GH; i++) if (soil[i] === 0) trod[i] = 1; } else
   found(EX, 330, 30);
   initCity(); drawBase(); drawCity(); if (fresh) newGame(); else titleCard();
+  if (startTown) { card = null; tut = null; for (let k = 0; k < startTown; k++) rebuild(); }
   for (const ch of chunks) if (ch && ch.dirty) { const d = ch.dirty; ch.dirty = null; repaint(ch, d[0], d[1], d[2], d[3]); }
   fields();
   requestAnimationFrame(frame);

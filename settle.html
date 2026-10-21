@@ -813,8 +813,8 @@
   // (In the settling test the colony can keep only so much tunnel open: while a drawn line is being laid out,
   // budgetLeft counts down the cells it may still take.)
   let budgetLeft = null, ranOut = false;
-  const PER_ANT = 3, CELLS_M = (3 * M) / CS; // (metres of tunnel each ant can keep; cells to a metre of tunnel)
-  const budgetCells = () => ants.length * PER_ANT * CELLS_M;
+  const BASE_M = 62, PER_ANT = 1, CELLS_M = (3 * M) / CS; // (metres of tunnel the colony keeps, and a metre more an ant; cells to a metre)
+  const budgetCells = () => (BASE_M + ants.length * PER_ANT) * CELLS_M;
   let tunnelUsed = 0;
   function countTunnel() {
     let n = 0;
@@ -957,7 +957,7 @@
   function runOver(why, sub = '') {
     if (card || fallen) return;
     const best = Math.max(bestScore(), score); try { localStorage.setItem('undertown-settle-best', String(best)); } catch {}
-    card = { title: why, lines: [`${sub}Score: ${score} brought down, across ${townN + 1} ${townN ? 'towns' : 'town'}.${score >= best && score ? ' Your best yet.' : ` Your best: ${best}.`}`], buttons: [{ label: 'Save picture', fn: savePrint }, { label: 'Play again', fn: () => { card = { title: 'Starting…', lines: [''], buttons: [] }; clearSave().then(() => newGame(true)); } }] };
+    card = { title: why, lines: [`${sub}You brought down ${score} in ${townN + 1} ${townN ? 'towns' : 'town'}.${score >= best && score ? ' A new best!' : ` Best: ${best}.`}`], buttons: [{ label: 'Save picture', fn: savePrint }, { label: 'Play again', fn: () => { card = { title: 'Starting…', lines: [''], buttons: [] }; clearSave().then(() => newGame(true)); } }] };
   }
   // (The season: winter's coming, and the town keeps building, on any free ground and over any wreck that's
   // settled.)
@@ -965,8 +965,8 @@
     if (fallen || card) return;
     if (tut && tut.step === 1) { seasonEnd = Math.max(seasonEnd, clock + seasonLen()); growAt = clock + 55; return; }
     const left = seasonEnd - clock;
-    if (left < 30 && !winterSaid) { winterSaid = true; caption('Thirty seconds till winter', 2.6); }
-    if (left <= 0) { runOver('Winter came', `${NAMES[townN % NAMES.length]} still stands. `); return; }
+    if (left < 30 && !winterSaid) { winterSaid = true; caption('30 seconds till winter', 2.6); }
+    if (left <= 0) { runOver('Winter came', `${NAMES[townN % NAMES.length]} is still standing. `); return; }
     if (clock > growAt) { growAt = clock + 55; growTown(); }
   }
   function growTown() {
@@ -985,7 +985,7 @@
     for (let r = 0; r < 15; r++) for (let xx = x - 6; xx <= x + w + 6; xx += CS) { const i = gi(xx, r * CS + 1); if (i >= 0 && (soil[i] === 0 || soil[i] === 4) && !(trod && trod[i] > 0.3)) { soil[i] = 1; plan[i] = 0; for (const a of [...ants]) if (!a.surf && gi(a.x, a.y) === i) kill(a); } }
     markDug(x + w / 2, 22, w / 2 + 12); dirty = true;
     const t = tower(x, stageN ? cottageDesign(w) : hutDesign(w, false)); t.rise = 0; towers.push(t);
-    caption('They’re building another house', 2.4, { x: x + w / 2, y: -20 });
+    caption('A new house is going up', 2.4, { x: x + w / 2, y: -20 });
   }
   function initVillage() {
     towers = []; let x = rnd(10, 24);
@@ -1006,7 +1006,7 @@
     markDug(UW / 2, 22, UW / 2 + 10); dirty = true;
     initVillage(); towers.forEach((t, k) => (t.rise = -k * 0.3));
     goal.of = towers.length; goal.n = Math.min(Math.max(2, towers.length - 1), 2 + townN); peak = towers.length; plateAt = clock;
-    caption(townN === 1 ? 'They’re building again, in stone' : `${NAMES[townN % NAMES.length]}: bigger, and less time`, 3.4);
+    caption(townN === 1 ? `${NAMES[townN % NAMES.length]} is going up, in stone` : `${NAMES[townN % NAMES.length]}: more houses, less time`, 3.4);
   }
   function initHamlet() {
     towers = []; let x = 14;
@@ -1492,7 +1492,7 @@
       }
       if (tx === null) continue;
       folk.push({ home: h, x: door, tx, st: 'go', t: 0, dir: tx > door ? 1 : -1 });
-      if (!folkSaid) { folkSaid = true; caption('Villagers are coming out to fill in the sinking ground', 3.4, { x: tx, y: 0 }); }
+      if (!folkSaid) { folkSaid = true; caption('Villagers are filling in your holes', 3, { x: tx, y: 0 }); }
     }
   }
   function stepFolk(dt) {
@@ -1571,7 +1571,7 @@
     const bx = cxOf(best), by = cyOf(best), n = Math.ceil(Math.hypot(bx - a.x, by - a.y) / 1.5);
     for (let k = 0; k <= n; k++) { const x = a.x + ((bx - a.x) * k) / n, y = a.y + ((by - a.y) * k) / n; for (const oy of [0, CS]) { const j = gi(x, y + oy); if (j >= 0 && soil[j] === 1) plan[j] = 1; } }
     dirty = true;
-    if (!cutSaid) { cutSaid = true; caption('Some ants were cut off. They’re digging back to the nest', 3.4, { x: a.x, y: a.y }); }
+    if (!cutSaid) { cutSaid = true; caption('Some ants got trapped. They’re digging their way home', 3.2, { x: a.x, y: a.y }); }
   }
   function subside() {
     if (SETTLE) return settleGround();
@@ -2164,7 +2164,7 @@
         }
         plans.push({ kind: 'path', pts }); groupFrom(k0);
       }
-      if (SETTLE) { budgetLeft = null; countTunnel(); updateStatus(); if (ranOut) caption(`Out of tunnel: ${ants.length} ants can keep about ${Math.round(budgetCells() / CELLS_M)} m open`, 3.2); }
+      if (SETTLE) { budgetLeft = null; countTunnel(); updateStatus(); if (ranOut) caption('Out of tunnel. Old tunnels fill in and give it back', 3); }
     }
     hand = null;
     document.getElementById('howto').style.opacity = '0.55';
@@ -2250,7 +2250,7 @@
   }
   // Cards, printed and laid over the plate: what this plate asks, and how it ended.
   let card = null, hideCards = false;
-  const NOTES = SETTLE ? ['Whatever your ants dig out, the ground above slowly sinks into. Dig under a hut and it will sink, lean and fall. Tunnels the ants keep using stay open. Down in the clay, nothing settles.'] : [
+  const NOTES = SETTLE ? ['Dig under the huts. The ground sinks into your tunnels, and the huts fall. Bring them down before winter.'] : [
     'Dig tunnels under a building. Once enough of the ground under it is gone, it falls. Watch out for poison bait.',
     'New: the city now uses poison gas. Gas can’t reach below 80 m. To keep your queen safe, tap her, choose Move the queen, then tap a deep room.',
     'New: the city now fills tunnels with concrete. Tap a tunnel and choose Post guards. Gas and concrete can’t get past them.',
@@ -2263,7 +2263,7 @@
   function fallenCard() {
     if (SETTLE) {
       const left = Math.max(0, Math.round(seasonEnd - clock)), next = NAMES[(townN + 1) % NAMES.length];
-      card = { title: `${NAMES[townN % NAMES.length]} has fallen`, lines: [`Down with ${mins(left)} to spare. Score: ${score}.`, stageN === 0 ? `Its people come back and build again, in stone: ${next}. A stone cottage stands on a footing that spans a narrow tunnel, so dig wide under it. And now villagers come out to fill sinking ground, burying any ants in it.` : `Next: ${next}. More to bring down, and less time.`], buttons: [{ label: 'Go on', fn: () => { card = null; rebuild(); } }] };
+      card = { title: `${NAMES[townN % NAMES.length]} is gone`, lines: [`${score} down so far, with ${mins(left)} to spare.`, stageN === 0 ? `Next: ${next}, a stone village. Stone houses need a wide hole under them. And villagers will fill in your holes, burying any ants they catch.` : `Next: ${next}. More houses, less time.`], buttons: [{ label: 'Next town', fn: () => { card = null; rebuild(); } }] };
       return;
     }
     card = { title: `You brought down ${NAMES[era % NAMES.length]}`, lines: [`Time: ${mins(clock - plateAt)}. Buildings down: ${downed}. Deepest tunnel: ${deepest()} m. Ants left: ${ants.length}. Ants lost: ${stats.lost}.`],
@@ -2343,7 +2343,7 @@
   }
   function drawTutorial(t) {
     if (!tut || card) return;
-    const tw = tut.tower, say = tut.step === 1 ? (SETTLE ? 'Step 1 of 3: Drag from the ants’ way in, down and under the marked hut.' : 'Step 1 of 3: Drag from the ants’ way in, down and under the marked building.') : tut.step === 2 ? (SETTLE ? 'Step 2 of 3: When the ants finish a tunnel, the ground above sinks into it. Keep at it: the cracks show how close the hut is to going.' : 'Step 2 of 3: The ants are digging. Keep going until it says 100% dug out.') : `Step 3 of 3: It fell! Knock down ${Math.max(0, goal.n - downed)} more to finish the town.`;
+    const tw = tut.tower, say = tut.step === 1 ? (SETTLE ? 'Step 1 of 3: Drag from the ants’ way in, down and under the marked hut.' : 'Step 1 of 3: Drag from the ants’ way in, down and under the marked building.') : tut.step === 2 ? (SETTLE ? 'Step 2 of 3: The ground sinks into the tunnel. Keep digging under the hut until it falls.' : 'Step 2 of 3: The ants are digging. Keep going until it says 100% dug out.') : (SETTLE ? `Step 3 of 3: It fell! Bring down ${Math.max(0, goal.n - downed)} more before winter.` : `Step 3 of 3: It fell! Knock down ${Math.max(0, goal.n - downed)} more to finish the town.`);
     // (In the plate: an arrow over the building, and the way in marked.)
     g.setTransform(RU * Z, 0, 0, RU * Z, (IN.x - camX * SZ()) * DPR, (G - camY * SZ()) * DPR);
     const label = (txt, x, y) => { g.font = `600 ${(20 / Math.sqrt(Z)).toFixed(1)}px ${C('--body') || 'Georgia'}`; g.textAlign = 'center'; g.textBaseline = 'middle'; const w = g.measureText(txt).width + 12, h = 20 / Math.sqrt(Z) + 8; g.fillStyle = PAPER; g.fillRect(x - w / 2, y - h / 2, w, h); g.strokeStyle = OVER; g.lineWidth = 0.8; g.strokeRect(x - w / 2, y - h / 2, w, h); g.fillStyle = OVER; g.fillText(txt, x, y + 0.5); };
@@ -2429,7 +2429,7 @@
     drawSky(); cityDirty = true; dirty = true; hasSave = true;
   }
   // (The title, the pause, how to play: cards like the plate's own.)
-  const HOWTO = SETTLE ? ['Your ants live under a hamlet. Bring its huts down before winter.', 'Drag to draw a tunnel; the ants dig it. Whatever they dig out, the ground above sinks into: dig under a hut and it sinks, leans and falls. Tap a pencil line to rub it out.', 'The colony can keep only so much tunnel open, about 3 m an ant. Tunnels the ants stop using close up and give it back. Clay, deeper down, never settles.', 'Each town that falls is built again, bigger, with less time.'] : ['Your ants live under a small town. Knock down its buildings by digging away the ground under them.',
+  const HOWTO = SETTLE ? ['Your ants live under a small village. Bring its houses down before winter.', 'Drag to draw a tunnel. Your ants dig it, and the ground above sinks in. Dig under a house and it will lean and fall. Tap a pencil line to rub it out.', 'You only have so much tunnel. Old tunnels fill in and give it back. Deep clay never fills in.', 'Each time a town falls, a bigger one is built, and you get less time.'] : ['Your ants live under a small town. Knock down its buildings by digging away the ground under them.',
     'Drag to draw a tunnel and the ants dig it. Hold still to make a room. Tap anything (the queen, a room, a tunnel) to see what you can do.',
     'The city fights back: bait, then gas, then concrete. Keep the queen deep, out of reach. Each town you bring down is buried, and a new one is built on top.'];
   function titleCard() {
@@ -2782,7 +2782,7 @@
     if (poison > 0 && ants.length) { const k = Math.min(poison, dt * 1.2); poison -= k; if (Math.random() < k) kill(pick(ants)); }
     if (PRIN.alive) { const pi = gi(PRIN.x, PRIN.y); if (pi >= 0 && smoke[pi] > 0.3) { PRIN.hurt += dt; if (PRIN.hurt > 2.5) { PRIN.alive = false; caption('Your backup queen died', 2.4); } } else PRIN.hurt = Math.max(0, PRIN.hurt - dt * 0.3); }
     if (QUEEN.alive) { const qi = gi(QUEEN.x, QUEEN.y); if (qi >= 0 && smoke[qi] > 0.3) { QUEEN.hurt += dt; if (QUEEN.hurt > 2.5) loseQueen(); } else QUEEN.hurt = Math.max(0, QUEEN.hurt - dt * 0.3); }
-    if (stock >= 2 && ants.length + brood.length < 420 && QUEEN.alive && !QUEEN.go) { stock -= 2; layEggs(2); }
+    if (stock >= 2 && ants.length + brood.length < (SETTLE ? 80 : 420) && QUEEN.alive && !QUEEN.go) { stock -= 2; layEggs(2); }
     stepBrood(dt);
     if (Math.random() < dt / 20 && carts.length < 3) carts.push({ x: rnd(20, UW - 20), t: 0, life: rnd(40, 80) });
     for (const c of carts) { c.t += dt; c.life -= dt; if (c.t > 1.6 && crumbs.length < 26) { c.t = 0; crumbs.push({ x: clamp(c.x + rnd(-20, 20), 4, UW - 4), claimed: null, bait: false, at: clock }); } }

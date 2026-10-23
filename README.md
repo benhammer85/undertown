@@ -35,7 +35,8 @@ cleverer: a hamlet of huts, a stone village, a paved market town, a mill town, t
   dug, starting in the city, saving. The rest check `classic.html`: `smoke.cjs` (loads, frame rate, no errors),
   `reach.cjs` (every location reachable), `ground.cjs` (stones drop, wide rooms cave in), `plates.cjs` (goal,
   survey, weapons by plate, endings), `save.cjs` (save, reload, Continue), `colony.cjs` (the colony grows; taps
-  work). Run with `npm test`.
+  work). Run with `npm test`. `playthrough.cjs` is a bot that plays whole runs at speed and reports each town
+  (time, winter or not, tunnel run-outs, ants lost), for tuning: `node tests/playthrough.cjs 3`.
 - `HISTORY.md` — what changed, when.
 
 ## Publishing

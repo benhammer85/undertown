@@ -129,3 +129,24 @@ pencil line, and no numbers while you play. It is now `index.html`. The first ga
   which tunnels the ants were using (without that, every tunnel would settle shut on a reload). New test,
   `tests/run.cjs`.
 
+## 2026-10-23 — notes for what's new, and a bot to tune by
+- **Notes in the picture:** the first time a town brings something new (stone footings, a cellar, paving, the well,
+  the mill, terraces in a row, the sewer, piles, the gas main, the train tunnel) a pencilled note with an arrow
+  points it out, one after another, each only ever once.
+- **A bot plays whole runs** (`tests/playthrough.cjs`), the game driven at speed on its own clock, and reports each
+  town. What it found, and what changed:
+  - The colony's own scouting tunnels, dug down from the nest whenever it was idle, spent the whole tunnel
+    allowance. The colony now digs only where it's told.
+  - Pencilled tunnel left under a fallen house could never be dug and kept the ants trying: it's rubbed out when
+    the house goes. A new town starts with nothing pencilled in and the old tunnels near the top made up.
+  - A way found from the nest to the start of a drawn tunnel could run through the sewer (drowning the colony) or
+    a tower's piles (felling it): found ways now keep clear of the town's works and piles.
+  - Tuned: a tighter tunnel allowance that grows a little each town; one market house in two has a cellar, and a
+    breached cellar gives way more slowly; city piles go well into the clay; the city's alarm cools slowly; each
+    town's goal is about three in five of its houses; stone footings span less; a terrace going over usually
+    takes the next in its row, and a neighbour struck by a falling house goes only if its own ground was already
+    giving; later towns lose less time each.
+  - With those, a run's towns took the bot: hamlet 2-3 min, village 2½-3, market town 2-3½, mill town 2½-3 (one
+    in three lost to winter), the first city about 2; the second city is where a run usually ends, the clay's
+    tunnels having used up the colony's allowance.
+
